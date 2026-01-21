@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="org.a11y.Bus">
+    <method name="GetAddress">
+      <arg direction="out" type="s"/>
+    </method>
+  </interface>
+</node>

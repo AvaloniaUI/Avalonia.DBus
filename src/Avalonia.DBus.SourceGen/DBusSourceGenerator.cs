@@ -1,0 +1,118 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+
+namespace Avalonia.DBus.SourceGen;
+
+[Generator]
+public partial class DBusSourceGenerator : IIncrementalGenerator
+{
+    private readonly object _readMethodExtensionsLock = new();
+    private readonly object _writeMethodExtensionsLock = new();
+
+    private Dictionary<string, MethodDeclarationSyntax> _readMethodExtensions = null!;
+    private Dictionary<string, MethodDeclarationSyntax> _writeMethodExtensions = null!;
+
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+    {
+        _readMethodExtensions = new Dictionary<string, MethodDeclarationSyntax>();
+        _writeMethodExtensions = new Dictionary<string, MethodDeclarationSyntax>();
+
+        XmlSerializer xmlSerializer = new(typeof(DBusNode));
+        XmlReaderSettings xmlReaderSettings = new()
+        {
+            DtdProcessing = DtdProcessing.Ignore,
+            IgnoreWhitespace = true,
+            IgnoreComments = true
+        };
+
+        context.RegisterPostInitializationOutput(initializationContext =>
+        {
+            initializationContext.AddSource("Avalonia.DBus.SourceGen.PropertyChanges.cs", PropertyChangesClass);
+            initializationContext.AddSource("Avalonia.DBus.SourceGen.SignalHelper.cs", SignalHelperClass);
+            initializationContext.AddSource("Avalonia.DBus.SourceGen.PathHandler.cs", PathHandlerClass);
+            initializationContext.AddSource("Avalonia.DBus.SourceGen.IDBusInterfaceHandler.cs", DBusInterfaceHandlerInterface);
+        });
+
+        IncrementalValuesProvider<(DBusNode, string)> generatorProvider = context.AdditionalTextsProvider
+            .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
+            .Combine(context.AnalyzerConfigOptionsProvider)
+            .Select((x, _) =>
+            {
+                if (!x.Right.GetOptions(x.Left).TryGetValue("build_metadata.AdditionalFiles.DBusGeneratorMode", out string? generatorMode))
+                    return default;
+                if (xmlSerializer.Deserialize(XmlReader.Create(new StringReader(x.Left.GetText()!.ToString()), xmlReaderSettings)) is not DBusNode dBusNode)
+                    return default;
+                return dBusNode.Interfaces is null ? default : ValueTuple.Create(dBusNode, generatorMode);
+            })
+            .Where(static x => x is { Item1: not null, Item2: not null });
+
+        context.RegisterSourceOutput(generatorProvider.Collect(), (productionContext, provider) =>
+        {
+            if (provider.IsEmpty)
+                return;
+
+            foreach ((DBusNode Node, string GeneratorMode) value in provider)
+            {
+                switch (value.GeneratorMode)
+                {
+                    case "Proxy":
+                        foreach (DBusInterface dBusInterface in value.Node.Interfaces!)
+                        {
+                            TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface);
+                            NamespaceDeclarationSyntax namespaceDeclaration = NamespaceDeclaration(
+                                    IdentifierName("Avalonia.DBus.SourceGen"))
+                                .AddMembers(typeDeclarationSyntax);
+                            CompilationUnitSyntax compilationUnit = MakeCompilationUnit(namespaceDeclaration);
+                            productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs", compilationUnit.GetText(Encoding.UTF8));
+                        }
+
+                        break;
+                    case "Handler":
+                        foreach (DBusInterface dBusInterface in value.Node.Interfaces!)
+                        {
+                            TypeDeclarationSyntax typeDeclarationSyntax = GenerateHandler(dBusInterface);
+                            NamespaceDeclarationSyntax namespaceDeclaration = NamespaceDeclaration(
+                                    IdentifierName("Avalonia.DBus.SourceGen"))
+                                .AddMembers(typeDeclarationSyntax);
+                            CompilationUnitSyntax compilationUnit = MakeCompilationUnit(namespaceDeclaration);
+                            productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs", compilationUnit.GetText(Encoding.UTF8));
+                        }
+
+                        break;
+                }
+            }
+
+            CompilationUnitSyntax readerExtensions = MakeCompilationUnit(
+                NamespaceDeclaration(
+                        IdentifierName("Avalonia.DBus.SourceGen"))
+                    .AddMembers(
+                        ClassDeclaration("ReaderExtensions")
+                            .AddModifiers(Token(SyntaxKind.InternalKeyword), Token(SyntaxKind.StaticKeyword))
+                            .WithMembers(
+                                List<MemberDeclarationSyntax>(_readMethodExtensions.Values))));
+
+            CompilationUnitSyntax writerExtensions = MakeCompilationUnit(
+                NamespaceDeclaration(
+                        IdentifierName("Avalonia.DBus.SourceGen"))
+                    .AddMembers(
+                        ClassDeclaration("WriterExtensions")
+                            .AddModifiers(Token(SyntaxKind.InternalKeyword), Token(SyntaxKind.StaticKeyword))
+                            .WithMembers(
+                                List<MemberDeclarationSyntax>(_writeMethodExtensions.Values)
+                                    .Add(MakeWriteNullableStringMethod())
+                                    .Add(MakeWriteObjectPathSafeMethod()))));
+
+            productionContext.AddSource("Avalonia.DBus.SourceGen.ReaderExtensions.cs", readerExtensions.GetText(Encoding.UTF8));
+            productionContext.AddSource("Avalonia.DBus.SourceGen.WriterExtensions.cs", writerExtensions.GetText(Encoding.UTF8));
+        });
+    }
+}
