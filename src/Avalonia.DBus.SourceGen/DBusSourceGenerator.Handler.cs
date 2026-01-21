@@ -586,9 +586,8 @@ public partial class DBusSourceGenerator
                                                                 MakeLiteralExpression("{sv}"))))))))
                         .AddBodyStatements(
                             dBusInterface.Properties.Where(static property => property.Access is "read" or "readwrite")
-                                .SelectMany(property =>
-                                    new StatementSyntax[]
-                                    {
+                                .Select(property =>
+                                    (StatementSyntax)Block(
                                         LocalDeclarationStatement(
                                             VariableDeclaration(
                                                     IdentifierName("DictEntryStart"))
@@ -635,8 +634,8 @@ public partial class DBusSourceGenerator
                                                     MakeMemberAccessExpression("writer", "WriteDictEntryEnd"))
                                                 .AddArgumentListArguments(
                                                     Argument(
-                                                        IdentifierName("entryStart"))))
-                                    }).ToArray())
+                                                        IdentifierName("entryStart"))))))
+                                .ToArray())
                         .AddBodyStatements(
                             ExpressionStatement(
                                 InvocationExpression(

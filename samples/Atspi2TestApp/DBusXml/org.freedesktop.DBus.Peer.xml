@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+    <interface name="org.freedesktop.DBus.Peer">
+        <method name="Ping"/>
+        <method name="GetMachineId">
+            <arg name="machine_uuid" type="s" direction="out"/>
+        </method>
+    </interface>
+</node>
