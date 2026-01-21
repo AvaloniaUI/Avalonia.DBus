@@ -21,8 +21,8 @@
         <Description>A roslyn source generator for creating proxies and abstract handlers targeting the Avalonia.DBus.AutoGen API</Description>
         <PackageTags>DBus;SourceGenerator</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageProjectUrl>https://github.com/affederaffe/Avalonia.DBus.SourceGen</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/affederaffe/Avalonia.DBus.SourceGen</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/AvaloniaUI/Avalonia.DBus</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/AvaloniaUI/Avalonia.DBus</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
