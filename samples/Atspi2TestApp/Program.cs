@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Avalonia.DBus.AutoGen;
 using Avalonia.DBus.SourceGen;
@@ -13,9 +15,11 @@ internal static partial class Program
     private static readonly bool s_verbose = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ATSPI_VERBOSE"));
     private static readonly Stopwatch s_uptime = Stopwatch.StartNew();
 
-    private const string BasePath = "/org/a11y/atspi/accessible";
-    private const string RootPath = BasePath + "/root";
+    private const string RootPath = "/org/a11y/atspi/accessible/root";
+    private const string CachePath = "/org/a11y/atspi/cache";
     private const string NullPath = "/org/a11y/atspi/null";
+    private const string AppPathPrefix = "/org/avalonia/Atspi2TestApp/a11y";
+    private const string RegistryPath = "/org/a11y/atspi/registry";
 
     private const string IfaceAccessible = "org.a11y.atspi.Accessible";
     private const string IfaceApplication = "org.a11y.atspi.Application";
@@ -34,6 +38,7 @@ internal static partial class Program
     private const uint ActionVersion = 1;
     private const uint ValueVersion = 1;
     private const uint EventObjectVersion = 1;
+    private const uint CacheVersion = 1;
 
     private const int RoleApplication = 75;
     private const int RoleFrame = 23;
@@ -89,8 +94,11 @@ internal static partial class Program
 
     private sealed class AtspiTree
     {
+        private readonly string _locale;
+
         public AtspiTree()
         {
+            _locale = ResolveLocale();
             Root = BuildTree();
             IndexTree(Root, null);
         }
@@ -138,51 +146,41 @@ internal static partial class Program
 
         private AccessibleNode BuildTree()
         {
-            var root = new AccessibleNode(RootPath, "AT-SPI2 Test App", RoleApplication)
-            {
-                Description = "AT-SPI2 test application root",
-                AccessibleId = "app-root",
-                HelpText = "Root object for the AT-SPI2 test application",
-                Extents = new Rect(0, 0, 0, 0)
-            };
+            var root = CreateNode("AT-SPI2 Test App", RoleApplication, isRoot: true);
+            root.Description = "AT-SPI2 test application root";
+            root.AccessibleId = "app-root";
+            root.HelpText = "Root object for the AT-SPI2 test application";
+            root.Extents = new Rect(0, 0, 0, 0);
             root.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceApplication });
             root.States.UnionWith(new[] { StateEnabled, StateSensitive, StateVisible, StateShowing });
 
-            var staticWindow = new AccessibleNode("/org/a11y/atspi/accessible/window", "Test Window", RoleFrame)
-            {
-                Description = "Main window",
-                AccessibleId = "main-window",
-                Extents = new Rect(100, 100, 480, 320)
-            };
+            var staticWindow = CreateNode("Test Window", RoleFrame);
+            staticWindow.Description = "Main window";
+            staticWindow.AccessibleId = "main-window";
+            staticWindow.Extents = new Rect(100, 100, 480, 320);
             StaticWindow = staticWindow;
             staticWindow.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
             staticWindow.States.UnionWith(new[] { StateActive, StateEnabled, StateSensitive, StateVisible, StateShowing });
 
-            var toggleWindow = new AccessibleNode("/org/a11y/atspi/accessible/recurring_window", "Recurring Window", RoleFrame)
-            {
-                Description = "Recurring window (cycle 0)",
-                AccessibleId = "recurring-window",
-                Extents = new Rect(640, 120, 360, 220)
-            };
+            var toggleWindow = CreateNode("Recurring Window", RoleFrame);
+            toggleWindow.Description = "Recurring window (cycle 0)";
+            toggleWindow.AccessibleId = "recurring-window";
+            toggleWindow.Extents = new Rect(640, 120, 360, 220);
             ToggleWindow = toggleWindow;
             toggleWindow.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
             toggleWindow.States.UnionWith(new[] { StateEnabled, StateSensitive, StateVisible, StateShowing });
 
-            var label = new AccessibleNode("/org/a11y/atspi/accessible/label", "Name:", RoleLabel)
-            {
-                Description = "Label for the name entry",
-                AccessibleId = "name-label",
-                Extents = new Rect(120, 140, 80, 24)
-            };
+            var label = CreateNode("Name:", RoleLabel);
+            label.Description = "Label for the name entry";
+            label.AccessibleId = "name-label";
+            label.Extents = new Rect(120, 140, 80, 24);
             label.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
             label.States.UnionWith(new[] { StateEnabled, StateSensitive, StateVisible, StateShowing });
 
-            var entry = new AccessibleNode("/org/a11y/atspi/accessible/entry", "Name Entry", RoleEntry)
-            {
-                Description = "Editable text entry",
-                AccessibleId = "name-entry",
-                Extents = new Rect(210, 136, 240, 32)
-            };
+            var entry = CreateNode("Name Entry", RoleEntry);
+            entry.Description = "Editable text entry";
+            entry.AccessibleId = "name-entry";
+            entry.Extents = new Rect(210, 136, 240, 32);
             entry.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
             entry.States.UnionWith(new[]
             {
@@ -195,12 +193,10 @@ internal static partial class Program
                 StateEditable
             });
 
-            var checkBox = new AccessibleNode("/org/a11y/atspi/accessible/checkbox", "Enable Feature", RoleCheckBox)
-            {
-                Description = "Toggles the feature",
-                AccessibleId = "feature-checkbox",
-                Extents = new Rect(120, 190, 200, 28)
-            };
+            var checkBox = CreateNode("Enable Feature", RoleCheckBox);
+            checkBox.Description = "Toggles the feature";
+            checkBox.AccessibleId = "feature-checkbox";
+            checkBox.Extents = new Rect(120, 190, 200, 28);
             checkBox.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent, IfaceAction });
             checkBox.States.UnionWith(new[]
             {
@@ -214,12 +210,10 @@ internal static partial class Program
             });
             checkBox.Action = new ActionInfo("toggle", "Toggle", "Toggles the checkbox state");
 
-            var button = new AccessibleNode("/org/a11y/atspi/accessible/button", "Submit", RoleButton)
-            {
-                Description = "Submit button",
-                AccessibleId = "submit-button",
-                Extents = new Rect(120, 230, 120, 36)
-            };
+            var button = CreateNode("Submit", RoleButton);
+            button.Description = "Submit button";
+            button.AccessibleId = "submit-button";
+            button.Extents = new Rect(120, 230, 120, 36);
             button.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent, IfaceAction });
             button.States.UnionWith(new[]
             {
@@ -231,12 +225,10 @@ internal static partial class Program
             });
             button.Action = new ActionInfo("click", "Click", "Clicks the submit button");
 
-            var slider = new AccessibleNode("/org/a11y/atspi/accessible/slider", "Volume", RoleSlider)
-            {
-                Description = "Volume slider",
-                AccessibleId = "volume-slider",
-                Extents = new Rect(120, 280, 240, 28)
-            };
+            var slider = CreateNode("Volume", RoleSlider);
+            slider.Description = "Volume slider";
+            slider.AccessibleId = "volume-slider";
+            slider.Extents = new Rect(120, 280, 240, 28);
             slider.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent, IfaceValue });
             slider.States.UnionWith(new[]
             {
@@ -267,6 +259,16 @@ internal static partial class Program
             return root;
         }
 
+        private AccessibleNode CreateNode(string name, int role, bool isRoot = false)
+        {
+            var path = isRoot ? RootPath : $"{AppPathPrefix}/{Guid.NewGuid().ToString("D").Replace('-', '_')}";
+            var node = new AccessibleNode(path, name, role)
+            {
+                Locale = _locale
+            };
+            return node;
+        }
+
         private void IndexTree(AccessibleNode node, AccessibleNode? parent)
         {
             node.Parent = parent ?? node.Parent;
@@ -292,18 +294,27 @@ internal static partial class Program
         private const int WindowToggleIntervalMs = 3000;
 
         private static readonly (uint, (string, ObjectPath)[])[] s_emptyRelations = Array.Empty<(uint, (string, ObjectPath)[])>();
+        private static readonly MessageValueReader<(string bus, string @event, string[] properties)> s_registryRegisteredReader = ReadRegistryRegistered;
+        private static readonly MessageValueReader<(string bus, string @event)> s_registryDeregisteredReader = ReadRegistryDeregistered;
 
         private readonly AtspiTree _tree;
         private readonly Dictionary<int, string> _roleNames = new();
         private readonly object _treeGate = new();
         private readonly Dictionary<string, NodeHandlers> _handlersByPath = new(StringComparer.Ordinal);
         private readonly PathTree _pathTree;
+        private readonly object _eventGate = new();
+        private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
 
         private Connection? _a11yConnection;
         private string _a11yAddress = string.Empty;
         private string _uniqueName = string.Empty;
         private bool _running;
         private int _windowToggleCounter;
+        private volatile bool _emitObjectEvents;
+        private CacheHandler? _cacheHandler;
+        private OrgA11yAtspiRegistryProxy? _registryProxy;
+        private IDisposable? _registryRegisteredSubscription;
+        private IDisposable? _registryDeregisteredSubscription;
         private readonly System.Threading.ManualResetEventSlim _shutdownEvent = new(false);
         private System.Threading.Timer? _toggleTimer;
         private PosixSignalRegistration? _sigintRegistration;
@@ -313,7 +324,7 @@ internal static partial class Program
         public AtspiServer(AtspiTree tree)
         {
             _tree = tree;
-            _pathTree = new PathTree(BasePath);
+            _pathTree = new PathTree("/");
             _roleNames[RoleApplication] = "application";
             _roleNames[RoleFrame] = "frame";
             _roleNames[RoleLabel] = "label";
@@ -359,6 +370,9 @@ internal static partial class Program
                 Cleanup();
                 return 1;
             }
+
+            InitializeRegistryEventTracking();
+            EmitInitialCacheSnapshot();
 
             StartToggleLoop();
             Console.WriteLine($"AT-SPI2 test app registered on {_uniqueName}");
@@ -418,6 +432,11 @@ internal static partial class Program
 
                 _handlersByPath[node.Path] = handlers;
             }
+
+            var cachePathHandler = _pathTree.AddPath(CachePath);
+            var cacheHandler = new CacheHandler(this);
+            cachePathHandler.Add(cacheHandler);
+            _cacheHandler = cacheHandler;
 
             RefreshAllAccessibleHandlers();
         }
@@ -519,14 +538,17 @@ internal static partial class Program
                 Console.Error.WriteLine("Missing accessibility bus address.");
                 return false;
             }
+            if (_a11yConnection == null)
+            {
+                Console.Error.WriteLine("Missing accessibility bus connection.");
+                return false;
+            }
 
             var sw = Stopwatch.StartNew();
             LogVerbose("EmbedApplication start");
             try
             {
-                LogVerbose("Opening registry connection for Embed");
-                using var connection = new Connection(_a11yAddress);
-                var proxy = new OrgA11yAtspiSocketProxy(connection, BusNameRegistry, RootPath);
+                var proxy = new OrgA11yAtspiSocketProxy(_a11yConnection, BusNameRegistry, RootPath);
                 LogVerbose("Calling org.a11y.atspi.Socket.Embed");
                 var reply = proxy.EmbedAsync((_uniqueName, new ObjectPath(RootPath))).GetAwaiter().GetResult();
                 Console.WriteLine($"Registry root: {reply.Item1} {reply.Item2}");
@@ -539,6 +561,221 @@ internal static partial class Program
                 LogVerbose($"EmbedApplication failed after {sw.ElapsedMilliseconds} ms");
                 return false;
             }
+        }
+
+        private void InitializeRegistryEventTracking()
+        {
+            if (_a11yConnection == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _registryProxy ??= new OrgA11yAtspiRegistryProxy(_a11yConnection, BusNameRegistry, RegistryPath);
+                var events = _registryProxy.GetRegisteredEventsAsync().GetAwaiter().GetResult();
+                lock (_eventGate)
+                {
+                    _registeredEvents.Clear();
+                    foreach (var registered in events)
+                    {
+                        _registeredEvents.Add(registered.Item2);
+                    }
+                    UpdateEventMaskLocked();
+                }
+
+                var registeredRule = new MatchRule
+                {
+                    Type = MessageType.Signal,
+                    Path = RegistryPath,
+                    Interface = "org.a11y.atspi.Registry",
+                    Member = "EventListenerRegistered"
+                };
+                _registryRegisteredSubscription = _a11yConnection
+                    .AddMatchAsync(registeredRule, s_registryRegisteredReader,
+                        (error, args, _) => OnRegistryEventListenerRegistered(error, args))
+                    .GetAwaiter()
+                    .GetResult();
+
+                var deregisteredRule = new MatchRule
+                {
+                    Type = MessageType.Signal,
+                    Path = RegistryPath,
+                    Interface = "org.a11y.atspi.Registry",
+                    Member = "EventListenerDeregistered"
+                };
+                _registryDeregisteredSubscription = _a11yConnection
+                    .AddMatchAsync(deregisteredRule, s_registryDeregisteredReader,
+                        (error, args, _) => OnRegistryEventListenerDeregistered(error, args))
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            catch (Exception ex)
+            {
+                LogVerbose($"Registry event tracking unavailable: {ex.Message}");
+                _emitObjectEvents = true;
+            }
+        }
+
+        private void OnRegistryEventListenerRegistered(Exception? error, (string bus, string @event, string[] properties) args)
+        {
+            if (error != null)
+            {
+                LogVerbose($"Registry EventListenerRegistered error: {error.Message}");
+                return;
+            }
+
+            lock (_eventGate)
+            {
+                _registeredEvents.Add(args.@event);
+                UpdateEventMaskLocked();
+            }
+        }
+
+        private void OnRegistryEventListenerDeregistered(Exception? error, (string bus, string @event) args)
+        {
+            if (error != null)
+            {
+                LogVerbose($"Registry EventListenerDeregistered error: {error.Message}");
+                return;
+            }
+
+            lock (_eventGate)
+            {
+                _registeredEvents.Remove(args.@event);
+                UpdateEventMaskLocked();
+            }
+        }
+
+        private void UpdateEventMaskLocked()
+        {
+            _emitObjectEvents = _registeredEvents.Any(IsObjectEventClass);
+        }
+
+        private static bool IsObjectEventClass(string eventName)
+        {
+            if (string.IsNullOrWhiteSpace(eventName))
+            {
+                return false;
+            }
+
+            if (eventName == "*")
+            {
+                return true;
+            }
+
+            return eventName.StartsWith("object:", StringComparison.OrdinalIgnoreCase)
+                || eventName.StartsWith("window:", StringComparison.OrdinalIgnoreCase)
+                || eventName.StartsWith("focus:", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static (string bus, string @event, string[] properties) ReadRegistryRegistered(Message message, object? state)
+        {
+            var reader = message.GetBodyReader();
+            var bus = reader.ReadString();
+            var eventName = reader.ReadString();
+            var properties = ReadStringArray(ref reader);
+            return (bus, eventName, properties);
+        }
+
+        private static (string bus, string @event) ReadRegistryDeregistered(Message message, object? state)
+        {
+            var reader = message.GetBodyReader();
+            var bus = reader.ReadString();
+            var eventName = reader.ReadString();
+            return (bus, eventName);
+        }
+
+        private static string[] ReadStringArray(ref Reader reader)
+        {
+            var end = reader.ReadArrayStart();
+            var items = new List<string>();
+            while (reader.HasNext(end))
+            {
+                items.Add(reader.ReadString());
+            }
+            return items.ToArray();
+        }
+
+        private void EmitInitialCacheSnapshot()
+        {
+            if (_cacheHandler == null)
+            {
+                return;
+            }
+
+            AccessibleNode[] snapshot;
+            lock (_treeGate)
+            {
+                snapshot = _tree.NodesByPath.Values
+                    .OrderBy(static node => node.Path, StringComparer.Ordinal)
+                    .ToArray();
+            }
+
+            foreach (var node in snapshot)
+            {
+                EmitCacheAdd(node);
+            }
+        }
+
+        private void EmitCacheAdd(AccessibleNode node)
+        {
+            if (_cacheHandler == null || _a11yConnection == null)
+            {
+                return;
+            }
+
+            var item = BuildCacheItem(node);
+            _cacheHandler.EmitAddAccessibleSignal(item);
+        }
+
+        private void EmitCacheRemove(AccessibleNode node)
+        {
+            if (_cacheHandler == null || _a11yConnection == null)
+            {
+                return;
+            }
+
+            _cacheHandler.EmitRemoveAccessibleSignal(GetReference(node));
+        }
+
+        private void EmitCacheAddSubtree(AccessibleNode node)
+        {
+            EmitCacheAdd(node);
+            foreach (var child in node.Children)
+            {
+                EmitCacheAddSubtree(child);
+            }
+        }
+
+        private void EmitCacheRemoveSubtree(AccessibleNode node)
+        {
+            foreach (var child in node.Children)
+            {
+                EmitCacheRemoveSubtree(child);
+            }
+            EmitCacheRemove(node);
+        }
+
+        private ((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[])
+            BuildCacheItem(AccessibleNode node)
+        {
+            var self = (_uniqueName, new ObjectPath(node.Path));
+            var app = (_uniqueName, new ObjectPath(RootPath));
+            var parent = node.Parent == null
+                ? (string.Empty, new ObjectPath(NullPath))
+                : (_uniqueName, new ObjectPath(node.Parent.Path));
+            var indexInParent = node.Parent == null ? -1 : node.Parent.Children.IndexOf(node);
+            var childCount = node.Children.Count;
+            var interfaces = node.Interfaces.Count == 0
+                ? Array.Empty<string>()
+                : node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray();
+            var name = node.Name;
+            var role = (uint)node.Role;
+            var description = node.Description;
+            var states = BuildStateSet(node.States);
+
+            return (self, app, parent, indexInParent, childCount, interfaces, name, role, description, states);
         }
 
         private void Cleanup()
@@ -556,6 +793,17 @@ internal static partial class Program
             }
 
             _a11yAddress = string.Empty;
+            _cacheHandler = null;
+            _registryProxy = null;
+            _registryRegisteredSubscription?.Dispose();
+            _registryRegisteredSubscription = null;
+            _registryDeregisteredSubscription?.Dispose();
+            _registryDeregisteredSubscription = null;
+            lock (_eventGate)
+            {
+                _registeredEvents.Clear();
+                _emitObjectEvents = false;
+            }
 
             _sigintRegistration?.Dispose();
             _sigintRegistration = null;
@@ -616,6 +864,7 @@ internal static partial class Program
                     RefreshAccessibleHandler(_tree.Root);
                     RefreshAccessibleHandler(_tree.ToggleWindow);
                     EmitChildrenChanged(_tree.Root, "remove", index < 0 ? 0 : index, _tree.ToggleWindow);
+                    EmitCacheRemoveSubtree(_tree.ToggleWindow);
                 }
                 else
                 {
@@ -628,6 +877,7 @@ internal static partial class Program
                     var index = _tree.GetToggleWindowIndex();
                     EmitChildrenChanged(_tree.Root, "add", index < 0 ? 0 : index, _tree.ToggleWindow);
                     EmitPropertyChange(_tree.ToggleWindow, "accessible-description", _tree.ToggleWindow.Description);
+                    EmitCacheAddSubtree(_tree.ToggleWindow);
                 }
             }
         }
@@ -648,6 +898,10 @@ internal static partial class Program
             {
                 return;
             }
+            if (!_emitObjectEvents)
+            {
+                return;
+            }
 
             if (!_handlersByPath.TryGetValue(parent.Path, out var handlers) || handlers.EventObjectHandler == null)
             {
@@ -662,6 +916,10 @@ internal static partial class Program
         private void EmitPropertyChange(AccessibleNode node, string propertyName, string value)
         {
             if (_a11yConnection == null)
+            {
+                return;
+            }
+            if (!_emitObjectEvents)
             {
                 return;
             }
@@ -862,19 +1120,7 @@ internal static partial class Program
 
             protected override ValueTask<uint[]> OnGetStateAsync(Message request)
             {
-                if (_node.States.Count == 0)
-                {
-                    return ValueTask.FromResult(Array.Empty<uint>());
-                }
-
-                var states = new uint[_node.States.Count];
-                var index = 0;
-                foreach (var state in _node.States)
-                {
-                    states[index++] = state;
-                }
-
-                return ValueTask.FromResult(states);
+                return ValueTask.FromResult(BuildStateSet(_node.States));
             }
 
             protected override ValueTask<Dictionary<string, string>> OnGetAttributesAsync(Message request)
@@ -928,6 +1174,49 @@ internal static partial class Program
             }
         }
 
+        private sealed class CacheHandler : OrgA11yAtspiCacheHandler
+        {
+            private readonly AtspiServer _server;
+
+            public CacheHandler(AtspiServer server)
+            {
+                _server = server;
+                Version = CacheVersion;
+            }
+
+            public override Connection Connection => _server._a11yConnection ?? throw new InvalidOperationException("Connection not initialized.");
+
+            protected override ValueTask<((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[])[]>
+                OnGetItemsAsync(Message request)
+            {
+                AccessibleNode[] snapshot;
+                lock (_server._treeGate)
+                {
+                    snapshot = _server._tree.NodesByPath.Values
+                        .OrderBy(static node => node.Path, StringComparer.Ordinal)
+                        .ToArray();
+                }
+
+                var items = new ((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[])[snapshot.Length];
+                for (var i = 0; i < snapshot.Length; i++)
+                {
+                    items[i] = _server.BuildCacheItem(snapshot[i]);
+                }
+
+                return ValueTask.FromResult(items);
+            }
+
+            public void EmitAddAccessibleSignal(((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[]) item)
+            {
+                EmitAddAccessible(item);
+            }
+
+            public void EmitRemoveAccessibleSignal((string, ObjectPath) node)
+            {
+                EmitRemoveAccessible(node);
+            }
+        }
+
         private sealed class ApplicationHandler : OrgA11yAtspiApplicationHandler
         {
             private readonly AtspiServer _server;
@@ -937,9 +1226,10 @@ internal static partial class Program
             {
                 _server = server;
                 _node = node;
-                ToolkitName = "Avalonia.DBus";
-                Version = "1.0";
-                ToolkitVersion = "1.0";
+                var version = ResolveToolkitVersion();
+                ToolkitName = "Avalonia";
+                Version = version;
+                ToolkitVersion = version;
                 AtspiVersion = "2.1";
                 InterfaceVersion = ApplicationVersion;
             }
@@ -954,7 +1244,7 @@ internal static partial class Program
 
             protected override ValueTask<string> OnGetLocaleAsync(Message request, uint lctype)
             {
-                return ValueTask.FromResult(string.Empty);
+                return ValueTask.FromResult(ResolveLocale());
             }
 
             protected override ValueTask<string> OnGetApplicationBusAddressAsync(Message request)
@@ -1160,6 +1450,50 @@ internal static partial class Program
         }
     }
 
+    private static uint[] BuildStateSet(IReadOnlyCollection<uint> states)
+    {
+        if (states == null || states.Count == 0)
+        {
+            return new uint[] { 0u, 0u };
+        }
+
+        uint low = 0;
+        uint high = 0;
+        foreach (var state in states)
+        {
+            if (state < 32)
+            {
+                low |= 1u << (int)state;
+            }
+            else if (state < 64)
+            {
+                high |= 1u << (int)(state - 32);
+            }
+        }
+
+        return new[] { low, high };
+    }
+
+    private static string ResolveLocale()
+    {
+        var culture = CultureInfo.CurrentUICulture.Name;
+        if (string.IsNullOrWhiteSpace(culture))
+        {
+            culture = "en_US";
+        }
+
+        return culture.Replace('-', '_');
+    }
+
+    private static string ResolveSessionBusAddress()
+    {
+        return Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS") ?? string.Empty;
+    }
+
+    private static string ResolveToolkitVersion()
+    {
+        return typeof(Program).Assembly.GetName().Version?.ToString() ?? "0";
+    }
 
     public static int Main(string[] args)
     {

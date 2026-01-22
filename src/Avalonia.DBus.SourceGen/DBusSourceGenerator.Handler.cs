@@ -349,6 +349,21 @@ public partial class DBusSourceGenerator
                         BreakStatement())));
         }
 
+        if (switchSections.Count > 0)
+        {
+            switchSections = switchSections.Add(
+                SwitchSection()
+                    .AddLabels(DefaultSwitchLabel())
+                    .AddStatements(
+                        ExpressionStatement(
+                            InvocationExpression(
+                                    MakeMemberAccessExpression("context", "ReplyError"))
+                                .AddArgumentListArguments(
+                                    Argument(MakeLiteralExpression("org.freedesktop.DBus.Error.UnknownMethod")),
+                                    Argument(MakeLiteralExpression("Unknown method")))),
+                        BreakStatement()));
+        }
+
         MethodDeclarationSyntax replyInterfaceRequestMethod = MethodDeclaration(
                 IdentifierName("ValueTask"),
                 "ReplyInterfaceRequest")
@@ -373,11 +388,17 @@ public partial class DBusSourceGenerator
                                         Argument(
                                             MakeMemberAccessExpression("context", "Request", "SignatureAsString"))))
                             .WithSections(switchSections)))
-            : replyInterfaceRequestMethod.WithExpressionBody(
-                    ArrowExpressionClause(
-                        LiteralExpression(SyntaxKind.DefaultLiteralExpression, Token(SyntaxKind.DefaultKeyword))))
-                .WithSemicolonToken(
-                    Token(SyntaxKind.SemicolonToken));
+            : replyInterfaceRequestMethod
+                .WithBody(
+                    Block(
+                        ExpressionStatement(
+                            InvocationExpression(
+                                    MakeMemberAccessExpression("context", "ReplyError"))
+                                .AddArgumentListArguments(
+                                    Argument(MakeLiteralExpression("org.freedesktop.DBus.Error.UnknownMethod")),
+                                    Argument(MakeLiteralExpression("Unknown method")))),
+                        ReturnStatement(
+                            LiteralExpression(SyntaxKind.DefaultLiteralExpression, Token(SyntaxKind.DefaultKeyword)))));
 
         cl = cl.AddMembers(replyInterfaceRequestMethod);
     }

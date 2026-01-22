@@ -237,10 +237,12 @@ public partial class DBusSourceGenerator
 
                                                                 break;
                                                             default:
-                                                               IDBusInterfaceHandler? handler = _dbusInterfaces.FirstOrDefault(x => x.InterfaceName == context.Request.InterfaceAsString);
-                                                                   if (handler is not null)
-                                                                       await handler.ReplyInterfaceRequest(context);
-                                                               break;
+                                                                IDBusInterfaceHandler? handler = _dbusInterfaces.FirstOrDefault(x => x.InterfaceName == context.Request.InterfaceAsString);
+                                                                if (handler is not null)
+                                                                    await handler.ReplyInterfaceRequest(context);
+                                                                else
+                                                                    context.ReplyError(ErrorUnknownInterface, "Unknown interface");
+                                                                break;
                                                         }
                                                     }
 

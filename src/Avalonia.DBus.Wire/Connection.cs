@@ -20,6 +20,7 @@ public sealed unsafe class Connection : IDisposable
     private ConnectionEventLoop? _eventLoop;
     private Thread? _dispatchThread;
     private bool _dispatchRunning;
+    private bool _disposed;
     private GCHandle _filterHandle;
     private bool _filterInstalled;
     private readonly List<IObserver> _observers = new();
@@ -92,6 +93,18 @@ public sealed unsafe class Connection : IDisposable
         StartDispatchLoop();
     }
 
+    public string UniqueName
+    {
+        get
+        {
+            if (_connection == null)
+            {
+                throw new ObjectDisposedException(nameof(Connection));
+            }
+            return DbusHelpers.PtrToString(dbus.dbus_bus_get_unique_name(_connection));
+        }
+    }
+
     public MessageWriter GetMessageWriter() => new MessageWriter(null);
 
     public Task CallMethodAsync(MessageBuffer message)
@@ -128,9 +141,10 @@ public sealed unsafe class Connection : IDisposable
         }
         try
         {
+            DBusConnection* connection = BorrowConnection();
             DBusError error = default;
             dbus.dbus_error_init(&error);
-            DBusMessage* reply = dbus.dbus_connection_send_with_reply_and_block(_connection, message, -1, &error);
+            DBusMessage* reply = dbus.dbus_connection_send_with_reply_and_block(connection, message, -1, &error);
             dbus.dbus_message_unref(message);
             if (reply == null)
             {
@@ -146,6 +160,7 @@ public sealed unsafe class Connection : IDisposable
                 LogVerbose($"Call {callId} end ({sw.ElapsedMilliseconds} ms) reply {replyDescription}");
             }
             dbus.dbus_message_unref(reply);
+            ReleaseBorrowed(connection);
         }
         catch
         {
@@ -168,9 +183,10 @@ public sealed unsafe class Connection : IDisposable
         }
         try
         {
+            DBusConnection* connection = BorrowConnection();
             DBusError error = default;
             dbus.dbus_error_init(&error);
-            DBusMessage* reply = dbus.dbus_connection_send_with_reply_and_block(_connection, message, -1, &error);
+            DBusMessage* reply = dbus.dbus_connection_send_with_reply_and_block(connection, message, -1, &error);
             dbus.dbus_message_unref(message);
             if (reply == null)
             {
@@ -193,6 +209,7 @@ public sealed unsafe class Connection : IDisposable
             finally
             {
                 dbus.dbus_message_unref(reply);
+                ReleaseBorrowed(connection);
             }
         }
         catch
@@ -220,8 +237,19 @@ public sealed unsafe class Connection : IDisposable
         {
             LogVerbose($"Send {DescribeMessage(msg)}");
         }
-        bool sent = dbus.dbus_connection_send(_connection, msg, null) != 0;
+        DBusConnection* connection;
+        try
+        {
+            connection = BorrowConnection();
+        }
+        catch (ObjectDisposedException)
+        {
+            dbus.dbus_message_unref(msg);
+            return false;
+        }
+        bool sent = dbus.dbus_connection_send(connection, msg, null) != 0;
         dbus.dbus_message_unref(msg);
+        ReleaseBorrowed(connection);
         return sent;
     }
 
@@ -250,7 +278,9 @@ public sealed unsafe class Connection : IDisposable
             DBusError error = default;
             dbus.dbus_error_init(&error);
             using var matchUtf8 = new Utf8String(match);
-            dbus.dbus_bus_add_match(_connection, matchUtf8.Pointer, &error);
+            DBusConnection* connection = BorrowConnection();
+            dbus.dbus_bus_add_match(connection, matchUtf8.Pointer, &error);
+            ReleaseBorrowed(connection);
             if (dbus.dbus_error_is_set(&error) != 0)
             {
                 ThrowErrorAndFree(ref error, "Failed to add match.");
@@ -279,9 +309,11 @@ public sealed unsafe class Connection : IDisposable
         using var pathUtf8 = new Utf8String(handler.Path);
         fixed (DBusObjectPathVTable* vtablePtr = &s_vtable)
         {
+            DBusConnection* connection = BorrowConnection();
             uint result = handler.HandlesChildPaths
-                ? dbus.dbus_connection_register_fallback(_connection, pathUtf8.Pointer, vtablePtr, (void*)GCHandle.ToIntPtr(handle))
-                : dbus.dbus_connection_register_object_path(_connection, pathUtf8.Pointer, vtablePtr, (void*)GCHandle.ToIntPtr(handle));
+                ? dbus.dbus_connection_register_fallback(connection, pathUtf8.Pointer, vtablePtr, (void*)GCHandle.ToIntPtr(handle))
+                : dbus.dbus_connection_register_object_path(connection, pathUtf8.Pointer, vtablePtr, (void*)GCHandle.ToIntPtr(handle));
+            ReleaseBorrowed(connection);
             if (result == 0)
             {
                 handle.Free();
@@ -292,11 +324,26 @@ public sealed unsafe class Connection : IDisposable
 
     public void Dispose()
     {
+        DBusConnection* connection;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _disposed = true;
+            connection = _connection;
+            _connection = null;
+        }
+
         StopDispatchLoop();
 
         if (_filterInstalled)
         {
-            dbus.dbus_connection_remove_filter(_connection, s_filterCallbackPtr, (void*)GCHandle.ToIntPtr(_filterHandle));
+            if (connection != null)
+            {
+                dbus.dbus_connection_remove_filter(connection, s_filterCallbackPtr, (void*)GCHandle.ToIntPtr(_filterHandle));
+            }
             _filterHandle.Free();
             _filterInstalled = false;
         }
@@ -310,14 +357,34 @@ public sealed unsafe class Connection : IDisposable
         }
         _pathHandles.Clear();
 
-        if (_connection != null)
+        if (connection != null)
         {
             if (_closeOnDispose)
             {
-                dbus.dbus_connection_close(_connection);
+                dbus.dbus_connection_close(connection);
             }
-            dbus.dbus_connection_unref(_connection);
-            _connection = null;
+            dbus.dbus_connection_unref(connection);
+        }
+    }
+
+    private DBusConnection* BorrowConnection()
+    {
+        lock (_gate)
+        {
+            if (_disposed || _connection == null)
+            {
+                throw new ObjectDisposedException(nameof(Connection));
+            }
+            dbus.dbus_connection_ref(_connection);
+            return _connection;
+        }
+    }
+
+    private static void ReleaseBorrowed(DBusConnection* connection)
+    {
+        if (connection != null)
+        {
+            dbus.dbus_connection_unref(connection);
         }
     }
 
@@ -609,7 +676,16 @@ public sealed unsafe class Connection : IDisposable
                 DBusError error = default;
                 dbus.dbus_error_init(&error);
                 using var matchUtf8 = new Utf8String(_matchString);
-                dbus.dbus_bus_remove_match(_connection._connection, matchUtf8.Pointer, &error);
+                try
+                {
+                    DBusConnection* connection = _connection.BorrowConnection();
+                    dbus.dbus_bus_remove_match(connection, matchUtf8.Pointer, &error);
+                    ReleaseBorrowed(connection);
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
                 if (dbus.dbus_error_is_set(&error) != 0)
                 {
                     dbus.dbus_error_free(&error);

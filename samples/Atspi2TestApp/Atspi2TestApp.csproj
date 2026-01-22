@@ -18,6 +18,8 @@
     <AdditionalFiles Include="DBusXml/Action.xml" DBusGeneratorMode="Handler" />
     <AdditionalFiles Include="DBusXml/Value.xml" DBusGeneratorMode="Handler" />
     <AdditionalFiles Include="DBusXml/Event.xml" DBusGeneratorMode="Handler" />
+    <AdditionalFiles Include="DBusXml/Cache.xml" DBusGeneratorMode="Handler" />
+    <AdditionalFiles Include="DBusXml/Registry.xml" DBusGeneratorMode="Proxy" />
     <AdditionalFiles Include="DBusXml/org.freedesktop.DBus.Peer.xml" DBusGeneratorMode="Handler" />
   </ItemGroup>
 

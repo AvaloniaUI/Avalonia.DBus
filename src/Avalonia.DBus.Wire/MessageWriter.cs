@@ -1,4 +1,7 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Avalonia.DBus.AutoGen;
 
@@ -379,51 +382,345 @@ public unsafe struct MessageWriter : IDisposable
 
     private void WriteVariantValue(string signature, object? value)
     {
-        if (signature.Length == 0)
+        if (string.IsNullOrEmpty(signature))
         {
             return;
         }
-        switch (signature[0])
+
+        int index = 0;
+        WriteSignatureValue(signature, ref index, value);
+        if (index != signature.Length)
+        {
+            throw new ArgumentException("Variant signature must describe a single complete type.", nameof(signature));
+        }
+    }
+
+    private void WriteSignatureValue(string signature, ref int index, object? value)
+    {
+        if (index >= signature.Length)
+        {
+            throw new ArgumentException("Variant signature is empty.", nameof(signature));
+        }
+
+        char token = signature[index];
+        switch (token)
         {
             case 'y':
+                index++;
                 WriteByte(Convert.ToByte(value));
                 return;
             case 'b':
+                index++;
                 WriteBool(Convert.ToBoolean(value));
                 return;
             case 'n':
+                index++;
                 WriteInt16(Convert.ToInt16(value));
                 return;
             case 'q':
+                index++;
                 WriteUInt16(Convert.ToUInt16(value));
                 return;
             case 'i':
+                index++;
                 WriteInt32(Convert.ToInt32(value));
                 return;
             case 'u':
+                index++;
                 WriteUInt32(Convert.ToUInt32(value));
                 return;
             case 'x':
+                index++;
                 WriteInt64(Convert.ToInt64(value));
                 return;
             case 't':
+                index++;
                 WriteUInt64(Convert.ToUInt64(value));
                 return;
             case 'd':
+                index++;
                 WriteDouble(Convert.ToDouble(value));
                 return;
             case 's':
+                index++;
                 WriteString(value?.ToString() ?? string.Empty);
                 return;
             case 'o':
-                WriteObjectPath(value?.ToString() ?? string.Empty);
+                index++;
+                if (value is ObjectPath objectPath)
+                {
+                    WriteObjectPath(objectPath);
+                }
+                else
+                {
+                    WriteObjectPath(value?.ToString() ?? string.Empty);
+                }
                 return;
             case 'g':
-                WriteSignature(value?.ToString() ?? string.Empty);
+                index++;
+                if (value is Signature signatureValue)
+                {
+                    WriteSignature(signatureValue);
+                }
+                else
+                {
+                    WriteSignature(value?.ToString() ?? string.Empty);
+                }
+                return;
+            case 'v':
+                index++;
+                WriteVariant(AsVariantValue(value));
+                return;
+            case 'a':
+                index++;
+                string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+                if (elementSignature.Length > 0 && elementSignature[0] == '{')
+                {
+                    WriteDictionaryValue(elementSignature, value);
+                }
+                else
+                {
+                    WriteArrayValue(elementSignature, value);
+                }
+                return;
+            case '(':
+                string structSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+                WriteStructValue(structSignature, value);
+                return;
+            case '{':
+                string entrySignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+                WriteDictEntryValue(entrySignature, value);
                 return;
             default:
                 throw new NotSupportedException($"Variant signature '{signature}' is not supported.");
         }
+    }
+
+    private void WriteArrayValue(string elementSignature, object? value)
+    {
+        var arrayStart = WriteArrayStart(elementSignature);
+        foreach (object? item in EnumerateValues(value))
+        {
+            int index = 0;
+            WriteSignatureValue(elementSignature, ref index, item);
+        }
+        WriteArrayEnd(arrayStart);
+    }
+
+    private void WriteDictionaryValue(string entrySignature, object? value)
+    {
+        var dictStart = WriteDictionaryStart(entrySignature);
+        (string keySignature, string valueSignature) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
+        foreach ((object? Key, object? Value) entry in EnumerateDictionaryEntries(value))
+        {
+            var entryStart = WriteDictEntryStart();
+            int keyIndex = 0;
+            int valueIndex = 0;
+            WriteSignatureValue(keySignature, ref keyIndex, entry.Key);
+            WriteSignatureValue(valueSignature, ref valueIndex, entry.Value);
+            WriteDictEntryEnd(entryStart);
+        }
+        WriteDictionaryEnd(dictStart);
+    }
+
+    private void WriteStructValue(string structSignature, object? value)
+    {
+        IReadOnlyList<string> parts = DBusSignatureParser.ParseStructSignatures(structSignature);
+        object?[] items = GetTupleItems(value);
+        if (items.Length != parts.Count)
+        {
+            throw new ArgumentException("Struct value length does not match signature.", nameof(value));
+        }
+
+        var structStart = WriteStructStart();
+        for (int i = 0; i < parts.Count; i++)
+        {
+            int index = 0;
+            WriteSignatureValue(parts[i], ref index, items[i]);
+        }
+        WriteStructEnd(structStart);
+    }
+
+    private void WriteDictEntryValue(string entrySignature, object? value)
+    {
+        (string keySignature, string valueSignature) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
+        (object? Key, object? Value) entry = GetEntryValue(value);
+        var entryStart = WriteDictEntryStart();
+        int keyIndex = 0;
+        int valueIndex = 0;
+        WriteSignatureValue(keySignature, ref keyIndex, entry.Key);
+        WriteSignatureValue(valueSignature, ref valueIndex, entry.Value);
+        WriteDictEntryEnd(entryStart);
+    }
+
+    private static VariantValue AsVariantValue(object? value)
+    {
+        if (value is VariantValue variant)
+        {
+            return variant;
+        }
+
+        return value switch
+        {
+            byte v => v,
+            bool v => v,
+            short v => v,
+            ushort v => v,
+            int v => v,
+            uint v => v,
+            long v => v,
+            ulong v => v,
+            double v => v,
+            string v => v,
+            ObjectPath v => v,
+            Signature v => v,
+            _ => throw new ArgumentException("Variant values must be VariantValue or a supported primitive.", nameof(value))
+        };
+    }
+
+    private static IEnumerable<object?> EnumerateValues(object? value)
+    {
+        if (value == null)
+        {
+            yield break;
+        }
+
+        if (value is string)
+        {
+            throw new ArgumentException("Array values must not be a string.", nameof(value));
+        }
+
+        if (value is IEnumerable enumerable)
+        {
+            foreach (object? item in enumerable)
+            {
+                yield return item;
+            }
+            yield break;
+        }
+
+        throw new ArgumentException("Array values must be enumerable.", nameof(value));
+    }
+
+    private static IEnumerable<(object? Key, object? Value)> EnumerateDictionaryEntries(object? value)
+    {
+        if (value == null)
+        {
+            yield break;
+        }
+
+        if (value is IDictionary dict)
+        {
+            foreach (DictionaryEntry entry in dict)
+            {
+                yield return (entry.Key, entry.Value);
+            }
+            yield break;
+        }
+
+        if (value is string)
+        {
+            throw new ArgumentException("Dictionary values must not be a string.", nameof(value));
+        }
+
+        if (value is IEnumerable enumerable)
+        {
+            foreach (object? item in enumerable)
+            {
+                yield return GetEntryValue(item);
+            }
+            yield break;
+        }
+
+        throw new ArgumentException("Dictionary values must be enumerable.", nameof(value));
+    }
+
+    private static (object? Key, object? Value) GetEntryValue(object? item)
+    {
+        if (item is DictionaryEntry entry)
+        {
+            return (entry.Key, entry.Value);
+        }
+
+        if (item is ITuple tuple)
+        {
+            if (tuple.Length != 2)
+            {
+                throw new ArgumentException("Dictionary entry tuple must have two elements.", nameof(item));
+            }
+            return (tuple[0], tuple[1]);
+        }
+
+        if (item is IList list)
+        {
+            if (list.Count < 2)
+            {
+                throw new ArgumentException("Dictionary entry list must have at least two elements.", nameof(item));
+            }
+            return (list[0], list[1]);
+        }
+
+        if (TryGetKeyValuePair(item, out object? key, out object? value))
+        {
+            return (key, value);
+        }
+
+        throw new ArgumentException("Dictionary entries must be key/value pairs.", nameof(item));
+    }
+
+    private static bool TryGetKeyValuePair(object? item, out object? key, out object? value)
+    {
+        key = null;
+        value = null;
+        if (item == null)
+        {
+            return false;
+        }
+
+        Type type = item.GetType();
+        if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(KeyValuePair<,>))
+        {
+            return false;
+        }
+
+        key = type.GetProperty("Key")?.GetValue(item);
+        value = type.GetProperty("Value")?.GetValue(item);
+        return true;
+    }
+
+    private static object?[] GetTupleItems(object? value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        if (value is ITuple tuple)
+        {
+            object?[] items = new object?[tuple.Length];
+            for (int i = 0; i < tuple.Length; i++)
+            {
+                items[i] = tuple[i];
+            }
+            return items;
+        }
+
+        if (value is string)
+        {
+            throw new ArgumentException("Struct values must not be a string.", nameof(value));
+        }
+
+        if (value is IEnumerable enumerable)
+        {
+            List<object?> items = new();
+            foreach (object? item in enumerable)
+            {
+                items.Add(item);
+            }
+            return items.ToArray();
+        }
+
+        throw new ArgumentException("Struct values must be tuple-like.", nameof(value));
     }
 }
 

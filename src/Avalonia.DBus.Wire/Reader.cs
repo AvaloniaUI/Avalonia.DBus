@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Avalonia.DBus.AutoGen;
 using Microsoft.Win32.SafeHandles;
@@ -298,36 +299,133 @@ public unsafe struct Reader
             return null;
         }
 
-        switch (signature[0])
+        int index = 0;
+        return ReadSignatureValue(signature, ref index, ref reader);
+    }
+
+    private static object? ReadSignatureValue(string signature, ref int index, ref Reader reader)
+    {
+        if (index >= signature.Length)
+        {
+            return null;
+        }
+
+        char token = signature[index];
+        switch (token)
         {
             case 'y':
+                index++;
                 return reader.ReadByte();
             case 'b':
+                index++;
                 return reader.ReadBool();
             case 'n':
+                index++;
                 return reader.ReadInt16();
             case 'q':
+                index++;
                 return reader.ReadUInt16();
             case 'i':
+                index++;
                 return reader.ReadInt32();
             case 'u':
+                index++;
                 return reader.ReadUInt32();
             case 'x':
+                index++;
                 return reader.ReadInt64();
             case 't':
+                index++;
                 return reader.ReadUInt64();
             case 'd':
+                index++;
                 return reader.ReadDouble();
             case 's':
+                index++;
                 return reader.ReadString();
             case 'o':
+                index++;
                 return reader.ReadObjectPath();
             case 'g':
+                index++;
                 return reader.ReadSignature();
+            case 'v':
+                index++;
+                return reader.ReadVariantValue();
+            case 'a':
+                index++;
+                string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+                if (elementSignature.Length > 0 && elementSignature[0] == '{')
+                {
+                    return ReadDictionaryValue(elementSignature, ref reader);
+                }
+                return ReadArrayValue(elementSignature, ref reader);
+            case '(':
+                string structSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+                return ReadStructValue(structSignature, ref reader);
+            case '{':
+                string entrySignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+                return ReadDictEntryValue(entrySignature, ref reader);
             default:
                 SkipCurrent(ref reader);
                 return null;
         }
+    }
+
+    private static List<object?> ReadArrayValue(string elementSignature, ref Reader reader)
+    {
+        ArrayEnd end = reader.ReadArrayStart();
+        List<object?> items = new();
+        while (reader.HasNext(end))
+        {
+            int elementIndex = 0;
+            items.Add(ReadSignatureValue(elementSignature, ref elementIndex, ref reader));
+        }
+        return items;
+    }
+
+    private static List<KeyValuePair<object?, object?>> ReadDictionaryValue(string entrySignature, ref Reader reader)
+    {
+        (string keySignature, string valueSignature) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
+        ArrayEnd end = reader.ReadArrayStart();
+        List<KeyValuePair<object?, object?>> items = new();
+        while (reader.HasNext(end))
+        {
+            DictEntryEnd entryEnd = reader.ReadDictEntryStart();
+            int keyIndex = 0;
+            int valueIndex = 0;
+            object? key = ReadSignatureValue(keySignature, ref keyIndex, ref reader);
+            object? value = ReadSignatureValue(valueSignature, ref valueIndex, ref reader);
+            reader.ReadDictEntryEnd(entryEnd);
+            items.Add(new KeyValuePair<object?, object?>(key, value));
+        }
+        return items;
+    }
+
+    private static object?[] ReadStructValue(string structSignature, ref Reader reader)
+    {
+        IReadOnlyList<string> parts = DBusSignatureParser.ParseStructSignatures(structSignature);
+        StructEnd end = reader.ReadStructStart();
+        object?[] items = new object?[parts.Count];
+        for (int i = 0; i < parts.Count; i++)
+        {
+            int elementIndex = 0;
+            items[i] = ReadSignatureValue(parts[i], ref elementIndex, ref reader);
+        }
+        reader.ReadStructEnd(end);
+        return items;
+    }
+
+    private static KeyValuePair<object?, object?> ReadDictEntryValue(string entrySignature, ref Reader reader)
+    {
+        (string keySignature, string valueSignature) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
+        DictEntryEnd entryEnd = reader.ReadDictEntryStart();
+        int keyIndex = 0;
+        int valueIndex = 0;
+        object? key = ReadSignatureValue(keySignature, ref keyIndex, ref reader);
+        object? value = ReadSignatureValue(valueSignature, ref valueIndex, ref reader);
+        reader.ReadDictEntryEnd(entryEnd);
+        return new KeyValuePair<object?, object?>(key, value);
     }
 
     private static void SkipCurrent(ref Reader reader)
