@@ -8,6 +8,7 @@ namespace Avalonia.DBus.Wire;
 
 internal static unsafe class DBusMessageMarshaler
 {
+    private static readonly bool s_verbose = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE"));
     public static DBusNativeMessage* ToNative(DBusMessage message)
     {
         if (message == null)
@@ -15,6 +16,7 @@ internal static unsafe class DBusMessageMarshaler
             throw new ArgumentNullException(nameof(message));
         }
 
+        Log($"ToNative type={message.Type} path='{message.Path?.Value}' iface='{message.Interface}' member='{message.Member}' sig='{message.Signature.Value}'");
         DBusNativeMessage* native = LibDbus.dbus_message_new((int)message.Type);
         if (native == null)
         {
@@ -25,6 +27,7 @@ internal static unsafe class DBusMessageMarshaler
         {
             ApplyHeaders(message, native);
             AppendBody(message, native);
+            Log("ToNative done");
             return native;
         }
         catch
@@ -36,6 +39,12 @@ internal static unsafe class DBusMessageMarshaler
 
     public static DBusMessage FromNative(DBusNativeMessage* message)
     {
+        if (s_verbose)
+        {
+            string signature = DbusHelpers.PtrToString(LibDbus.dbus_message_get_signature(message));
+            Log($"FromNative type={(DBusMessageType)LibDbus.dbus_message_get_type(message)} path='{DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_path(message))}' iface='{DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_interface(message))}' member='{DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_member(message))}' sig='{signature}'");
+        }
+
         var managed = new DBusMessage
         {
             Type = (DBusMessageType)LibDbus.dbus_message_get_type(message),
@@ -136,6 +145,7 @@ internal static unsafe class DBusMessageMarshaler
             return Array.Empty<object>();
         }
 
+        Log($"ReadBody signature='{signature}'");
         DBusMessageIter iter;
         if (LibDbus.dbus_message_iter_init(message, &iter) == 0)
         {
@@ -147,6 +157,7 @@ internal static unsafe class DBusMessageMarshaler
         while (index < signature.Length)
         {
             string typeSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+            Log($"ReadBody item signature='{typeSignature}'");
             items.Add(ReadValue(typeSignature, ref iter));
         }
 
@@ -161,6 +172,15 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         DBusSignatureToken token = signature[0];
+        if (s_verbose)
+        {
+            int argType;
+            fixed (DBusMessageIter* iterPtr = &iter)
+            {
+                argType = LibDbus.dbus_message_iter_get_arg_type(iterPtr);
+            }
+            Log($"ReadValue sig='{signature}' token='{token}' argType='{(char)argType}' ({argType})");
+        }
         if (token == DBusSignatureToken.Byte)
         {
             return ReadBasic<byte>(ref iter);
@@ -268,22 +288,29 @@ internal static unsafe class DBusMessageMarshaler
 
     private static object ReadVariant(ref DBusMessageIter iter)
     {
-        byte* signaturePtr;
+        Log("ReadVariant");
+        DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            signaturePtr = LibDbus.dbus_message_iter_get_signature(iterPtr);
+            Log("ReadVariant recurse");
+            LibDbus.dbus_message_iter_recurse(iterPtr, &child);
         }
 
+        byte* signaturePtr;
+        DBusMessageIter* childPtr = &child;
+        signaturePtr = LibDbus.dbus_message_iter_get_signature(childPtr);
+
         string signature = signaturePtr == null ? string.Empty : DbusHelpers.PtrToString(signaturePtr);
+        Log($"ReadVariant inner signature='{signature}'");
         if (signaturePtr != null)
         {
             NativeMethods.dbus_free(signaturePtr);
         }
 
-        DBusMessageIter child;
-        fixed (DBusMessageIter* iterPtr = &iter)
+        if (string.IsNullOrEmpty(signature))
         {
-            LibDbus.dbus_message_iter_recurse(iterPtr, &child);
+            signature = InferSignatureFromIter(ref child);
+            Log($"ReadVariant inferred signature='{signature}'");
         }
 
         object value = ReadValue(signature, ref child);
@@ -296,10 +323,39 @@ internal static unsafe class DBusMessageMarshaler
         return new DBusVariant(new DBusSignature(signature), value);
     }
 
+    private static string InferSignatureFromIter(ref DBusMessageIter iter)
+    {
+        int argType;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            argType = LibDbus.dbus_message_iter_get_arg_type(iterPtr);
+        }
+
+        return argType switch
+        {
+            LibDbus.DBUS_TYPE_BYTE => DBusSignatureToken.Byte,
+            LibDbus.DBUS_TYPE_BOOLEAN => DBusSignatureToken.Boolean,
+            LibDbus.DBUS_TYPE_INT16 => DBusSignatureToken.Int16,
+            LibDbus.DBUS_TYPE_UINT16 => DBusSignatureToken.UInt16,
+            LibDbus.DBUS_TYPE_INT32 => DBusSignatureToken.Int32,
+            LibDbus.DBUS_TYPE_UINT32 => DBusSignatureToken.UInt32,
+            LibDbus.DBUS_TYPE_INT64 => DBusSignatureToken.Int64,
+            LibDbus.DBUS_TYPE_UINT64 => DBusSignatureToken.UInt64,
+            LibDbus.DBUS_TYPE_DOUBLE => DBusSignatureToken.Double,
+            LibDbus.DBUS_TYPE_STRING => DBusSignatureToken.String,
+            LibDbus.DBUS_TYPE_OBJECT_PATH => DBusSignatureToken.ObjectPath,
+            LibDbus.DBUS_TYPE_SIGNATURE => DBusSignatureToken.Signature,
+            LibDbus.DBUS_TYPE_UNIX_FD => DBusSignatureToken.UnixFd,
+            LibDbus.DBUS_TYPE_VARIANT => DBusSignatureToken.Variant,
+            _ => string.Empty
+        };
+    }
+
     private static object ReadArray(string signature, ref DBusMessageIter iter)
     {
         int index = 1;
         string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+        Log($"ReadArray elementSig='{elementSignature}'");
         if (elementSignature.Length > 0 && elementSignature[0] == DBusSignatureToken.DictEntryBegin)
         {
             return ReadDictionaryArray(elementSignature, ref iter);
@@ -313,6 +369,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
+            Log("ReadArrayItems recurse");
             LibDbus.dbus_message_iter_recurse(iterPtr, &child);
         }
 
@@ -335,6 +392,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
+            Log("ReadDictionaryArray recurse");
             LibDbus.dbus_message_iter_recurse(iterPtr, &child);
         }
 
@@ -354,9 +412,11 @@ internal static unsafe class DBusMessageMarshaler
 
     private static object ReadStruct(string signature, ref DBusMessageIter iter)
     {
+        Log($"ReadStruct signature='{signature}'");
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
+            Log("ReadStruct recurse");
             LibDbus.dbus_message_iter_recurse(iterPtr, &child);
         }
 
@@ -377,9 +437,11 @@ internal static unsafe class DBusMessageMarshaler
 
     private static KeyValuePair<object?, object?> ReadDictEntry(string signature, ref DBusMessageIter iter)
     {
+        Log($"ReadDictEntry signature='{signature}'");
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
+            Log("ReadDictEntry recurse");
             LibDbus.dbus_message_iter_recurse(iterPtr, &child);
         }
 
@@ -436,6 +498,7 @@ internal static unsafe class DBusMessageMarshaler
             return;
         }
 
+        Log($"AppendBody signature='{message.Signature.Value}'");
         DBusMessageIter iter;
         LibDbus.dbus_message_iter_init_append(native, &iter);
 
@@ -452,6 +515,7 @@ internal static unsafe class DBusMessageMarshaler
             throw new ArgumentNullException(nameof(value));
         }
 
+        Log($"AppendValue sig='{DBusSignatureInference.InferSignatureFromValue(value)}' type='{value.GetType().Name}' value={DescribeValue(value)}");
         switch (value)
         {
             case byte byteValue:
@@ -538,6 +602,7 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         string elementSignature = arraySignature.Substring(1);
+        Log($"AppendArray elementSig='{elementSignature}' count={CountEnumerable(array.Items)}");
         using var sig = new Utf8String(elementSignature);
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
@@ -570,6 +635,7 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         string entrySignature = arraySignature.Substring(1);
+        Log($"AppendDict entrySig='{entrySignature}' count={CountEnumerable(dict.Entries)}");
         using var sig = new Utf8String(entrySignature);
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
@@ -603,6 +669,7 @@ internal static unsafe class DBusMessageMarshaler
 
     private static void AppendStruct(ref DBusMessageIter iter, DBusStruct dbusStruct)
     {
+        Log($"AppendStruct fields={dbusStruct.Count}");
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
@@ -631,6 +698,7 @@ internal static unsafe class DBusMessageMarshaler
             signature = DBusSignatureInference.InferSignatureFromValue(variant.Value);
         }
 
+        Log($"AppendVariant sig='{signature}'");
         using var sig = new Utf8String(signature);
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
@@ -647,5 +715,69 @@ internal static unsafe class DBusMessageMarshaler
         {
             LibDbus.dbus_message_iter_close_container(iterPtr, &child);
         }
+    }
+
+    private static void Log(string message)
+    {
+        if (!s_verbose)
+        {
+            return;
+        }
+
+        Console.Error.WriteLine($"[DBusMarshal] {message}");
+    }
+
+    private static string DescribeValue(object value)
+    {
+        switch (value)
+        {
+            case string text:
+                return $"\"{Truncate(text, 120)}\"";
+            case DBusObjectPath path:
+                return $"path:\"{Truncate(path.Value, 120)}\"";
+            case DBusSignature signature:
+                return $"sig:\"{Truncate(signature.Value, 120)}\"";
+            case DBusStruct dbusStruct:
+                return $"struct[{dbusStruct.Count}]";
+            case IDBusArray array:
+                return $"array[{CountEnumerable(array.Items)}]";
+            case IDBusDict dict:
+                return $"dict[{CountEnumerable(dict.Entries)}]";
+            case DBusVariant variant:
+                return $"variant[{Truncate(variant.Signature.Value, 120)}]";
+            default:
+                return value.ToString() ?? string.Empty;
+        }
+    }
+
+    private static string Truncate(string value, int max)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= max)
+        {
+            return value;
+        }
+
+        return value.Substring(0, max) + "...";
+    }
+
+    private static int CountEnumerable<T>(IEnumerable<T> items)
+    {
+        if (items is ICollection<T> collection)
+        {
+            return collection.Count;
+        }
+
+        if (items is IReadOnlyCollection<T> readOnlyCollection)
+        {
+            return readOnlyCollection.Count;
+        }
+
+        var count = 0;
+        foreach (var _ in items)
+        {
+            count++;
+        }
+
+        return count;
     }
 }
