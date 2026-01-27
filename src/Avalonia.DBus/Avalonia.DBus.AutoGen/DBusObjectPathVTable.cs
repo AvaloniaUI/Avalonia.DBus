@@ -1,5 +1,7 @@
 using System;
 
+#pragma warning disable CS0649
+
 namespace Avalonia.DBus.AutoGen;
 
 internal struct DBusObjectPathVTable
@@ -22,3 +24,4 @@ internal struct DBusObjectPathVTable
     [NativeTypeName("void (*)(void *)")]
     public IntPtr dbus_internal_pad4;
 }
+#pragma warning restore CS0649

@@ -31,39 +31,44 @@ internal static class DBusSignatureInference
         switch (value)
         {
             case byte:
-                return "y";
+                return DBusSignatureToken.Byte;
             case bool:
-                return "b";
+                return DBusSignatureToken.Boolean;
             case short:
-                return "n";
+                return DBusSignatureToken.Int16;
             case ushort:
-                return "q";
+                return DBusSignatureToken.UInt16;
             case int:
-                return "i";
+                return DBusSignatureToken.Int32;
             case uint:
-                return "u";
+                return DBusSignatureToken.UInt32;
             case long:
-                return "x";
+                return DBusSignatureToken.Int64;
             case ulong:
-                return "t";
+                return DBusSignatureToken.UInt64;
             case double:
-                return "d";
+                return DBusSignatureToken.Double;
             case string:
-                return "s";
+                return DBusSignatureToken.String;
             case DBusObjectPath:
-                return "o";
+                return DBusSignatureToken.ObjectPath;
             case DBusSignature:
-                return "g";
+                return DBusSignatureToken.Signature;
             case DBusUnixFd:
-                return "h";
+                return DBusSignatureToken.UnixFd;
             case DBusVariant:
-                return "v";
+                return DBusSignatureToken.Variant;
             case DBusStruct dbusStruct:
                 return InferStructSignature(dbusStruct);
             case IDBusArray dbusArray:
-                return "a" + InferArrayElementSignature(dbusArray);
+                return string.Concat(DBusSignatureToken.Array, InferArrayElementSignature(dbusArray));
             case IDBusDict dbusDict:
-                return "a{" + InferDictKeySignature(dbusDict) + InferDictValueSignature(dbusDict) + "}";
+                return string.Concat(
+                    DBusSignatureToken.Array,
+                    DBusSignatureToken.DictEntryBegin,
+                    InferDictKeySignature(dbusDict),
+                    InferDictValueSignature(dbusDict),
+                    DBusSignatureToken.DictEntryEnd);
             default:
                 throw new NotSupportedException($"Unsupported D-Bus value type: {value.GetType().FullName}");
         }
@@ -73,59 +78,59 @@ internal static class DBusSignatureInference
     {
         if (type == typeof(byte))
         {
-            return "y";
+            return DBusSignatureToken.Byte;
         }
         if (type == typeof(bool))
         {
-            return "b";
+            return DBusSignatureToken.Boolean;
         }
         if (type == typeof(short))
         {
-            return "n";
+            return DBusSignatureToken.Int16;
         }
         if (type == typeof(ushort))
         {
-            return "q";
+            return DBusSignatureToken.UInt16;
         }
         if (type == typeof(int))
         {
-            return "i";
+            return DBusSignatureToken.Int32;
         }
         if (type == typeof(uint))
         {
-            return "u";
+            return DBusSignatureToken.UInt32;
         }
         if (type == typeof(long))
         {
-            return "x";
+            return DBusSignatureToken.Int64;
         }
         if (type == typeof(ulong))
         {
-            return "t";
+            return DBusSignatureToken.UInt64;
         }
         if (type == typeof(double))
         {
-            return "d";
+            return DBusSignatureToken.Double;
         }
         if (type == typeof(string))
         {
-            return "s";
+            return DBusSignatureToken.String;
         }
         if (type == typeof(DBusObjectPath))
         {
-            return "o";
+            return DBusSignatureToken.ObjectPath;
         }
         if (type == typeof(DBusSignature))
         {
-            return "g";
+            return DBusSignatureToken.Signature;
         }
         if (type == typeof(DBusUnixFd))
         {
-            return "h";
+            return DBusSignatureToken.UnixFd;
         }
         if (type == typeof(DBusVariant))
         {
-            return "v";
+            return DBusSignatureToken.Variant;
         }
         if (type == typeof(DBusStruct))
         {
@@ -137,13 +142,18 @@ internal static class DBusSignatureInference
             if (genericType == typeof(DBusArray<>))
             {
                 var elementType = type.GetGenericArguments()[0];
-                return "a" + InferSignatureFromType(elementType);
+                return string.Concat(DBusSignatureToken.Array, InferSignatureFromType(elementType));
             }
             if (genericType == typeof(DBusDict<,>))
             {
                 var keyType = type.GetGenericArguments()[0];
                 var valueType = type.GetGenericArguments()[1];
-                return "a{" + InferSignatureFromType(keyType) + InferSignatureFromType(valueType) + "}";
+                return string.Concat(
+                    DBusSignatureToken.Array,
+                    DBusSignatureToken.DictEntryBegin,
+                    InferSignatureFromType(keyType),
+                    InferSignatureFromType(valueType),
+                    DBusSignatureToken.DictEntryEnd);
             }
         }
 
@@ -157,64 +167,91 @@ internal static class DBusSignatureInference
             throw new ArgumentException("Signature is required.", nameof(signature));
         }
 
-        char token = signature[0];
-        switch (token)
+        DBusSignatureToken token = signature[0];
+        if (token == DBusSignatureToken.Byte)
         {
-            case 'y':
-                return typeof(byte);
-            case 'b':
-                return typeof(bool);
-            case 'n':
-                return typeof(short);
-            case 'q':
-                return typeof(ushort);
-            case 'i':
-                return typeof(int);
-            case 'u':
-                return typeof(uint);
-            case 'x':
-                return typeof(long);
-            case 't':
-                return typeof(ulong);
-            case 'd':
-                return typeof(double);
-            case 's':
-                return typeof(string);
-            case 'o':
-                return typeof(DBusObjectPath);
-            case 'g':
-                return typeof(DBusSignature);
-            case 'h':
-                return typeof(DBusUnixFd);
-            case 'v':
-                return typeof(DBusVariant);
-            case 'a':
+            return typeof(byte);
+        }
+        if (token == DBusSignatureToken.Boolean)
+        {
+            return typeof(bool);
+        }
+        if (token == DBusSignatureToken.Int16)
+        {
+            return typeof(short);
+        }
+        if (token == DBusSignatureToken.UInt16)
+        {
+            return typeof(ushort);
+        }
+        if (token == DBusSignatureToken.Int32)
+        {
+            return typeof(int);
+        }
+        if (token == DBusSignatureToken.UInt32)
+        {
+            return typeof(uint);
+        }
+        if (token == DBusSignatureToken.Int64)
+        {
+            return typeof(long);
+        }
+        if (token == DBusSignatureToken.UInt64)
+        {
+            return typeof(ulong);
+        }
+        if (token == DBusSignatureToken.Double)
+        {
+            return typeof(double);
+        }
+        if (token == DBusSignatureToken.String)
+        {
+            return typeof(string);
+        }
+        if (token == DBusSignatureToken.ObjectPath)
+        {
+            return typeof(DBusObjectPath);
+        }
+        if (token == DBusSignatureToken.Signature)
+        {
+            return typeof(DBusSignature);
+        }
+        if (token == DBusSignatureToken.UnixFd)
+        {
+            return typeof(DBusUnixFd);
+        }
+        if (token == DBusSignatureToken.Variant)
+        {
+            return typeof(DBusVariant);
+        }
+        if (token == DBusSignatureToken.Array)
+        {
+            int index = 1;
+            string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+            if (elementSignature.Length > 0 && elementSignature[0] == DBusSignatureToken.DictEntryBegin)
             {
-                int index = 1;
-                string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
-                if (elementSignature.Length > 0 && elementSignature[0] == '{')
-                {
-                    var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(elementSignature);
-                    Type keyType = GetTypeForSignature(keySig);
-                    Type valueType = GetTypeForSignature(valueSig);
-                    return typeof(DBusDict<,>).MakeGenericType(keyType, valueType);
-                }
-
-                Type elementType = GetTypeForSignature(elementSignature);
-                return typeof(DBusArray<>).MakeGenericType(elementType);
-            }
-            case '(':
-                return typeof(DBusStruct);
-            case '{':
-            {
-                var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(signature);
+                var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(elementSignature);
                 Type keyType = GetTypeForSignature(keySig);
                 Type valueType = GetTypeForSignature(valueSig);
-                return typeof(KeyValuePair<,>).MakeGenericType(keyType, valueType);
+                return typeof(DBusDict<,>).MakeGenericType(keyType, valueType);
             }
-            default:
-                throw new NotSupportedException($"Unsupported D-Bus signature token: {token}");
+
+            Type elementType = GetTypeForSignature(elementSignature);
+            return typeof(DBusArray<>).MakeGenericType(elementType);
         }
+        if (token == DBusSignatureToken.StructBegin)
+        {
+            return typeof(DBusStruct);
+        }
+        if (token == DBusSignatureToken.DictEntryBegin)
+        {
+            var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(signature);
+            Type keyType = GetTypeForSignature(keySig);
+            Type valueType = GetTypeForSignature(valueSig);
+            return typeof(KeyValuePair<,>).MakeGenericType(keyType, valueType);
+        }
+
+        throw new NotSupportedException($"Unsupported D-Bus signature token: {signature[0]}");
     }
 
     private static string InferStructSignature(DBusStruct dbusStruct)
@@ -225,7 +262,7 @@ internal static class DBusSignatureInference
             parts.Add(InferSignatureFromValue(field));
         }
 
-        return "(" + string.Concat(parts) + ")";
+        return string.Concat(DBusSignatureToken.StructBegin, string.Concat(parts), DBusSignatureToken.StructEnd);
     }
 
     private static string InferArrayElementSignature(IDBusArray array)

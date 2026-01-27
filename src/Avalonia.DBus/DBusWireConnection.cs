@@ -65,7 +65,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(OpenBus(DBusBusType.Session));
+        return Task.FromResult(OpenBus(DBusBusType.DBUS_BUS_SESSION));
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(OpenBus(DBusBusType.System));
+        return Task.FromResult(OpenBus(DBusBusType.DBUS_BUS_SYSTEM));
     }
 
     /// <summary>
@@ -87,7 +87,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         get
         {
             DBusNativeConnection* connection = GetConnectionOrThrow();
-            return DbusHelpers.PtrToStringNullable(dbus.dbus_bus_get_unique_name(connection));
+            return DbusHelpers.PtrToStringNullable(LibDbus.dbus_bus_get_unique_name(connection));
         }
     }
 
@@ -110,7 +110,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         try
         {
             uint serial = 0;
-            if (dbus.dbus_connection_send(connection, native, &serial) == 0)
+            if (LibDbus.dbus_connection_send(connection, native, &serial) == 0)
             {
                 throw new InvalidOperationException("Failed to send D-Bus message.");
             }
@@ -120,15 +120,15 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
                 message.Serial = serial;
             }
 
-            dbus.dbus_connection_flush(connection);
+            LibDbus.dbus_connection_flush(connection);
         }
         finally
         {
-            dbus.dbus_message_unref(native);
+            LibDbus.dbus_message_unref(native);
             ReleaseBorrowed(connection);
         }
 
-        return ValueTask.CompletedTask;
+        return default;
     }
 
     /// <summary>
@@ -158,39 +158,44 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
     /// <summary>
     /// Closes the connection and releases resources.
     /// </summary>
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        DBusNativeConnection* connection;
+        IntPtr connectionPtr;
         lock (_gate)
         {
             if (_disposed)
             {
-                return;
+                return default;
             }
             _disposed = true;
-            connection = _connection;
+            connectionPtr = (IntPtr)_connection;
             _connection = null;
         }
 
         _receiveCts.Cancel();
         _incoming.Complete();
 
-        try
-        {
-            await _receiveLoop.ConfigureAwait(false);
-        }
-        catch
-        {
-            // Ignore receive loop failures on shutdown.
-        }
+        Task completion = _receiveLoop.ContinueWith(
+            t => FinalizeDispose(t, connectionPtr),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 
+        return new ValueTask(completion);
+    }
+
+    private void FinalizeDispose(Task completed, IntPtr connectionPtr)
+    {
+        _ = completed.Exception;
+
+        DBusNativeConnection* connection = (DBusNativeConnection*)connectionPtr;
         if (connection != null)
         {
             if (_closeOnDispose)
             {
-                dbus.dbus_connection_close(connection);
+                LibDbus.dbus_connection_close(connection);
             }
-            dbus.dbus_connection_unref(connection);
+            LibDbus.dbus_connection_unref(connection);
         }
 
         _receiveCts.Dispose();
@@ -200,15 +205,15 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
-        dbus.dbus_error_init(&error);
+        LibDbus.dbus_error_init(&error);
 
-        DBusNativeConnection* connection = dbus.dbus_bus_get(busType, &error);
+        DBusNativeConnection* connection = LibDbus.dbus_bus_get(busType, &error);
         if (connection == null)
         {
             ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.");
         }
 
-        dbus.dbus_connection_set_exit_on_disconnect(connection, 0);
+        LibDbus.dbus_connection_set_exit_on_disconnect(connection, 0);
         return new DBusWireConnection(connection, closeOnDispose: false);
     }
 
@@ -216,23 +221,23 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
-        dbus.dbus_error_init(&error);
+        LibDbus.dbus_error_init(&error);
 
         using var addressUtf8 = new Utf8String(address);
-        DBusNativeConnection* connection = dbus.dbus_connection_open_private(addressUtf8.Pointer, &error);
+        DBusNativeConnection* connection = LibDbus.dbus_connection_open_private(addressUtf8.Pointer, &error);
         if (connection == null)
         {
             ThrowErrorAndFree(ref error, "Failed to open D-Bus connection.");
         }
 
-        if (dbus.dbus_bus_register(connection, &error) == 0)
+        if (LibDbus.dbus_bus_register(connection, &error) == 0)
         {
-            dbus.dbus_connection_close(connection);
-            dbus.dbus_connection_unref(connection);
+            LibDbus.dbus_connection_close(connection);
+            LibDbus.dbus_connection_unref(connection);
             ThrowErrorAndFree(ref error, "Failed to register D-Bus connection.");
         }
 
-        dbus.dbus_connection_set_exit_on_disconnect(connection, 0);
+        LibDbus.dbus_connection_set_exit_on_disconnect(connection, 0);
         return new DBusWireConnection(connection, closeOnDispose: true);
     }
 
@@ -243,16 +248,16 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         try
         {
             DBusError error = default;
-            dbus.dbus_error_init(&error);
+            LibDbus.dbus_error_init(&error);
 
-            DBusNativeMessage* reply = dbus.dbus_connection_send_with_reply_and_block(connection, native, -1, &error);
-            uint serial = dbus.dbus_message_get_serial(native);
+            DBusNativeMessage* reply = LibDbus.dbus_connection_send_with_reply_and_block(connection, native, -1, &error);
+            uint serial = LibDbus.dbus_message_get_serial(native);
             if (serial != 0)
             {
                 message.Serial = serial;
             }
 
-            dbus.dbus_message_unref(native);
+            LibDbus.dbus_message_unref(native);
 
             if (reply == null)
             {
@@ -265,7 +270,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
             }
             finally
             {
-                dbus.dbus_message_unref(reply);
+                LibDbus.dbus_message_unref(reply);
             }
         }
         finally
@@ -288,10 +293,10 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
                 connection = _connection;
             }
 
-            dbus.dbus_connection_read_write(connection, 100);
+            LibDbus.dbus_connection_read_write(connection, 100);
 
             DBusNativeMessage* message;
-            while ((message = dbus.dbus_connection_pop_message(connection)) != null)
+            while ((message = LibDbus.dbus_connection_pop_message(connection)) != null)
             {
                 try
                 {
@@ -299,7 +304,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
                 }
                 finally
                 {
-                    dbus.dbus_message_unref(message);
+                    LibDbus.dbus_message_unref(message);
                 }
             }
         }
@@ -327,7 +332,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
                 throw new ObjectDisposedException(nameof(DBusWireConnection));
             }
 
-            dbus.dbus_connection_ref(_connection);
+            LibDbus.dbus_connection_ref(_connection);
             return _connection;
         }
     }
@@ -336,7 +341,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
     {
         if (connection != null)
         {
-            dbus.dbus_connection_unref(connection);
+            LibDbus.dbus_connection_unref(connection);
         }
     }
 
@@ -346,9 +351,9 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         string message = error.message != null ? DbusHelpers.PtrToString(error.message) : fallbackMessage;
         fixed (DBusError* errorPtr = &error)
         {
-            if (dbus.dbus_error_is_set(errorPtr) != 0)
+            if (LibDbus.dbus_error_is_set(errorPtr) != 0)
             {
-                dbus.dbus_error_free(errorPtr);
+                LibDbus.dbus_error_free(errorPtr);
             }
         }
 

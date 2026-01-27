@@ -1,0 +1,636 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
+
+namespace Avalonia.DBus.Wire;
+
+public sealed class DBusConnection : IAsyncDisposable
+{
+    private readonly object _gate = new();
+    private readonly Dictionary<ObjectHandlerKey, ObjectHandlerRegistration> _handlers = new();
+    private readonly List<SignalSubscription> _subscriptions = new();
+    private readonly CancellationTokenSource _dispatchCts = new();
+    private readonly Task _dispatchLoop;
+    private bool _disposed;
+
+    private DBusConnection(DBusWireConnection wire)
+    {
+        Wire = wire ?? throw new ArgumentNullException(nameof(wire));
+        _dispatchLoop = Task.Run(() => DispatchLoopAsync(_dispatchCts.Token));
+    }
+
+    /// <summary>
+    /// Connects to a D-Bus bus at the specified address.
+    /// </summary>
+    public static async Task<DBusConnection> ConnectAsync(
+        string address,
+        CancellationToken cancellationToken = default)
+    {
+        var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken).ConfigureAwait(false);
+        return new DBusConnection(wire);
+    }
+
+    /// <summary>
+    /// Connects to the session bus.
+    /// </summary>
+    public static async Task<DBusConnection> ConnectSessionAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken).ConfigureAwait(false);
+        return new DBusConnection(wire);
+    }
+
+    /// <summary>
+    /// Connects to the system bus.
+    /// </summary>
+    public static async Task<DBusConnection> ConnectSystemAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken).ConfigureAwait(false);
+        return new DBusConnection(wire);
+    }
+
+    /// <summary>
+    /// The underlying wire connection. Exposed for advanced scenarios.
+    /// </summary>
+    public DBusWireConnection Wire { get; }
+
+    /// <summary>
+    /// The unique name assigned by the message bus (e.g., ":1.42").
+    /// </summary>
+    public string UniqueName => Wire.UniqueName ?? string.Empty;
+
+    /// <summary>
+    /// Calls a method on a remote object and returns the reply.
+    /// </summary>
+    public Task<DBusMessage> CallMethodAsync(
+        string destination,
+        DBusObjectPath path,
+        string iface,
+        string member,
+        params object[] args)
+        => CallMethodAsync(destination, path, iface, member, CancellationToken.None, args);
+
+    /// <summary>
+    /// Calls a method on a remote object and returns the reply.
+    /// </summary>
+    public async Task<DBusMessage> CallMethodAsync(
+        string destination,
+        DBusObjectPath path,
+        string iface,
+        string member,
+        CancellationToken cancellationToken,
+        params object[] args)
+    {
+        var message = DBusMessage.CreateMethodCall(destination, path, iface, member, args);
+        var reply = await Wire.SendWithReplyAsync(message, cancellationToken).ConfigureAwait(false);
+        ThrowIfError(reply);
+        return reply;
+    }
+
+    /// <summary>
+    /// Subscribes to signals matching the specified criteria.
+    /// </summary>
+    /// <param name="sender">Filter by sender (null for any).</param>
+    /// <param name="path">Filter by object path (null for any).</param>
+    /// <param name="iface">Interface name.</param>
+    /// <param name="member">Signal name.</param>
+    /// <param name="handler">Async callback invoked for each matching signal.</param>
+    /// <param name="synchronizationContext">
+    /// Optional synchronization context to invoke the handler on (e.g., UI thread).
+    /// If null, handler is invoked on the connection's internal thread.
+    /// </param>
+    /// <returns>Disposable that unsubscribes when disposed.</returns>
+    public async Task<IDisposable> SubscribeAsync(
+        string? sender,
+        DBusObjectPath? path,
+        string iface,
+        string member,
+        Func<DBusMessage, Task> handler,
+        SynchronizationContext? synchronizationContext = null)
+    {
+        if (string.IsNullOrEmpty(iface))
+        {
+            throw new ArgumentException("Interface is required.", nameof(iface));
+        }
+        if (string.IsNullOrEmpty(member))
+        {
+            throw new ArgumentException("Member is required.", nameof(member));
+        }
+        if (handler == null)
+        {
+            throw new ArgumentNullException(nameof(handler));
+        }
+
+        string matchRule = BuildMatchRule(sender, path, iface, member);
+        await AddMatchAsync(matchRule).ConfigureAwait(false);
+
+        var subscription = new SignalSubscription(this, sender, path, iface, member, handler, synchronizationContext, matchRule);
+        lock (_gate)
+        {
+            _subscriptions.Add(subscription);
+        }
+
+        return subscription;
+    }
+
+    /// <summary>
+    /// Requests ownership of a bus name.
+    /// </summary>
+    public async Task<DBusRequestNameReply> RequestNameAsync(
+        string name,
+        DBusRequestNameFlags flags = DBusRequestNameFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            throw new ArgumentException("Name is required.", nameof(name));
+        }
+
+        var reply = await CallBusMethodAsync(
+                "RequestName",
+                cancellationToken,
+                name,
+                (uint)flags)
+            .ConfigureAwait(false);
+
+        if (reply.Body.Count == 0)
+        {
+            throw new InvalidOperationException("RequestName returned no reply.");
+        }
+
+        uint value = reply.Body[0] switch
+        {
+            uint u => u,
+            int i => unchecked((uint)i),
+            _ => throw new InvalidOperationException("RequestName returned an unexpected value.")
+        };
+
+        return (DBusRequestNameReply)value;
+    }
+
+    /// <summary>
+    /// Releases ownership of a bus name.
+    /// </summary>
+    public async Task ReleaseNameAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            throw new ArgumentException("Name is required.", nameof(name));
+        }
+
+        await CallBusMethodAsync("ReleaseName", cancellationToken, name).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Registers a handler for method calls on the specified path and interface.
+    /// </summary>
+    public IDisposable RegisterObject(
+        DBusObjectPath path,
+        string iface,
+        Func<DBusMessage, Task<DBusMessage>> handler,
+        SynchronizationContext? synchronizationContext = null)
+    {
+        if (string.IsNullOrEmpty(iface))
+        {
+            throw new ArgumentException("Interface is required.", nameof(iface));
+        }
+        if (handler == null)
+        {
+            throw new ArgumentNullException(nameof(handler));
+        }
+
+        var key = new ObjectHandlerKey(path.Value, iface);
+        var registration = new ObjectHandlerRegistration(this, key, handler, synchronizationContext);
+
+        lock (_gate)
+        {
+            if (_handlers.ContainsKey(key))
+            {
+                throw new InvalidOperationException("A handler is already registered for this path and interface.");
+            }
+
+            _handlers.Add(key, registration);
+        }
+
+        return registration;
+    }
+
+    /// <summary>
+    /// Closes the connection and releases resources.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _disposed = true;
+        }
+
+        _dispatchCts.Cancel();
+        try
+        {
+            await _dispatchLoop.ConfigureAwait(false);
+        }
+        catch
+        {
+            // Ignore dispatch loop failures on shutdown.
+        }
+
+        await Wire.DisposeAsync().ConfigureAwait(false);
+        _dispatchCts.Dispose();
+    }
+
+    private async Task DispatchLoopAsync(CancellationToken cancellationToken)
+    {
+        await foreach (var message in Wire.ReceiveAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (message.Type == DBusMessageType.Signal)
+            {
+                DispatchSignal(message);
+            }
+            else if (message.Type == DBusMessageType.MethodCall)
+            {
+                DispatchMethodCall(message);
+            }
+        }
+    }
+
+    private void DispatchSignal(DBusMessage message)
+    {
+        List<SignalSubscription> snapshot;
+        lock (_gate)
+        {
+            snapshot = _subscriptions.ToList();
+        }
+
+        foreach (var subscription in snapshot)
+        {
+            if (subscription.IsMatch(message))
+            {
+                subscription.Invoke(message);
+            }
+        }
+    }
+
+    private void DispatchMethodCall(DBusMessage message)
+    {
+        if (!message.Path.HasValue || string.IsNullOrEmpty(message.Interface))
+        {
+            return;
+        }
+
+        ObjectHandlerRegistration? registration;
+        var key = new ObjectHandlerKey(message.Path.Value.Value, message.Interface);
+        lock (_gate)
+        {
+            _handlers.TryGetValue(key, out registration);
+        }
+
+        if (registration == null)
+        {
+            return;
+        }
+
+        registration.Invoke(message);
+    }
+
+    private async Task<DBusMessage> CallBusMethodAsync(
+        string member,
+        CancellationToken cancellationToken,
+        params object[] body)
+    {
+        var message = DBusMessage.CreateMethodCall(
+            "org.freedesktop.DBus",
+            (DBusObjectPath)"/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            member,
+            body);
+
+        var reply = await Wire.SendWithReplyAsync(message, cancellationToken).ConfigureAwait(false);
+        ThrowIfError(reply);
+        return reply;
+    }
+
+    private async Task AddMatchAsync(string rule)
+    {
+        await CallBusMethodAsync("AddMatch", CancellationToken.None, rule).ConfigureAwait(false);
+    }
+
+    private void RemoveMatch(string rule)
+    {
+        FireAndForget(CallBusMethodAsync("RemoveMatch", CancellationToken.None, rule));
+    }
+
+    private static void ThrowIfError(DBusMessage reply)
+    {
+        if (reply.Type != DBusMessageType.Error)
+        {
+            return;
+        }
+
+        string errorName = reply.ErrorName ?? "org.freedesktop.DBus.Error.Failed";
+        string? errorMessage = null;
+        if (reply.Body.Count > 0 && reply.Body[0] is string message)
+        {
+            errorMessage = message;
+        }
+
+        throw new DBusException(errorName, errorMessage, reply);
+    }
+
+    private static string BuildMatchRule(string? sender, DBusObjectPath? path, string iface, string member)
+    {
+        var parts = new List<string> { "type='signal'" };
+
+        if (!string.IsNullOrEmpty(sender))
+        {
+            parts.Add($"sender='{EscapeMatchValue(sender)}'");
+        }
+
+        if (path.HasValue)
+        {
+            parts.Add($"path='{EscapeMatchValue(path.Value.Value)}'");
+        }
+
+        if (!string.IsNullOrEmpty(iface))
+        {
+            parts.Add($"interface='{EscapeMatchValue(iface)}'");
+        }
+
+        if (!string.IsNullOrEmpty(member))
+        {
+            parts.Add($"member='{EscapeMatchValue(member)}'");
+        }
+
+        return string.Join(",", parts);
+    }
+
+    private static string EscapeMatchValue(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("'", "\\'", StringComparison.Ordinal);
+    }
+
+    private static void FireAndForget(Task task)
+    {
+        if (task == null)
+        {
+            return;
+        }
+
+        _ = task.ContinueWith(
+            t => _ = t.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+    }
+
+    private readonly struct ObjectHandlerKey : IEquatable<ObjectHandlerKey>
+    {
+        private readonly string _path;
+        private readonly string _iface;
+
+        public ObjectHandlerKey(string path, string iface)
+        {
+            _path = path ?? string.Empty;
+            _iface = iface ?? string.Empty;
+        }
+
+        public bool Equals(ObjectHandlerKey other)
+            => string.Equals(_path, other._path, StringComparison.Ordinal)
+               && string.Equals(_iface, other._iface, StringComparison.Ordinal);
+
+        public override bool Equals(object? obj) => obj is ObjectHandlerKey other && Equals(other);
+
+        public override int GetHashCode()
+            => HashCode.Combine(StringComparer.Ordinal.GetHashCode(_path), StringComparer.Ordinal.GetHashCode(_iface));
+    }
+
+    private sealed class SignalSubscription : IDisposable
+    {
+        private readonly DBusConnection _connection;
+        private readonly string? _sender;
+        private readonly DBusObjectPath? _path;
+        private readonly string _iface;
+        private readonly string _member;
+        private readonly Func<DBusMessage, Task> _handler;
+        private readonly SynchronizationContext? _context;
+        private readonly string _matchRule;
+        private bool _disposed;
+
+        public SignalSubscription(
+            DBusConnection connection,
+            string? sender,
+            DBusObjectPath? path,
+            string iface,
+            string member,
+            Func<DBusMessage, Task> handler,
+            SynchronizationContext? context,
+            string matchRule)
+        {
+            _connection = connection;
+            _sender = sender;
+            _path = path;
+            _iface = iface;
+            _member = member;
+            _handler = handler;
+            _context = context;
+            _matchRule = matchRule;
+        }
+
+        public bool IsMatch(DBusMessage message)
+        {
+            if (message.Type != DBusMessageType.Signal)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(_sender) && !string.Equals(message.Sender, _sender, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (_path.HasValue)
+            {
+                if (!message.Path.HasValue)
+                {
+                    return false;
+                }
+
+                if (message.Path.Value != _path.Value)
+                {
+                    return false;
+                }
+            }
+
+            if (!string.Equals(message.Interface, _iface, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!string.Equals(message.Member, _member, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        public void Invoke(DBusMessage message)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_context == null)
+            {
+                FireAndForget(_handler(message));
+            }
+            else
+            {
+                _context.Post(_ => FireAndForget(_handler(message)), null);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            lock (_connection._gate)
+            {
+                _connection._subscriptions.Remove(this);
+            }
+
+            _connection.RemoveMatch(_matchRule);
+        }
+    }
+
+    private sealed class ObjectHandlerRegistration : IDisposable
+    {
+        private readonly DBusConnection _connection;
+        private readonly ObjectHandlerKey _key;
+        private readonly Func<DBusMessage, Task<DBusMessage>> _handler;
+        private readonly SynchronizationContext? _context;
+        private bool _disposed;
+
+        public ObjectHandlerRegistration(
+            DBusConnection connection,
+            ObjectHandlerKey key,
+            Func<DBusMessage, Task<DBusMessage>> handler,
+            SynchronizationContext? context)
+        {
+            _connection = connection;
+            _key = key;
+            _handler = handler;
+            _context = context;
+        }
+
+        public void Invoke(DBusMessage message)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_context == null)
+            {
+                FireAndForget(HandleAsync(message));
+            }
+            else
+            {
+                _context.Post(_ => FireAndForget(HandleAsync(message)), null);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            lock (_connection._gate)
+            {
+                _connection._handlers.Remove(_key);
+            }
+        }
+
+        private async Task HandleAsync(DBusMessage message)
+        {
+            DBusMessage reply;
+            try
+            {
+                reply = await _handler(message).ConfigureAwait(false);
+                if (reply == null)
+                {
+                    reply = message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");
+                }
+            }
+            catch (Exception ex)
+            {
+                reply = message.CreateError("org.freedesktop.DBus.Error.Failed", ex.Message);
+            }
+
+            reply = EnsureReplyMetadata(message, reply);
+
+            await _connection.Wire.SendAsync(reply).ConfigureAwait(false);
+        }
+
+        private static DBusMessage EnsureReplyMetadata(DBusMessage request, DBusMessage reply)
+        {
+            if (reply.Type != DBusMessageType.MethodReturn && reply.Type != DBusMessageType.Error)
+            {
+                return reply;
+            }
+
+            uint replySerial = reply.ReplySerial != 0 ? reply.ReplySerial : request.Serial;
+            string? destination = reply.Destination ?? request.Sender;
+            string? errorName = reply.ErrorName;
+
+            if (reply.Type == DBusMessageType.Error && string.IsNullOrEmpty(errorName))
+            {
+                errorName = "org.freedesktop.DBus.Error.Failed";
+            }
+
+            if (reply.ReplySerial == replySerial
+                && string.Equals(reply.Destination, destination, StringComparison.Ordinal)
+                && string.Equals(reply.ErrorName, errorName, StringComparison.Ordinal))
+            {
+                return reply;
+            }
+
+            return new DBusMessage
+            {
+                Type = reply.Type,
+                Flags = reply.Flags,
+                ReplySerial = replySerial,
+                Path = reply.Path,
+                Interface = reply.Interface,
+                Member = reply.Member,
+                ErrorName = errorName,
+                Destination = destination,
+                Body = reply.Body
+            };
+        }
+    }
+}

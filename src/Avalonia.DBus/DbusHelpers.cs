@@ -19,7 +19,7 @@ internal static unsafe class DbusHelpers
     {
         if (Interlocked.Exchange(ref s_threadsInitialized, 1) == 0)
         {
-            dbus.dbus_threads_init_default();
+            LibDbus.dbus_threads_init_default();
         }
     }
 }

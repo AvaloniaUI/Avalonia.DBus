@@ -18,32 +18,32 @@ internal static class DBusSignatureParser
         }
 
         int start = index;
-        char token = signature[index++];
-        switch (token)
+        DBusSignatureToken token = signature[index++];
+        if (token == DBusSignatureToken.Array)
         {
-            case 'a':
+            ReadSingleType(signature, ref index);
+        }
+        else if (token == DBusSignatureToken.StructBegin)
+        {
+            while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd)
+            {
                 ReadSingleType(signature, ref index);
-                break;
-            case '(':
-                while (index < signature.Length && signature[index] != ')')
-                {
-                    ReadSingleType(signature, ref index);
-                }
-                if (index >= signature.Length || signature[index] != ')')
-                {
-                    throw new ArgumentException("Struct signature is not closed.", nameof(signature));
-                }
-                index++;
-                break;
-            case '{':
-                ReadSingleType(signature, ref index);
-                ReadSingleType(signature, ref index);
-                if (index >= signature.Length || signature[index] != '}')
-                {
-                    throw new ArgumentException("Dict entry signature is not closed.", nameof(signature));
-                }
-                index++;
-                break;
+            }
+            if (index >= signature.Length || signature[index] != DBusSignatureToken.StructEnd)
+            {
+                throw new ArgumentException("Struct signature is not closed.", nameof(signature));
+            }
+            index++;
+        }
+        else if (token == DBusSignatureToken.DictEntryBegin)
+        {
+            ReadSingleType(signature, ref index);
+            ReadSingleType(signature, ref index);
+            if (index >= signature.Length || signature[index] != DBusSignatureToken.DictEntryEnd)
+            {
+                throw new ArgumentException("Dict entry signature is not closed.", nameof(signature));
+            }
+            index++;
         }
 
         return signature.Substring(start, index - start);
@@ -51,19 +51,19 @@ internal static class DBusSignatureParser
 
     internal static IReadOnlyList<string> ParseStructSignatures(string signature)
     {
-        if (string.IsNullOrEmpty(signature) || signature[0] != '(')
+        if (string.IsNullOrEmpty(signature) || signature[0] != DBusSignatureToken.StructBegin)
         {
             throw new ArgumentException("Struct signature is invalid.", nameof(signature));
         }
 
         int index = 1;
         List<string> parts = new();
-        while (index < signature.Length && signature[index] != ')')
+        while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd)
         {
             parts.Add(ReadSingleType(signature, ref index));
         }
 
-        if (index >= signature.Length || signature[index] != ')')
+        if (index >= signature.Length || signature[index] != DBusSignatureToken.StructEnd)
         {
             throw new ArgumentException("Struct signature is not closed.", nameof(signature));
         }
@@ -79,7 +79,7 @@ internal static class DBusSignatureParser
 
     internal static (string KeySignature, string ValueSignature) ParseDictEntrySignatures(string signature)
     {
-        if (string.IsNullOrEmpty(signature) || signature[0] != '{')
+        if (string.IsNullOrEmpty(signature) || signature[0] != DBusSignatureToken.DictEntryBegin)
         {
             throw new ArgumentException("Dict entry signature is invalid.", nameof(signature));
         }
@@ -87,7 +87,7 @@ internal static class DBusSignatureParser
         int index = 1;
         string keySignature = ReadSingleType(signature, ref index);
         string valueSignature = ReadSingleType(signature, ref index);
-        if (index >= signature.Length || signature[index] != '}')
+        if (index >= signature.Length || signature[index] != DBusSignatureToken.DictEntryEnd)
         {
             throw new ArgumentException("Dict entry signature is not closed.", nameof(signature));
         }

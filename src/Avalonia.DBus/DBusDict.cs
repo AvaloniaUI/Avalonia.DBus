@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Avalonia.DBus.Wire;
 
@@ -48,7 +49,7 @@ public sealed class DBusDict<TKey, TValue> : IReadOnlyDictionary<TKey, TValue>, 
 
     public bool ContainsKey(TKey key) => _items.ContainsKey(key);
 
-    public bool TryGetValue(TKey key, out TValue value) => _items.TryGetValue(key, out value);
+    public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value) => _items.TryGetValue(key, out value);
 
     public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _items.GetEnumerator();
 
