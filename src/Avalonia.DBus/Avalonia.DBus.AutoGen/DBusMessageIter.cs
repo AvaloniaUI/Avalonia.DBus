@@ -1,6 +1,6 @@
 namespace Avalonia.DBus.AutoGen;
 
-public unsafe struct DBusMessageIter
+internal unsafe struct DBusMessageIter
 {
     public void* dummy1;
 

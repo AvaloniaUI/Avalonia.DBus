@@ -1,6 +1,8 @@
 namespace Avalonia.DBus.AutoGen;
 
-public unsafe struct DBusSignatureIter
+#pragma warning disable CS0649
+
+internal unsafe struct DBusSignatureIter
 {
     public void* dummy1;
 
@@ -13,3 +15,4 @@ public unsafe struct DBusSignatureIter
 
     public int dummy17;
 }
+#pragma warning restore CS0649

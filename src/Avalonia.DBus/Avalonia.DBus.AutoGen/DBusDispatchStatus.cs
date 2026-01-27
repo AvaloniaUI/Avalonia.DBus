@@ -1,7 +1,7 @@
 namespace Avalonia.DBus.AutoGen;
 
 [NativeTypeName("unsigned int")]
-public enum DBusDispatchStatus : uint
+internal enum DBusDispatchStatus : uint
 {
     DBUS_DISPATCH_DATA_REMAINS,
     DBUS_DISPATCH_COMPLETE,

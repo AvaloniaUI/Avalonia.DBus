@@ -3,844 +3,1074 @@ using System.Runtime.InteropServices;
 
 namespace Avalonia.DBus.AutoGen
 {
-    public static unsafe class LibDbus
+    internal static unsafe partial class LibDbus
     {
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_error_init(DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_error_init(DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_error_free(DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_error_free(DBusError* error);
 
         [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void dbus_set_error(DBusError* error, [NativeTypeName("const char *")] byte* name, [NativeTypeName("const char *")] byte* message, __arglist);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_set_error_const(DBusError* error, [NativeTypeName("const char *")] byte* name, [NativeTypeName("const char *")] byte* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_set_error_const(DBusError* error, [NativeTypeName("const char *")] byte* name, [NativeTypeName("const char *")] byte* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_move_error(DBusError* src, DBusError* dest);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_move_error(DBusError* src, DBusError* dest);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_error_has_name([NativeTypeName("const DBusError *")] DBusError* error, [NativeTypeName("const char *")] byte* name);
+        public static partial uint dbus_error_has_name([NativeTypeName("const DBusError *")] DBusError* error, [NativeTypeName("const char *")] byte* name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_error_is_set([NativeTypeName("const DBusError *")] DBusError* error);
+        public static partial uint dbus_error_is_set([NativeTypeName("const DBusError *")] DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_parse_address([NativeTypeName("const char *")] byte* address, DBusAddressEntry*** entry_result, int* array_len, DBusError* error);
+        public static partial uint dbus_parse_address([NativeTypeName("const char *")] byte* address, DBusAddressEntry*** entry_result, int* array_len, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_address_entry_get_value(DBusAddressEntry* entry, [NativeTypeName("const char *")] byte* key);
+        public static partial byte* dbus_address_entry_get_value(DBusAddressEntry* entry, [NativeTypeName("const char *")] byte* key);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_address_entry_get_method(DBusAddressEntry* entry);
+        public static partial byte* dbus_address_entry_get_method(DBusAddressEntry* entry);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_address_entries_free(DBusAddressEntry** entries);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_address_entries_free(DBusAddressEntry** entries);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_address_escape_value([NativeTypeName("const char *")] byte* value);
+        public static partial byte* dbus_address_escape_value([NativeTypeName("const char *")] byte* value);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_address_unescape_value([NativeTypeName("const char *")] byte* value, DBusError* error);
+        public static partial byte* dbus_address_unescape_value([NativeTypeName("const char *")] byte* value, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_new(int message_type);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_new(int message_type);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_new_method_call([NativeTypeName("const char *")] byte* bus_name, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* method);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_new_method_call([NativeTypeName("const char *")] byte* bus_name, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* method);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_new_method_return(DBusMessage* method_call);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_new_method_return(DBusMessage* method_call);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_new_signal([NativeTypeName("const char *")] byte* path, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* name);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_new_signal([NativeTypeName("const char *")] byte* path, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_new_error(DBusMessage* reply_to, [NativeTypeName("const char *")] byte* error_name, [NativeTypeName("const char *")] byte* error_message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_new_error(DBusMessage* reply_to, [NativeTypeName("const char *")] byte* error_name, [NativeTypeName("const char *")] byte* error_message);
 
         [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern DBusMessage* dbus_message_new_error_printf(DBusMessage* reply_to, [NativeTypeName("const char *")] byte* error_name, [NativeTypeName("const char *")] byte* error_format, __arglist);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_copy([NativeTypeName("const DBusMessage *")] DBusMessage* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_copy([NativeTypeName("const DBusMessage *")] DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_ref(DBusMessage* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_ref(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_unref(DBusMessage* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_unref(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_message_get_type(DBusMessage* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_message_get_type(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_path(DBusMessage* message, [NativeTypeName("const char *")] byte* object_path);
+        public static partial uint dbus_message_set_path(DBusMessage* message, [NativeTypeName("const char *")] byte* object_path);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_path(DBusMessage* message);
+        public static partial byte* dbus_message_get_path(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_has_path(DBusMessage* message, [NativeTypeName("const char *")] byte* object_path);
+        public static partial uint dbus_message_has_path(DBusMessage* message, [NativeTypeName("const char *")] byte* object_path);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_interface(DBusMessage* message, [NativeTypeName("const char *")] byte* iface);
+        public static partial uint dbus_message_set_interface(DBusMessage* message, [NativeTypeName("const char *")] byte* iface);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_interface(DBusMessage* message);
+        public static partial byte* dbus_message_get_interface(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_has_interface(DBusMessage* message, [NativeTypeName("const char *")] byte* iface);
+        public static partial uint dbus_message_has_interface(DBusMessage* message, [NativeTypeName("const char *")] byte* iface);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_member(DBusMessage* message, [NativeTypeName("const char *")] byte* member);
+        public static partial uint dbus_message_set_member(DBusMessage* message, [NativeTypeName("const char *")] byte* member);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_member(DBusMessage* message);
+        public static partial byte* dbus_message_get_member(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_has_member(DBusMessage* message, [NativeTypeName("const char *")] byte* member);
+        public static partial uint dbus_message_has_member(DBusMessage* message, [NativeTypeName("const char *")] byte* member);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_error_name(DBusMessage* message, [NativeTypeName("const char *")] byte* name);
+        public static partial uint dbus_message_set_error_name(DBusMessage* message, [NativeTypeName("const char *")] byte* name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_error_name(DBusMessage* message);
+        public static partial byte* dbus_message_get_error_name(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_destination(DBusMessage* message, [NativeTypeName("const char *")] byte* destination);
+        public static partial uint dbus_message_set_destination(DBusMessage* message, [NativeTypeName("const char *")] byte* destination);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_destination(DBusMessage* message);
+        public static partial byte* dbus_message_get_destination(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_sender(DBusMessage* message, [NativeTypeName("const char *")] byte* sender);
+        public static partial uint dbus_message_set_sender(DBusMessage* message, [NativeTypeName("const char *")] byte* sender);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_sender(DBusMessage* message);
+        public static partial byte* dbus_message_get_sender(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_signature(DBusMessage* message);
+        public static partial byte* dbus_message_get_signature(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_set_no_reply(DBusMessage* message, [NativeTypeName("dbus_bool_t")] uint no_reply);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_set_no_reply(DBusMessage* message, [NativeTypeName("dbus_bool_t")] uint no_reply);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_get_no_reply(DBusMessage* message);
+        public static partial uint dbus_message_get_no_reply(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_is_method_call(DBusMessage* message, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* method);
+        public static partial uint dbus_message_is_method_call(DBusMessage* message, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* method);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_is_signal(DBusMessage* message, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* signal_name);
+        public static partial uint dbus_message_is_signal(DBusMessage* message, [NativeTypeName("const char *")] byte* iface, [NativeTypeName("const char *")] byte* signal_name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_is_error(DBusMessage* message, [NativeTypeName("const char *")] byte* error_name);
+        public static partial uint dbus_message_is_error(DBusMessage* message, [NativeTypeName("const char *")] byte* error_name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_has_destination(DBusMessage* message, [NativeTypeName("const char *")] byte* bus_name);
+        public static partial uint dbus_message_has_destination(DBusMessage* message, [NativeTypeName("const char *")] byte* bus_name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_has_sender(DBusMessage* message, [NativeTypeName("const char *")] byte* unique_bus_name);
+        public static partial uint dbus_message_has_sender(DBusMessage* message, [NativeTypeName("const char *")] byte* unique_bus_name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_has_signature(DBusMessage* message, [NativeTypeName("const char *")] byte* signature);
+        public static partial uint dbus_message_has_signature(DBusMessage* message, [NativeTypeName("const char *")] byte* signature);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_uint32_t")]
-        public static extern uint dbus_message_get_serial(DBusMessage* message);
+        public static partial uint dbus_message_get_serial(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_set_serial(DBusMessage* message, [NativeTypeName("dbus_uint32_t")] uint serial);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_set_serial(DBusMessage* message, [NativeTypeName("dbus_uint32_t")] uint serial);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_reply_serial(DBusMessage* message, [NativeTypeName("dbus_uint32_t")] uint reply_serial);
+        public static partial uint dbus_message_set_reply_serial(DBusMessage* message, [NativeTypeName("dbus_uint32_t")] uint reply_serial);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_uint32_t")]
-        public static extern uint dbus_message_get_reply_serial(DBusMessage* message);
+        public static partial uint dbus_message_get_reply_serial(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_set_auto_start(DBusMessage* message, [NativeTypeName("dbus_bool_t")] uint auto_start);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_set_auto_start(DBusMessage* message, [NativeTypeName("dbus_bool_t")] uint auto_start);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_get_auto_start(DBusMessage* message);
+        public static partial uint dbus_message_get_auto_start(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_get_path_decomposed(DBusMessage* message, [NativeTypeName("char ***")] byte*** path);
+        public static partial uint dbus_message_get_path_decomposed(DBusMessage* message, [NativeTypeName("char ***")] byte*** path);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_get_container_instance(DBusMessage* message);
+        public static partial byte* dbus_message_get_container_instance(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_container_instance(DBusMessage* message, [NativeTypeName("const char *")] byte* object_path);
+        public static partial uint dbus_message_set_container_instance(DBusMessage* message, [NativeTypeName("const char *")] byte* object_path);
 
         [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         [return: NativeTypeName("dbus_bool_t")]
         public static extern uint dbus_message_append_args(DBusMessage* message, int first_arg_type, __arglist);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_append_args_valist(DBusMessage* message, int first_arg_type, [NativeTypeName("va_list")] __va_list var_args);
+        public static partial uint dbus_message_append_args_valist(DBusMessage* message, int first_arg_type, [NativeTypeName("va_list")] __va_list var_args);
 
         [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         [return: NativeTypeName("dbus_bool_t")]
         public static extern uint dbus_message_get_args(DBusMessage* message, DBusError* error, int first_arg_type, __arglist);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_get_args_valist(DBusMessage* message, DBusError* error, int first_arg_type, [NativeTypeName("va_list")] __va_list var_args);
+        public static partial uint dbus_message_get_args_valist(DBusMessage* message, DBusError* error, int first_arg_type, [NativeTypeName("va_list")] __va_list var_args);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_contains_unix_fds(DBusMessage* message);
+        public static partial uint dbus_message_contains_unix_fds(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_iter_init_closed(DBusMessageIter* iter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_iter_init_closed(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_iter_init(DBusMessage* message, DBusMessageIter* iter);
+        public static partial uint dbus_message_iter_init(DBusMessage* message, DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_iter_has_next(DBusMessageIter* iter);
+        public static partial uint dbus_message_iter_has_next(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_iter_next(DBusMessageIter* iter);
+        public static partial uint dbus_message_iter_next(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_message_iter_get_signature(DBusMessageIter* iter);
+        public static partial byte* dbus_message_iter_get_signature(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_message_iter_get_arg_type(DBusMessageIter* iter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_message_iter_get_arg_type(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_message_iter_get_element_type(DBusMessageIter* iter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_message_iter_get_element_type(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_iter_recurse(DBusMessageIter* iter, DBusMessageIter* sub);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_iter_recurse(DBusMessageIter* iter, DBusMessageIter* sub);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_iter_get_basic(DBusMessageIter* iter, void* value);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_iter_get_basic(DBusMessageIter* iter, void* value);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_message_iter_get_element_count(DBusMessageIter* iter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_message_iter_get_element_count(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
         [Obsolete]
-        public static extern int dbus_message_iter_get_array_len(DBusMessageIter* iter);
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_message_iter_get_array_len(DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_iter_get_fixed_array(DBusMessageIter* iter, void* value, int* n_elements);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_iter_get_fixed_array(DBusMessageIter* iter, void* value, int* n_elements);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_iter_init_append(DBusMessage* message, DBusMessageIter* iter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_iter_init_append(DBusMessage* message, DBusMessageIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_iter_append_basic(DBusMessageIter* iter, int type, [NativeTypeName("const void *")] void* value);
+        public static partial uint dbus_message_iter_append_basic(DBusMessageIter* iter, int type, [NativeTypeName("const void *")] void* value);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_iter_append_fixed_array(DBusMessageIter* iter, int element_type, [NativeTypeName("const void *")] void* value, int n_elements);
+        public static partial uint dbus_message_iter_append_fixed_array(DBusMessageIter* iter, int element_type, [NativeTypeName("const void *")] void* value, int n_elements);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_iter_open_container(DBusMessageIter* iter, int type, [NativeTypeName("const char *")] byte* contained_signature, DBusMessageIter* sub);
+        public static partial uint dbus_message_iter_open_container(DBusMessageIter* iter, int type, [NativeTypeName("const char *")] byte* contained_signature, DBusMessageIter* sub);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_iter_close_container(DBusMessageIter* iter, DBusMessageIter* sub);
+        public static partial uint dbus_message_iter_close_container(DBusMessageIter* iter, DBusMessageIter* sub);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_iter_abandon_container(DBusMessageIter* iter, DBusMessageIter* sub);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_iter_abandon_container(DBusMessageIter* iter, DBusMessageIter* sub);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_iter_abandon_container_if_open(DBusMessageIter* iter, DBusMessageIter* sub);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_iter_abandon_container_if_open(DBusMessageIter* iter, DBusMessageIter* sub);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_lock(DBusMessage* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_lock(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_set_error_from_message(DBusError* error, DBusMessage* message);
+        public static partial uint dbus_set_error_from_message(DBusError* error, DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        public static partial uint dbus_message_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_set_data(DBusMessage* message, [NativeTypeName("dbus_int32_t")] int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
+        public static partial uint dbus_message_set_data(DBusMessage* message, [NativeTypeName("dbus_int32_t")] int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void* dbus_message_get_data(DBusMessage* message, [NativeTypeName("dbus_int32_t")] int slot);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void* dbus_message_get_data(DBusMessage* message, [NativeTypeName("dbus_int32_t")] int slot);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_message_type_from_string([NativeTypeName("const char *")] byte* type_str);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_message_type_from_string([NativeTypeName("const char *")] byte* type_str);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_message_type_to_string(int type);
+        public static partial byte* dbus_message_type_to_string(int type);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_marshal(DBusMessage* msg, [NativeTypeName("char **")] byte** marshalled_data_p, int* len_p);
+        public static partial uint dbus_message_marshal(DBusMessage* msg, [NativeTypeName("char **")] byte** marshalled_data_p, int* len_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_demarshal([NativeTypeName("const char *")] byte* str, int len, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_message_demarshal([NativeTypeName("const char *")] byte* str, int len, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_message_demarshal_bytes_needed([NativeTypeName("const char *")] byte* str, int len);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_message_demarshal_bytes_needed([NativeTypeName("const char *")] byte* str, int len);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_message_set_allow_interactive_authorization(DBusMessage* message, [NativeTypeName("dbus_bool_t")] uint allow);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_message_set_allow_interactive_authorization(DBusMessage* message, [NativeTypeName("dbus_bool_t")] uint allow);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_get_allow_interactive_authorization(DBusMessage* message);
+        public static partial uint dbus_message_get_allow_interactive_authorization(DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusConnection* dbus_connection_open([NativeTypeName("const char *")] byte* address, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusConnection* dbus_connection_open([NativeTypeName("const char *")] byte* address, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusConnection* dbus_connection_open_private([NativeTypeName("const char *")] byte* address, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusConnection* dbus_connection_open_private([NativeTypeName("const char *")] byte* address, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusConnection* dbus_connection_ref(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusConnection* dbus_connection_ref(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_unref(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_unref(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_close(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_close(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_is_connected(DBusConnection* connection);
+        public static partial uint dbus_connection_get_is_connected(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_is_authenticated(DBusConnection* connection);
+        public static partial uint dbus_connection_get_is_authenticated(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_is_anonymous(DBusConnection* connection);
+        public static partial uint dbus_connection_get_is_anonymous(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_connection_get_server_id(DBusConnection* connection);
+        public static partial byte* dbus_connection_get_server_id(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_can_send_type(DBusConnection* connection, int type);
+        public static partial uint dbus_connection_can_send_type(DBusConnection* connection, int type);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_exit_on_disconnect(DBusConnection* connection, [NativeTypeName("dbus_bool_t")] uint exit_on_disconnect);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_exit_on_disconnect(DBusConnection* connection, [NativeTypeName("dbus_bool_t")] uint exit_on_disconnect);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_flush(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_flush(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_read_write_dispatch(DBusConnection* connection, int timeout_milliseconds);
+        public static partial uint dbus_connection_read_write_dispatch(DBusConnection* connection, int timeout_milliseconds);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_read_write(DBusConnection* connection, int timeout_milliseconds);
+        public static partial uint dbus_connection_read_write(DBusConnection* connection, int timeout_milliseconds);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_connection_borrow_message(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_connection_borrow_message(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_return_message(DBusConnection* connection, DBusMessage* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_return_message(DBusConnection* connection, DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_steal_borrowed_message(DBusConnection* connection, DBusMessage* message);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_steal_borrowed_message(DBusConnection* connection, DBusMessage* message);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_connection_pop_message(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_connection_pop_message(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusDispatchStatus dbus_connection_get_dispatch_status(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusDispatchStatus dbus_connection_get_dispatch_status(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusDispatchStatus dbus_connection_dispatch(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusDispatchStatus dbus_connection_dispatch(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_has_messages_to_send(DBusConnection* connection);
+        public static partial uint dbus_connection_has_messages_to_send(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_send(DBusConnection* connection, DBusMessage* message, [NativeTypeName("dbus_uint32_t *")] uint* client_serial);
+        public static partial uint dbus_connection_send(DBusConnection* connection, DBusMessage* message, [NativeTypeName("dbus_uint32_t *")] uint* client_serial);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_send_with_reply(DBusConnection* connection, DBusMessage* message, DBusPendingCall** pending_return, int timeout_milliseconds);
+        public static partial uint dbus_connection_send_with_reply(DBusConnection* connection, DBusMessage* message, DBusPendingCall** pending_return, int timeout_milliseconds);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_connection_send_with_reply_and_block(DBusConnection* connection, DBusMessage* message, int timeout_milliseconds, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_connection_send_with_reply_and_block(DBusConnection* connection, DBusMessage* message, int timeout_milliseconds, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_set_watch_functions(DBusConnection* connection, [NativeTypeName("DBusAddWatchFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveWatchFunction")] IntPtr remove_function, [NativeTypeName("DBusWatchToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        public static partial uint dbus_connection_set_watch_functions(DBusConnection* connection, [NativeTypeName("DBusAddWatchFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveWatchFunction")] IntPtr remove_function, [NativeTypeName("DBusWatchToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_set_timeout_functions(DBusConnection* connection, [NativeTypeName("DBusAddTimeoutFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveTimeoutFunction")] IntPtr remove_function, [NativeTypeName("DBusTimeoutToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        public static partial uint dbus_connection_set_timeout_functions(DBusConnection* connection, [NativeTypeName("DBusAddTimeoutFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveTimeoutFunction")] IntPtr remove_function, [NativeTypeName("DBusTimeoutToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_wakeup_main_function(DBusConnection* connection, [NativeTypeName("DBusWakeupMainFunction")] IntPtr wakeup_main_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_wakeup_main_function(DBusConnection* connection, [NativeTypeName("DBusWakeupMainFunction")] IntPtr wakeup_main_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_dispatch_status_function(DBusConnection* connection, [NativeTypeName("DBusDispatchStatusFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_dispatch_status_function(DBusConnection* connection, [NativeTypeName("DBusDispatchStatusFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_unix_user(DBusConnection* connection, [NativeTypeName("unsigned long *")] UIntPtr* uid);
+        public static partial uint dbus_connection_get_unix_user(DBusConnection* connection, [NativeTypeName("unsigned long *")] UIntPtr* uid);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_unix_process_id(DBusConnection* connection, [NativeTypeName("unsigned long *")] UIntPtr* pid);
+        public static partial uint dbus_connection_get_unix_process_id(DBusConnection* connection, [NativeTypeName("unsigned long *")] UIntPtr* pid);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_adt_audit_session_data(DBusConnection* connection, void** data, [NativeTypeName("dbus_int32_t *")] int* data_size);
+        public static partial uint dbus_connection_get_adt_audit_session_data(DBusConnection* connection, void** data, [NativeTypeName("dbus_int32_t *")] int* data_size);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_unix_user_function(DBusConnection* connection, [NativeTypeName("DBusAllowUnixUserFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_unix_user_function(DBusConnection* connection, [NativeTypeName("DBusAllowUnixUserFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_windows_user(DBusConnection* connection, [NativeTypeName("char **")] byte** windows_sid_p);
+        public static partial uint dbus_connection_get_windows_user(DBusConnection* connection, [NativeTypeName("char **")] byte** windows_sid_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_windows_user_function(DBusConnection* connection, [NativeTypeName("DBusAllowWindowsUserFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_windows_user_function(DBusConnection* connection, [NativeTypeName("DBusAllowWindowsUserFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_allow_anonymous(DBusConnection* connection, [NativeTypeName("dbus_bool_t")] uint value);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_allow_anonymous(DBusConnection* connection, [NativeTypeName("dbus_bool_t")] uint value);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_route_peer_messages(DBusConnection* connection, [NativeTypeName("dbus_bool_t")] uint value);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_route_peer_messages(DBusConnection* connection, [NativeTypeName("dbus_bool_t")] uint value);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_add_filter(DBusConnection* connection, [NativeTypeName("DBusHandleMessageFunction")] IntPtr function, void* user_data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        public static partial uint dbus_connection_add_filter(DBusConnection* connection, [NativeTypeName("DBusHandleMessageFunction")] IntPtr function, void* user_data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_remove_filter(DBusConnection* connection, [NativeTypeName("DBusHandleMessageFunction")] IntPtr function, void* user_data);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_remove_filter(DBusConnection* connection, [NativeTypeName("DBusHandleMessageFunction")] IntPtr function, void* user_data);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        public static partial uint dbus_connection_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_set_data(DBusConnection* connection, [NativeTypeName("dbus_int32_t")] int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
+        public static partial uint dbus_connection_set_data(DBusConnection* connection, [NativeTypeName("dbus_int32_t")] int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void* dbus_connection_get_data(DBusConnection* connection, [NativeTypeName("dbus_int32_t")] int slot);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void* dbus_connection_get_data(DBusConnection* connection, [NativeTypeName("dbus_int32_t")] int slot);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_change_sigpipe([NativeTypeName("dbus_bool_t")] uint will_modify_sigpipe);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_change_sigpipe([NativeTypeName("dbus_bool_t")] uint will_modify_sigpipe);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_max_message_size(DBusConnection* connection, [NativeTypeName("long")] IntPtr size);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_max_message_size(DBusConnection* connection, [NativeTypeName("long")] IntPtr size);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("long")]
-        public static extern IntPtr dbus_connection_get_max_message_size(DBusConnection* connection);
+        public static partial IntPtr dbus_connection_get_max_message_size(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_max_received_size(DBusConnection* connection, [NativeTypeName("long")] IntPtr size);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_max_received_size(DBusConnection* connection, [NativeTypeName("long")] IntPtr size);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("long")]
-        public static extern IntPtr dbus_connection_get_max_received_size(DBusConnection* connection);
+        public static partial IntPtr dbus_connection_get_max_received_size(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_max_message_unix_fds(DBusConnection* connection, [NativeTypeName("long")] IntPtr n);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_max_message_unix_fds(DBusConnection* connection, [NativeTypeName("long")] IntPtr n);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("long")]
-        public static extern IntPtr dbus_connection_get_max_message_unix_fds(DBusConnection* connection);
+        public static partial IntPtr dbus_connection_get_max_message_unix_fds(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_set_max_received_unix_fds(DBusConnection* connection, [NativeTypeName("long")] IntPtr n);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_set_max_received_unix_fds(DBusConnection* connection, [NativeTypeName("long")] IntPtr n);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("long")]
-        public static extern IntPtr dbus_connection_get_max_received_unix_fds(DBusConnection* connection);
+        public static partial IntPtr dbus_connection_get_max_received_unix_fds(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("long")]
-        public static extern IntPtr dbus_connection_get_outgoing_size(DBusConnection* connection);
+        public static partial IntPtr dbus_connection_get_outgoing_size(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("long")]
-        public static extern IntPtr dbus_connection_get_outgoing_unix_fds(DBusConnection* connection);
+        public static partial IntPtr dbus_connection_get_outgoing_unix_fds(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusPreallocatedSend* dbus_connection_preallocate_send(DBusConnection* connection);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusPreallocatedSend* dbus_connection_preallocate_send(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_free_preallocated_send(DBusConnection* connection, DBusPreallocatedSend* preallocated);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_free_preallocated_send(DBusConnection* connection, DBusPreallocatedSend* preallocated);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_connection_send_preallocated(DBusConnection* connection, DBusPreallocatedSend* preallocated, DBusMessage* message, [NativeTypeName("dbus_uint32_t *")] uint* client_serial);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_connection_send_preallocated(DBusConnection* connection, DBusPreallocatedSend* preallocated, DBusMessage* message, [NativeTypeName("dbus_uint32_t *")] uint* client_serial);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_try_register_object_path(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data, DBusError* error);
+        public static partial uint dbus_connection_try_register_object_path(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_register_object_path(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data);
+        public static partial uint dbus_connection_register_object_path(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_try_register_fallback(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data, DBusError* error);
+        public static partial uint dbus_connection_try_register_fallback(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_register_fallback(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data);
+        public static partial uint dbus_connection_register_fallback(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, [NativeTypeName("const DBusObjectPathVTable *")] DBusObjectPathVTable* vtable, void* user_data);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_unregister_object_path(DBusConnection* connection, [NativeTypeName("const char *")] byte* path);
+        public static partial uint dbus_connection_unregister_object_path(DBusConnection* connection, [NativeTypeName("const char *")] byte* path);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_object_path_data(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, void** data_p);
+        public static partial uint dbus_connection_get_object_path_data(DBusConnection* connection, [NativeTypeName("const char *")] byte* path, void** data_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_list_registered(DBusConnection* connection, [NativeTypeName("const char *")] byte* parent_path, [NativeTypeName("char ***")] byte*** child_entries);
+        public static partial uint dbus_connection_list_registered(DBusConnection* connection, [NativeTypeName("const char *")] byte* parent_path, [NativeTypeName("char ***")] byte*** child_entries);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_unix_fd(DBusConnection* connection, int* fd);
+        public static partial uint dbus_connection_get_unix_fd(DBusConnection* connection, int* fd);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_connection_get_socket(DBusConnection* connection, int* fd);
+        public static partial uint dbus_connection_get_socket(DBusConnection* connection, int* fd);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
         [Obsolete]
-        public static extern int dbus_watch_get_fd(DBusWatch* watch);
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_watch_get_fd(DBusWatch* watch);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_watch_get_unix_fd(DBusWatch* watch);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_watch_get_unix_fd(DBusWatch* watch);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_watch_get_socket(DBusWatch* watch);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_watch_get_socket(DBusWatch* watch);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("unsigned int")]
-        public static extern uint dbus_watch_get_flags(DBusWatch* watch);
+        public static partial uint dbus_watch_get_flags(DBusWatch* watch);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void* dbus_watch_get_data(DBusWatch* watch);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void* dbus_watch_get_data(DBusWatch* watch);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_watch_set_data(DBusWatch* watch, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_watch_set_data(DBusWatch* watch, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_watch_handle(DBusWatch* watch, [NativeTypeName("unsigned int")] uint flags);
+        public static partial uint dbus_watch_handle(DBusWatch* watch, [NativeTypeName("unsigned int")] uint flags);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_watch_get_enabled(DBusWatch* watch);
+        public static partial uint dbus_watch_get_enabled(DBusWatch* watch);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_timeout_get_interval(DBusTimeout* timeout);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_timeout_get_interval(DBusTimeout* timeout);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void* dbus_timeout_get_data(DBusTimeout* timeout);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void* dbus_timeout_get_data(DBusTimeout* timeout);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_timeout_set_data(DBusTimeout* timeout, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_timeout_set_data(DBusTimeout* timeout, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_timeout_handle(DBusTimeout* timeout);
+        public static partial uint dbus_timeout_handle(DBusTimeout* timeout);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_timeout_get_enabled(DBusTimeout* timeout);
+        public static partial uint dbus_timeout_get_enabled(DBusTimeout* timeout);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusConnection* dbus_bus_get(DBusBusType type, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusConnection* dbus_bus_get(DBusBusType type, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusConnection* dbus_bus_get_private(DBusBusType type, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusConnection* dbus_bus_get_private(DBusBusType type, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_bus_register(DBusConnection* connection, DBusError* error);
+        public static partial uint dbus_bus_register(DBusConnection* connection, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_bus_set_unique_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* unique_name);
+        public static partial uint dbus_bus_set_unique_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* unique_name);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("const char *")]
-        public static extern byte* dbus_bus_get_unique_name(DBusConnection* connection);
+        public static partial byte* dbus_bus_get_unique_name(DBusConnection* connection);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("unsigned long")]
-        public static extern UIntPtr dbus_bus_get_unix_user(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, DBusError* error);
+        public static partial UIntPtr dbus_bus_get_unix_user(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_bus_get_id(DBusConnection* connection, DBusError* error);
+        public static partial byte* dbus_bus_get_id(DBusConnection* connection, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_bus_request_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, [NativeTypeName("unsigned int")] uint flags, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_bus_request_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, [NativeTypeName("unsigned int")] uint flags, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_bus_release_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_bus_release_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_bus_name_has_owner(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, DBusError* error);
+        public static partial uint dbus_bus_name_has_owner(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_bus_start_service_by_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, [NativeTypeName("dbus_uint32_t")] uint flags, [NativeTypeName("dbus_uint32_t *")] uint* reply, DBusError* error);
+        public static partial uint dbus_bus_start_service_by_name(DBusConnection* connection, [NativeTypeName("const char *")] byte* name, [NativeTypeName("dbus_uint32_t")] uint flags, [NativeTypeName("dbus_uint32_t *")] uint* reply, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_bus_add_match(DBusConnection* connection, [NativeTypeName("const char *")] byte* rule, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_bus_add_match(DBusConnection* connection, [NativeTypeName("const char *")] byte* rule, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_bus_remove_match(DBusConnection* connection, [NativeTypeName("const char *")] byte* rule, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_bus_remove_match(DBusConnection* connection, [NativeTypeName("const char *")] byte* rule, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_get_local_machine_id();
+        public static partial byte* dbus_get_local_machine_id();
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_get_version(int* major_version_p, int* minor_version_p, int* micro_version_p);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_get_version(int* major_version_p, int* minor_version_p, int* micro_version_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_setenv([NativeTypeName("const char *")] byte* variable, [NativeTypeName("const char *")] byte* value);
+        public static partial uint dbus_setenv([NativeTypeName("const char *")] byte* variable, [NativeTypeName("const char *")] byte* value);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_try_get_local_machine_id(DBusError* error);
+        public static partial byte* dbus_try_get_local_machine_id(DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusPendingCall* dbus_pending_call_ref(DBusPendingCall* pending);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusPendingCall* dbus_pending_call_ref(DBusPendingCall* pending);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_pending_call_unref(DBusPendingCall* pending);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_pending_call_unref(DBusPendingCall* pending);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_pending_call_set_notify(DBusPendingCall* pending, [NativeTypeName("DBusPendingCallNotifyFunction")] IntPtr function, void* user_data, [NativeTypeName("DBusFreeFunction")] IntPtr free_user_data);
+        public static partial uint dbus_pending_call_set_notify(DBusPendingCall* pending, [NativeTypeName("DBusPendingCallNotifyFunction")] IntPtr function, void* user_data, [NativeTypeName("DBusFreeFunction")] IntPtr free_user_data);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_pending_call_cancel(DBusPendingCall* pending);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_pending_call_cancel(DBusPendingCall* pending);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_pending_call_get_completed(DBusPendingCall* pending);
+        public static partial uint dbus_pending_call_get_completed(DBusPendingCall* pending);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_pending_call_steal_reply(DBusPendingCall* pending);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusMessage* dbus_pending_call_steal_reply(DBusPendingCall* pending);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_pending_call_block(DBusPendingCall* pending);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_pending_call_block(DBusPendingCall* pending);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_pending_call_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        public static partial uint dbus_pending_call_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_pending_call_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_pending_call_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_pending_call_set_data(DBusPendingCall* pending, [NativeTypeName("dbus_int32_t")] int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
+        public static partial uint dbus_pending_call_set_data(DBusPendingCall* pending, [NativeTypeName("dbus_int32_t")] int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void* dbus_pending_call_get_data(DBusPendingCall* pending, [NativeTypeName("dbus_int32_t")] int slot);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void* dbus_pending_call_get_data(DBusPendingCall* pending, [NativeTypeName("dbus_int32_t")] int slot);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusServer* dbus_server_listen([NativeTypeName("const char *")] byte* address, DBusError* error);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusServer* dbus_server_listen([NativeTypeName("const char *")] byte* address, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusServer* dbus_server_ref(DBusServer* server);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial DBusServer* dbus_server_ref(DBusServer* server);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_server_unref(DBusServer* server);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_server_unref(DBusServer* server);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_server_disconnect(DBusServer* server);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_server_disconnect(DBusServer* server);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_server_get_is_connected(DBusServer* server);
+        public static partial uint dbus_server_get_is_connected(DBusServer* server);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_server_get_address(DBusServer* server);
+        public static partial byte* dbus_server_get_address(DBusServer* server);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_server_get_id(DBusServer* server);
+        public static partial byte* dbus_server_get_id(DBusServer* server);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_server_set_new_connection_function(DBusServer* server, [NativeTypeName("DBusNewConnectionFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_server_set_new_connection_function(DBusServer* server, [NativeTypeName("DBusNewConnectionFunction")] IntPtr function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_server_set_watch_functions(DBusServer* server, [NativeTypeName("DBusAddWatchFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveWatchFunction")] IntPtr remove_function, [NativeTypeName("DBusWatchToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        public static partial uint dbus_server_set_watch_functions(DBusServer* server, [NativeTypeName("DBusAddWatchFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveWatchFunction")] IntPtr remove_function, [NativeTypeName("DBusWatchToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_server_set_timeout_functions(DBusServer* server, [NativeTypeName("DBusAddTimeoutFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveTimeoutFunction")] IntPtr remove_function, [NativeTypeName("DBusTimeoutToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
+        public static partial uint dbus_server_set_timeout_functions(DBusServer* server, [NativeTypeName("DBusAddTimeoutFunction")] IntPtr add_function, [NativeTypeName("DBusRemoveTimeoutFunction")] IntPtr remove_function, [NativeTypeName("DBusTimeoutToggledFunction")] IntPtr toggled_function, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_function);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_server_set_auth_mechanisms(DBusServer* server, [NativeTypeName("const char **")] byte** mechanisms);
+        public static partial uint dbus_server_set_auth_mechanisms(DBusServer* server, [NativeTypeName("const char **")] byte** mechanisms);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_server_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        public static partial uint dbus_server_allocate_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_server_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_server_free_data_slot([NativeTypeName("dbus_int32_t *")] int* slot_p);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_server_set_data(DBusServer* server, int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
+        public static partial uint dbus_server_set_data(DBusServer* server, int slot, void* data, [NativeTypeName("DBusFreeFunction")] IntPtr free_data_func);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void* dbus_server_get_data(DBusServer* server, int slot);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void* dbus_server_get_data(DBusServer* server, int slot);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_signature_iter_init(DBusSignatureIter* iter, [NativeTypeName("const char *")] byte* signature);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_signature_iter_init(DBusSignatureIter* iter, [NativeTypeName("const char *")] byte* signature);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_signature_iter_get_current_type([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_signature_iter_get_current_type([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("char *")]
-        public static extern byte* dbus_signature_iter_get_signature([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter);
+        public static partial byte* dbus_signature_iter_get_signature([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern int dbus_signature_iter_get_element_type([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial int dbus_signature_iter_get_element_type([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_signature_iter_next(DBusSignatureIter* iter);
+        public static partial uint dbus_signature_iter_next(DBusSignatureIter* iter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_signature_iter_recurse([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter, DBusSignatureIter* subiter);
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void dbus_signature_iter_recurse([NativeTypeName("const DBusSignatureIter *")] DBusSignatureIter* iter, DBusSignatureIter* subiter);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_signature_validate([NativeTypeName("const char *")] byte* signature, DBusError* error);
+        public static partial uint dbus_signature_validate([NativeTypeName("const char *")] byte* signature, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_signature_validate_single([NativeTypeName("const char *")] byte* signature, DBusError* error);
+        public static partial uint dbus_signature_validate_single([NativeTypeName("const char *")] byte* signature, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_type_is_valid(int typecode);
+        public static partial uint dbus_type_is_valid(int typecode);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_type_is_basic(int typecode);
+        public static partial uint dbus_type_is_basic(int typecode);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_type_is_container(int typecode);
+        public static partial uint dbus_type_is_container(int typecode);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_type_is_fixed(int typecode);
+        public static partial uint dbus_type_is_fixed(int typecode);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_validate_path([NativeTypeName("const char *")] byte* path, DBusError* error);
+        public static partial uint dbus_validate_path([NativeTypeName("const char *")] byte* path, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_validate_interface([NativeTypeName("const char *")] byte* name, DBusError* error);
+        public static partial uint dbus_validate_interface([NativeTypeName("const char *")] byte* name, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_validate_member([NativeTypeName("const char *")] byte* name, DBusError* error);
+        public static partial uint dbus_validate_member([NativeTypeName("const char *")] byte* name, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_validate_error_name([NativeTypeName("const char *")] byte* name, DBusError* error);
+        public static partial uint dbus_validate_error_name([NativeTypeName("const char *")] byte* name, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_validate_bus_name([NativeTypeName("const char *")] byte* name, DBusError* error);
+        public static partial uint dbus_validate_bus_name([NativeTypeName("const char *")] byte* name, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_validate_utf8([NativeTypeName("const char *")] byte* alleged_utf8, DBusError* error);
+        public static partial uint dbus_validate_utf8([NativeTypeName("const char *")] byte* alleged_utf8, DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_threads_init([NativeTypeName("const DBusThreadFunctions *")] DBusThreadFunctions* functions);
+        public static partial uint dbus_threads_init([NativeTypeName("const DBusThreadFunctions *")] DBusThreadFunctions* functions);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_threads_init_default();
+        public static partial uint dbus_threads_init_default();
 
         [NativeTypeName("#define TRUE 1")]
         public const int TRUE = 1;
@@ -848,8 +1078,8 @@ namespace Avalonia.DBus.AutoGen
         [NativeTypeName("#define FALSE 0")]
         public const int FALSE = 0;
 
-        [NativeTypeName("#define NULL ((void*) 0)")]
-        public static readonly void* NULL = null;
+        // [NativeTypeName("#define NULL ((void*) 0)")]
+        // public static readonly void* NULL = null;
 
         [NativeTypeName("#define DBUS_LITTLE_ENDIAN ('l')")]
         public const int DBUS_LITTLE_ENDIAN = ('l');
@@ -1253,7 +1483,7 @@ namespace Avalonia.DBus.AutoGen
         [NativeTypeName("#define DBUS_INTROSPECT_1_0_XML_SYSTEM_IDENTIFIER \"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\"")]
         public static ReadOnlySpan<byte> DBUS_INTROSPECT_1_0_XML_SYSTEM_IDENTIFIER => new byte[] { 0x68, 0x74, 0x74, 0x70, 0x3A, 0x2F, 0x2F, 0x77, 0x77, 0x77, 0x2E, 0x66, 0x72, 0x65, 0x65, 0x64, 0x65, 0x73, 0x6B, 0x74, 0x6F, 0x70, 0x2E, 0x6F, 0x72, 0x67, 0x2F, 0x73, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64, 0x73, 0x2F, 0x64, 0x62, 0x75, 0x73, 0x2F, 0x31, 0x2E, 0x30, 0x2F, 0x69, 0x6E, 0x74, 0x72, 0x6F, 0x73, 0x70, 0x65, 0x63, 0x74, 0x2E, 0x64, 0x74, 0x64, 0x00 };
 
-        [NativeTypeName("#define DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE \"<!DOCTYPE node PUBLIC \"\" DBUS_INTROSPECT_1_0_XML_PUBLIC_IDENTIFIER \"\"\n\"\" DBUS_INTROSPECT_1_0_XML_SYSTEM_IDENTIFIER \"\">\n\"")]
+        [NativeTypeName("#define DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE \"<!DOCTYPE node internal \"\" DBUS_INTROSPECT_1_0_XML_PUBLIC_IDENTIFIER \"\"\n\"\" DBUS_INTROSPECT_1_0_XML_SYSTEM_IDENTIFIER \"\">\n\"")]
         public static ReadOnlySpan<byte> DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE => new byte[] { 0x3C, 0x21, 0x44, 0x4F, 0x43, 0x54, 0x59, 0x50, 0x45, 0x20, 0x6E, 0x6F, 0x64, 0x65, 0x20, 0x50, 0x55, 0x42, 0x4C, 0x49, 0x43, 0x20, 0x22, 0x2D, 0x2F, 0x2F, 0x66, 0x72, 0x65, 0x65, 0x64, 0x65, 0x73, 0x6B, 0x74, 0x6F, 0x70, 0x2F, 0x2F, 0x44, 0x54, 0x44, 0x20, 0x44, 0x2D, 0x42, 0x55, 0x53, 0x20, 0x4F, 0x62, 0x6A, 0x65, 0x63, 0x74, 0x20, 0x49, 0x6E, 0x74, 0x72, 0x6F, 0x73, 0x70, 0x65, 0x63, 0x74, 0x69, 0x6F, 0x6E, 0x20, 0x31, 0x2E, 0x30, 0x2F, 0x2F, 0x45, 0x4E, 0x22, 0x0A, 0x22, 0x68, 0x74, 0x74, 0x70, 0x3A, 0x2F, 0x2F, 0x77, 0x77, 0x77, 0x2E, 0x66, 0x72, 0x65, 0x65, 0x64, 0x65, 0x73, 0x6B, 0x74, 0x6F, 0x70, 0x2E, 0x6F, 0x72, 0x67, 0x2F, 0x73, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64, 0x73, 0x2F, 0x64, 0x62, 0x75, 0x73, 0x2F, 0x31, 0x2E, 0x30, 0x2F, 0x69, 0x6E, 0x74, 0x72, 0x6F, 0x73, 0x70, 0x65, 0x63, 0x74, 0x2E, 0x64, 0x74, 0x64, 0x22, 0x3E, 0x0A, 0x00 };
 
         [NativeTypeName("#define DBUS_SERVICE_DBUS \"org.freedesktop.DBus\"")]

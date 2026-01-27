@@ -1,6 +1,8 @@
 namespace Avalonia.DBus.AutoGen;
 
-public struct DBus8ByteStruct
+#pragma warning disable CS0649
+
+internal struct DBus8ByteStruct
 {
     [NativeTypeName("dbus_uint32_t")]
     public uint first32;
@@ -8,3 +10,4 @@ public struct DBus8ByteStruct
     [NativeTypeName("dbus_uint32_t")]
     public uint second32;
 }
+#pragma warning restore CS0649

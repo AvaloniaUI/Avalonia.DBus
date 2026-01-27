@@ -1,7 +1,7 @@
 namespace Avalonia.DBus.AutoGen;
 
 [NativeTypeName("unsigned int")]
-public enum DBusWatchFlags : uint
+internal enum DBusWatchFlags : uint
 {
     DBUS_WATCH_READABLE = 1 << 0,
     DBUS_WATCH_WRITABLE = 1 << 1,

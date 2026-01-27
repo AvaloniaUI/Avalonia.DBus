@@ -1,5 +1,5 @@
 namespace Avalonia.DBus.AutoGen;
 
-public struct DBusWatch
+internal struct DBusWatch
 {
 }

@@ -5,9 +5,9 @@ using System.Diagnostics;
 [Conditional("DEBUG")]
 internal sealed class NativeTypeNameAttribute : Attribute
 {
-	public string Name { get; }
+	internal string Name { get; }
 
-	public NativeTypeNameAttribute(string name)
+	internal NativeTypeNameAttribute(string name)
 	{
 		Name = name;
 	}

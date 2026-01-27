@@ -4,4 +4,4 @@ namespace Avalonia.DBus.AutoGen;
 
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 [return: NativeTypeName("dbus_bool_t")]
-public unsafe delegate uint DBusAddWatchFunction(DBusWatch* watch, void* data);
+internal unsafe delegate uint DBusAddWatchFunction(DBusWatch* watch, void* data);
