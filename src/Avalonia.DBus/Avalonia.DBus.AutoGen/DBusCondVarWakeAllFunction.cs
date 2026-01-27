@@ -3,4 +3,4 @@ using System.Runtime.InteropServices;
 namespace Avalonia.DBus.AutoGen;
 
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-internal unsafe delegate void DBusCondVarWakeAllFunction(DBusCondVar* cond);
+public unsafe delegate void DBusCondVarWakeAllFunction(DBusCondVar* cond);

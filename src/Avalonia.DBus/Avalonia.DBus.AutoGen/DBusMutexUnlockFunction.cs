@@ -4,4 +4,4 @@ namespace Avalonia.DBus.AutoGen;
 
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 [return: NativeTypeName("dbus_bool_t")]
-internal unsafe delegate uint DBusMutexUnlockFunction(DBusMutex* mutex);
+public unsafe delegate uint DBusMutexUnlockFunction(DBusMutex* mutex);

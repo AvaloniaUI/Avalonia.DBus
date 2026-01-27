@@ -1,5 +1,5 @@
 namespace Avalonia.DBus.AutoGen;
 
-internal struct DBusTimeout
+public struct DBusTimeout
 {
 }

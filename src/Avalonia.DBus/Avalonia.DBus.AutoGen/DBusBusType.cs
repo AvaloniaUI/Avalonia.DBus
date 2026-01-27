@@ -1,7 +1,7 @@
 namespace Avalonia.DBus.AutoGen;
 
 [NativeTypeName("unsigned int")]
-internal enum DBusBusType : uint
+public enum DBusBusType : uint
 {
     DBUS_BUS_SESSION,
     DBUS_BUS_SYSTEM,

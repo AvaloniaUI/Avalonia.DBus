@@ -1,7 +1,7 @@
 namespace Avalonia.DBus.AutoGen;
 
 [NativeTypeName("unsigned int")]
-internal enum DBusThreadFunctionsMask : uint
+public enum DBusThreadFunctionsMask : uint
 {
     DBUS_THREAD_FUNCTIONS_MUTEX_NEW_MASK = 1 << 0,
     DBUS_THREAD_FUNCTIONS_MUTEX_FREE_MASK = 1 << 1,

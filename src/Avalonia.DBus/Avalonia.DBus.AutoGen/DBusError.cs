@@ -1,6 +1,6 @@
 namespace Avalonia.DBus.AutoGen;
 
-internal unsafe struct DBusError
+public unsafe struct DBusError
 {
     [NativeTypeName("const char *")]
     public byte* name;

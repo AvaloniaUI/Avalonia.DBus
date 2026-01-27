@@ -5,9 +5,9 @@ using System.Diagnostics;
 [Conditional("DEBUG")]
 internal sealed class NativeAnnotationAttribute : Attribute
 {
-	internal string Annotation { get; }
+	public string Annotation { get; }
 
-	internal NativeAnnotationAttribute(string annotation)
+	public NativeAnnotationAttribute(string annotation)
 	{
 		Annotation = annotation;
 	}

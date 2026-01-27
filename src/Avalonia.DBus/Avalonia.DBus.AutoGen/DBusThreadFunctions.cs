@@ -1,10 +1,8 @@
 using System;
 
-#pragma warning disable CS0649
-
 namespace Avalonia.DBus.AutoGen;
 
-internal struct DBusThreadFunctions
+public struct DBusThreadFunctions
 {
     [NativeTypeName("unsigned int")]
     public uint mask;
@@ -63,4 +61,3 @@ internal struct DBusThreadFunctions
     [NativeTypeName("void (*)(void)")]
     public IntPtr padding4;
 }
-#pragma warning restore CS0649

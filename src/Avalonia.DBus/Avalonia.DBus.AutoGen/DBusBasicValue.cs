@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Avalonia.DBus.AutoGen;
 
 [StructLayout(LayoutKind.Explicit)]
-internal unsafe struct DBusBasicValue
+public unsafe struct DBusBasicValue
 {
     [FieldOffset(0)]
     [NativeTypeName("unsigned char[8]")]

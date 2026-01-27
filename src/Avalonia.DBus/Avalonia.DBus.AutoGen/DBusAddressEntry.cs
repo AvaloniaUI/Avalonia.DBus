@@ -1,5 +1,5 @@
 namespace Avalonia.DBus.AutoGen;
 
-internal struct DBusAddressEntry
+public struct DBusAddressEntry
 {
 }

@@ -1,5 +1,5 @@
 namespace Avalonia.DBus.AutoGen;
 
-internal struct DBusCondVar
+public struct DBusCondVar
 {
 }

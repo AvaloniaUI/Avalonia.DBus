@@ -3,4 +3,4 @@ using System.Runtime.InteropServices;
 namespace Avalonia.DBus.AutoGen;
 
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-internal unsafe delegate DBusMutex* DBusRecursiveMutexNewFunction();
+public unsafe delegate DBusMutex* DBusRecursiveMutexNewFunction();
