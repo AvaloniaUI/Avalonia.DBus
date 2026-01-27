@@ -1,0 +1,621 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using Avalonia.DBus.AutoGen;
+using DBusNativeMessage = Avalonia.DBus.AutoGen.DBusMessage;
+
+namespace Avalonia.DBus.Wire;
+
+internal static unsafe class DBusMessageMarshaler
+{
+    public static DBusNativeMessage* ToNative(DBusMessage message)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        DBusNativeMessage* native = dbus.dbus_message_new((int)message.Type);
+        if (native == null)
+        {
+            throw new InvalidOperationException("Failed to create D-Bus message.");
+        }
+
+        try
+        {
+            ApplyHeaders(message, native);
+            AppendBody(message, native);
+            return native;
+        }
+        catch
+        {
+            dbus.dbus_message_unref(native);
+            throw;
+        }
+    }
+
+    public static DBusMessage FromNative(DBusNativeMessage* message)
+    {
+        var managed = new DBusMessage
+        {
+            Type = (DBusMessageType)dbus.dbus_message_get_type(message),
+            Flags = ReadFlags(message),
+            Serial = dbus.dbus_message_get_serial(message),
+            ReplySerial = dbus.dbus_message_get_reply_serial(message),
+            Path = ReadObjectPath(message),
+            Interface = DbusHelpers.PtrToStringNullable(dbus.dbus_message_get_interface(message)),
+            Member = DbusHelpers.PtrToStringNullable(dbus.dbus_message_get_member(message)),
+            ErrorName = DbusHelpers.PtrToStringNullable(dbus.dbus_message_get_error_name(message)),
+            Destination = DbusHelpers.PtrToStringNullable(dbus.dbus_message_get_destination(message)),
+            Sender = DbusHelpers.PtrToStringNullable(dbus.dbus_message_get_sender(message)),
+            Body = ReadBody(message)
+        };
+
+        return managed;
+    }
+
+    private static void ApplyHeaders(DBusMessage message, DBusNativeMessage* native)
+    {
+        if (message.Path.HasValue)
+        {
+            using var path = new Utf8String(message.Path.Value.Value);
+            dbus.dbus_message_set_path(native, path.Pointer);
+        }
+
+        if (!string.IsNullOrEmpty(message.Interface))
+        {
+            using var iface = new Utf8String(message.Interface);
+            dbus.dbus_message_set_interface(native, iface.Pointer);
+        }
+
+        if (!string.IsNullOrEmpty(message.Member))
+        {
+            using var member = new Utf8String(message.Member);
+            dbus.dbus_message_set_member(native, member.Pointer);
+        }
+
+        if (!string.IsNullOrEmpty(message.ErrorName))
+        {
+            using var error = new Utf8String(message.ErrorName);
+            dbus.dbus_message_set_error_name(native, error.Pointer);
+        }
+
+        if (!string.IsNullOrEmpty(message.Destination))
+        {
+            using var destination = new Utf8String(message.Destination);
+            dbus.dbus_message_set_destination(native, destination.Pointer);
+        }
+
+        if (message.ReplySerial != 0)
+        {
+            dbus.dbus_message_set_reply_serial(native, message.ReplySerial);
+        }
+
+        ApplyFlags(message.Flags, native);
+    }
+
+    private static void ApplyFlags(DBusMessageFlags flags, DBusNativeMessage* native)
+    {
+        dbus.dbus_message_set_no_reply(native, flags.HasFlag(DBusMessageFlags.NoReplyExpected) ? 1u : 0u);
+        dbus.dbus_message_set_auto_start(native, flags.HasFlag(DBusMessageFlags.NoAutoStart) ? 0u : 1u);
+        dbus.dbus_message_set_allow_interactive_authorization(
+            native,
+            flags.HasFlag(DBusMessageFlags.AllowInteractiveAuthorization) ? 1u : 0u);
+    }
+
+    private static DBusMessageFlags ReadFlags(DBusNativeMessage* message)
+    {
+        DBusMessageFlags flags = DBusMessageFlags.None;
+        if (dbus.dbus_message_get_no_reply(message) != 0)
+        {
+            flags |= DBusMessageFlags.NoReplyExpected;
+        }
+        if (dbus.dbus_message_get_auto_start(message) == 0)
+        {
+            flags |= DBusMessageFlags.NoAutoStart;
+        }
+        if (dbus.dbus_message_get_allow_interactive_authorization(message) != 0)
+        {
+            flags |= DBusMessageFlags.AllowInteractiveAuthorization;
+        }
+
+        return flags;
+    }
+
+    private static DBusObjectPath? ReadObjectPath(DBusNativeMessage* message)
+    {
+        string? path = DbusHelpers.PtrToStringNullable(dbus.dbus_message_get_path(message));
+        return path == null ? null : new DBusObjectPath(path);
+    }
+
+    private static IReadOnlyList<object> ReadBody(DBusNativeMessage* message)
+    {
+        string signature = DbusHelpers.PtrToString(dbus.dbus_message_get_signature(message));
+        if (string.IsNullOrEmpty(signature))
+        {
+            return Array.Empty<object>();
+        }
+
+        DBusMessageIter iter;
+        if (dbus.dbus_message_iter_init(message, &iter) == 0)
+        {
+            return Array.Empty<object>();
+        }
+
+        var items = new List<object>();
+        int index = 0;
+        while (index < signature.Length)
+        {
+            string typeSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+            items.Add(ReadValue(typeSignature, ref iter));
+        }
+
+        return items;
+    }
+
+    private static object ReadValue(string signature, ref DBusMessageIter iter)
+    {
+        if (string.IsNullOrEmpty(signature))
+        {
+            throw new ArgumentException("Signature is required.", nameof(signature));
+        }
+
+        switch (signature[0])
+        {
+            case 'y':
+                return ReadBasic<byte>(ref iter);
+            case 'b':
+                return ReadBool(ref iter);
+            case 'n':
+                return ReadBasic<short>(ref iter);
+            case 'q':
+                return ReadBasic<ushort>(ref iter);
+            case 'i':
+                return ReadBasic<int>(ref iter);
+            case 'u':
+                return ReadBasic<uint>(ref iter);
+            case 'x':
+                return ReadBasic<long>(ref iter);
+            case 't':
+                return ReadBasic<ulong>(ref iter);
+            case 'd':
+                return ReadBasic<double>(ref iter);
+            case 's':
+                return ReadString(ref iter);
+            case 'o':
+                return new DBusObjectPath(ReadString(ref iter));
+            case 'g':
+                return new DBusSignature(ReadString(ref iter));
+            case 'h':
+                return new DBusUnixFd(ReadBasic<int>(ref iter));
+            case 'v':
+                return ReadVariant(ref iter);
+            case 'a':
+                return ReadArray(signature, ref iter);
+            case '(':
+                return ReadStruct(signature, ref iter);
+            case '{':
+                return ReadDictEntry(signature, ref iter);
+            default:
+                throw new NotSupportedException($"Unsupported signature token: {signature[0]}");
+        }
+    }
+
+    private static T ReadBasic<T>(ref DBusMessageIter iter) where T : unmanaged
+    {
+        T value;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_get_basic(iterPtr, &value);
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+        return value;
+    }
+
+    private static bool ReadBool(ref DBusMessageIter iter)
+    {
+        uint value;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_get_basic(iterPtr, &value);
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+        return value != 0;
+    }
+
+    private static string ReadString(ref DBusMessageIter iter)
+    {
+        byte* value;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_get_basic(iterPtr, &value);
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+        return DbusHelpers.PtrToString(value);
+    }
+
+    private static object ReadVariant(ref DBusMessageIter iter)
+    {
+        byte* signaturePtr;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            signaturePtr = dbus.dbus_message_iter_get_signature(iterPtr);
+        }
+
+        string signature = signaturePtr == null ? string.Empty : DbusHelpers.PtrToString(signaturePtr);
+        if (signaturePtr != null)
+        {
+            NativeMethods.dbus_free(signaturePtr);
+        }
+
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_recurse(iterPtr, &child);
+        }
+
+        object value = ReadValue(signature, ref child);
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+
+        return new DBusVariant(new DBusSignature(signature), value);
+    }
+
+    private static object ReadArray(string signature, ref DBusMessageIter iter)
+    {
+        int index = 1;
+        string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+        if (elementSignature.Length > 0 && elementSignature[0] == '{')
+        {
+            return ReadDictionaryArray(elementSignature, ref iter);
+        }
+
+        return ReadArrayItems(elementSignature, ref iter);
+    }
+
+    private static object ReadArrayItems(string elementSignature, ref DBusMessageIter iter)
+    {
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_recurse(iterPtr, &child);
+        }
+
+        var items = new List<object>();
+        while (dbus.dbus_message_iter_get_arg_type(&child) != dbus.DBUS_TYPE_INVALID)
+        {
+            items.Add(ReadValue(elementSignature, ref child));
+        }
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+
+        return CreateArrayInstance(elementSignature, items);
+    }
+
+    private static object ReadDictionaryArray(string entrySignature, ref DBusMessageIter iter)
+    {
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_recurse(iterPtr, &child);
+        }
+
+        var entries = new List<KeyValuePair<object?, object?>>();
+        while (dbus.dbus_message_iter_get_arg_type(&child) != dbus.DBUS_TYPE_INVALID)
+        {
+            entries.Add(ReadDictEntry(entrySignature, ref child));
+        }
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+
+        return CreateDictInstance(entrySignature, entries);
+    }
+
+    private static object ReadStruct(string signature, ref DBusMessageIter iter)
+    {
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_recurse(iterPtr, &child);
+        }
+
+        var partSignatures = DBusSignatureParser.ParseStructSignatures(signature);
+        var values = new List<object>(partSignatures.Count);
+        foreach (var part in partSignatures)
+        {
+            values.Add(ReadValue(part, ref child));
+        }
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+
+        return new DBusStruct(values);
+    }
+
+    private static KeyValuePair<object?, object?> ReadDictEntry(string signature, ref DBusMessageIter iter)
+    {
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_recurse(iterPtr, &child);
+        }
+
+        var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(signature);
+        object key = ReadValue(keySig, ref child);
+        object value = ReadValue(valueSig, ref child);
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_next(iterPtr);
+        }
+
+        return new KeyValuePair<object?, object?>(key, value);
+    }
+
+    private static object CreateArrayInstance(string elementSignature, List<object> items)
+    {
+        Type elementType = DBusSignatureInference.GetTypeForSignature(elementSignature);
+        Type listType = typeof(List<>).MakeGenericType(elementType);
+        var list = (IList)Activator.CreateInstance(listType)!;
+        foreach (var item in items)
+        {
+            list.Add(item);
+        }
+
+        Type arrayType = typeof(DBusArray<>).MakeGenericType(elementType);
+        return Activator.CreateInstance(arrayType, list)!;
+    }
+
+    private static object CreateDictInstance(string entrySignature, List<KeyValuePair<object?, object?>> entries)
+    {
+        var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
+        Type keyType = DBusSignatureInference.GetTypeForSignature(keySig);
+        Type valueType = DBusSignatureInference.GetTypeForSignature(valueSig);
+
+        Type kvType = typeof(KeyValuePair<,>).MakeGenericType(keyType, valueType);
+        Type listType = typeof(List<>).MakeGenericType(kvType);
+        var list = (IList)Activator.CreateInstance(listType)!;
+
+        foreach (var entry in entries)
+        {
+            object kv = Activator.CreateInstance(kvType, entry.Key, entry.Value)!;
+            list.Add(kv);
+        }
+
+        Type dictType = typeof(DBusDict<,>).MakeGenericType(keyType, valueType);
+        return Activator.CreateInstance(dictType, list)!;
+    }
+
+    private static void AppendBody(DBusMessage message, DBusNativeMessage* native)
+    {
+        if (message.Body.Count == 0)
+        {
+            return;
+        }
+
+        DBusMessageIter iter;
+        dbus.dbus_message_iter_init_append(native, &iter);
+
+        foreach (var item in message.Body)
+        {
+            AppendValue(ref iter, item);
+        }
+    }
+
+    private static void AppendValue(ref DBusMessageIter iter, object value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        switch (value)
+        {
+            case byte byteValue:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_BYTE, byteValue);
+                return;
+            case bool boolValue:
+                uint dbusBool = boolValue ? 1u : 0u;
+                AppendBasic(ref iter, dbus.DBUS_TYPE_BOOLEAN, dbusBool);
+                return;
+            case short int16Value:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_INT16, int16Value);
+                return;
+            case ushort uint16Value:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_UINT16, uint16Value);
+                return;
+            case int int32Value:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_INT32, int32Value);
+                return;
+            case uint uint32Value:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_UINT32, uint32Value);
+                return;
+            case long int64Value:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_INT64, int64Value);
+                return;
+            case ulong uint64Value:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_UINT64, uint64Value);
+                return;
+            case double doubleValue:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_DOUBLE, doubleValue);
+                return;
+            case string stringValue:
+                AppendString(ref iter, dbus.DBUS_TYPE_STRING, stringValue);
+                return;
+            case DBusObjectPath objectPath:
+                AppendString(ref iter, dbus.DBUS_TYPE_OBJECT_PATH, objectPath.Value);
+                return;
+            case DBusSignature signature:
+                AppendString(ref iter, dbus.DBUS_TYPE_SIGNATURE, signature.Value);
+                return;
+            case DBusUnixFd unixFd:
+                AppendBasic(ref iter, dbus.DBUS_TYPE_UNIX_FD, unixFd.Fd);
+                return;
+            case DBusVariant variant:
+                AppendVariant(ref iter, variant);
+                return;
+            case DBusStruct dbusStruct:
+                AppendStruct(ref iter, dbusStruct);
+                return;
+            case IDBusDict dict:
+                AppendDict(ref iter, dict);
+                return;
+            case IDBusArray array:
+                AppendArray(ref iter, array);
+                return;
+            default:
+                throw new NotSupportedException($"Unsupported D-Bus value type: {value.GetType().FullName}");
+        }
+    }
+
+    private static void AppendBasic<T>(ref DBusMessageIter iter, int dbusType, T value) where T : unmanaged
+    {
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_append_basic(iterPtr, dbusType, &value);
+        }
+    }
+
+    private static void AppendString(ref DBusMessageIter iter, int dbusType, string value)
+    {
+        using var utf8 = new Utf8String(value ?? string.Empty);
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_append_basic(iterPtr, dbusType, utf8.Pointer);
+        }
+    }
+
+    private static void AppendArray(ref DBusMessageIter iter, IDBusArray array)
+    {
+        string arraySignature = DBusSignatureInference.InferSignatureFromValue(array);
+        if (arraySignature.Length < 2 || arraySignature[0] != 'a')
+        {
+            throw new InvalidOperationException("Invalid array signature.");
+        }
+
+        string elementSignature = arraySignature.Substring(1);
+        using var sig = new Utf8String(elementSignature);
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            if (dbus.dbus_message_iter_open_container(iterPtr, dbus.DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
+            {
+                throw new InvalidOperationException("Failed to open array container.");
+            }
+        }
+
+        foreach (var item in array.Items)
+        {
+            AppendValue(ref child, item ?? throw new InvalidOperationException("Array contains null values."));
+        }
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_close_container(iterPtr, &child);
+        }
+    }
+
+    private static void AppendDict(ref DBusMessageIter iter, IDBusDict dict)
+    {
+        string arraySignature = DBusSignatureInference.InferSignatureFromValue(dict);
+        if (arraySignature.Length < 3 || arraySignature[0] != 'a' || arraySignature[1] != '{')
+        {
+            throw new InvalidOperationException("Invalid dictionary signature.");
+        }
+
+        string entrySignature = arraySignature.Substring(1);
+        using var sig = new Utf8String(entrySignature);
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            if (dbus.dbus_message_iter_open_container(iterPtr, dbus.DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
+            {
+                throw new InvalidOperationException("Failed to open dictionary container.");
+            }
+        }
+
+        foreach (var entry in dict.Entries)
+        {
+            DBusMessageIter entryIter;
+            fixed (DBusMessageIter* childPtr = &child)
+            {
+                if (dbus.dbus_message_iter_open_container(childPtr, dbus.DBUS_TYPE_DICT_ENTRY, null, &entryIter) == 0)
+                {
+                    throw new InvalidOperationException("Failed to open dictionary entry container.");
+                }
+            }
+
+            AppendValue(ref entryIter, entry.Key ?? throw new InvalidOperationException("Dictionary contains null keys."));
+            AppendValue(ref entryIter, entry.Value ?? throw new InvalidOperationException("Dictionary contains null values."));
+
+            fixed (DBusMessageIter* childPtr = &child)
+            {
+                dbus.dbus_message_iter_close_container(childPtr, &entryIter);
+            }
+        }
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_close_container(iterPtr, &child);
+        }
+    }
+
+    private static void AppendStruct(ref DBusMessageIter iter, DBusStruct dbusStruct)
+    {
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            if (dbus.dbus_message_iter_open_container(iterPtr, dbus.DBUS_TYPE_STRUCT, null, &child) == 0)
+            {
+                throw new InvalidOperationException("Failed to open struct container.");
+            }
+        }
+
+        foreach (var field in dbusStruct)
+        {
+            AppendValue(ref child, field);
+        }
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_close_container(iterPtr, &child);
+        }
+    }
+
+    private static void AppendVariant(ref DBusMessageIter iter, DBusVariant variant)
+    {
+        string signature = variant.Signature.Value;
+        if (string.IsNullOrEmpty(signature))
+        {
+            signature = DBusSignatureInference.InferSignatureFromValue(variant.Value);
+        }
+
+        using var sig = new Utf8String(signature);
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            if (dbus.dbus_message_iter_open_container(iterPtr, dbus.DBUS_TYPE_VARIANT, sig.Pointer, &child) == 0)
+            {
+                throw new InvalidOperationException("Failed to open variant container.");
+            }
+        }
+
+        AppendValue(ref child, variant.Value);
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus.dbus_message_iter_close_container(iterPtr, &child);
+        }
+    }
+}

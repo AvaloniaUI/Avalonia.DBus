@@ -1,8 +1,0 @@
-using System;
-using System.Runtime.InteropServices;
-
-namespace Avalonia.DBus.AutoGen;
-
-[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-[return: NativeTypeName("dbus_bool_t")]
-public unsafe delegate uint DBusAllowUnixUserFunction(DBusConnection* connection, [NativeTypeName("unsigned long")] UIntPtr uid, void* data);

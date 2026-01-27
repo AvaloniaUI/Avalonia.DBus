@@ -3,7 +3,6 @@
     <Project Path="samples/Atspi2TestApp/Atspi2TestApp.csproj" />
     <Project Path="samples\SourceGenHelloWorld\SourceGenHelloWorld.csproj" />
   </Folder>
-  <Project Path="src/Avalonia.DBus.Wire/Avalonia.DBus.Wire.csproj" />
-  <Project Path="src/Avalonia.DBus.AutoGen/Avalonia.DBus.AutoGen.csproj" />
+  <Project Path="src/Avalonia.DBus/Avalonia.DBus.csproj" />
   <Project Path="src/Avalonia.DBus.SourceGen/Avalonia.DBus.SourceGen.csproj" />
 </Solution>

@@ -1,0 +1,42 @@
+using System;
+
+namespace Avalonia.DBus.Wire;
+
+/// <summary>
+/// Represents a D-Bus variant (dynamically typed value).
+/// </summary>
+public sealed class DBusVariant
+{
+    /// <summary>
+    /// The D-Bus type signature of the contained value.
+    /// </summary>
+    public DBusSignature Signature { get; }
+
+    /// <summary>
+    /// The contained value.
+    /// </summary>
+    public object Value { get; }
+
+    /// <summary>
+    /// Creates a variant with an inferred signature based on the value's .NET type.
+    /// </summary>
+    public DBusVariant(object value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        Value = value;
+        Signature = new DBusSignature(DBusSignatureInference.InferSignatureFromValue(value));
+    }
+
+    /// <summary>
+    /// Creates a variant with an explicit signature.
+    /// </summary>
+    public DBusVariant(DBusSignature signature, object value)
+    {
+        Value = value ?? throw new ArgumentNullException(nameof(value));
+        Signature = signature;
+    }
+}
