@@ -16,7 +16,6 @@
 
     <ItemGroup> 
         <ProjectReference Include="..\..\src\Avalonia.DBus\Avalonia.DBus.csproj" />
-        <ProjectReference Include="..\..\src\Avalonia.DBus.SourceGen\Avalonia.DBus.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
     
 </Project>

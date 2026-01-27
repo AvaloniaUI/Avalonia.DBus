@@ -1,5 +1,4 @@
-﻿using Avalonia.DBus.AutoGen;
-using Avalonia.DBus.SourceGen;
+﻿using Avalonia.DBus;
 using Avalonia.DBus.Wire;
 
 namespace SourceGenHelloWorld;
@@ -8,9 +7,36 @@ internal static class Program
 {
     private static async Task Main()
     {
-        using var connection = new Connection(DBusBusType.DBUS_BUS_SESSION);
-        var proxy = new OrgFreedesktopDBusProxy(connection, "org.freedesktop.DBus", "/org/freedesktop/DBus");
-        var names = await proxy.ListNamesAsync();
-        Console.WriteLine($"Got {names.Length} names from the bus.");
+        await using var wire = await DBusWireConnection.ConnectSessionAsync();
+
+        // Manual message construction
+        var message = DBusMessage.CreateMethodCall(
+            "org.freedesktop.DBus",
+            (DBusObjectPath)"/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "ListNames");
+
+        var reply = await wire.SendWithReplyAsync(message);
+        var names = (DBusArray<string>)reply.Body[0];
+
+        foreach (var name in names)
+            Console.WriteLine(name);
+
+        await using var connection = await DBusConnection.ConnectSessionAsync();
+
+        using var subscription = await connection.SubscribeAsync(
+            sender: null,
+            path: (DBusObjectPath)"/org/freedesktop/Notifications",
+            iface: "org.freedesktop.Notifications",
+            member: "NotificationClosed",
+            handler: async message =>
+            {
+                var id = (uint)message.Body[0];
+                var reason = (uint)message.Body[1];
+                Console.WriteLine($"Notification {id} closed with reason {reason}");
+            });
+
+        Console.WriteLine("Press any key to exit.");
+        Console.ReadKey();
     }
 }
