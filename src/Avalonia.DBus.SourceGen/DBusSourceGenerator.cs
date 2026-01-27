@@ -15,17 +15,8 @@ namespace Avalonia.DBus.SourceGen;
 [Generator]
 public partial class DBusSourceGenerator : IIncrementalGenerator
 {
-    private readonly object _readMethodExtensionsLock = new();
-    private readonly object _writeMethodExtensionsLock = new();
-
-    private Dictionary<string, MethodDeclarationSyntax> _readMethodExtensions = null!;
-    private Dictionary<string, MethodDeclarationSyntax> _writeMethodExtensions = null!;
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        _readMethodExtensions = new Dictionary<string, MethodDeclarationSyntax>();
-        _writeMethodExtensions = new Dictionary<string, MethodDeclarationSyntax>();
-
         XmlSerializer xmlSerializer = new(typeof(DBusNode));
         XmlReaderSettings xmlReaderSettings = new()
         {
@@ -37,7 +28,6 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
         context.RegisterPostInitializationOutput(initializationContext =>
         {
             initializationContext.AddSource("Avalonia.DBus.SourceGen.PropertyChanges.cs", PropertyChangesClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.SignalHelper.cs", SignalHelperClass);
             initializationContext.AddSource("Avalonia.DBus.SourceGen.PathHandler.cs", PathHandlerClass);
             initializationContext.AddSource("Avalonia.DBus.SourceGen.IDBusInterfaceHandler.cs", DBusInterfaceHandlerInterface);
         });
@@ -91,28 +81,6 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 }
             }
 
-            CompilationUnitSyntax readerExtensions = MakeCompilationUnit(
-                NamespaceDeclaration(
-                        IdentifierName("Avalonia.DBus.SourceGen"))
-                    .AddMembers(
-                        ClassDeclaration("ReaderExtensions")
-                            .AddModifiers(Token(SyntaxKind.InternalKeyword), Token(SyntaxKind.StaticKeyword))
-                            .WithMembers(
-                                List<MemberDeclarationSyntax>(_readMethodExtensions.Values))));
-
-            CompilationUnitSyntax writerExtensions = MakeCompilationUnit(
-                NamespaceDeclaration(
-                        IdentifierName("Avalonia.DBus.SourceGen"))
-                    .AddMembers(
-                        ClassDeclaration("WriterExtensions")
-                            .AddModifiers(Token(SyntaxKind.InternalKeyword), Token(SyntaxKind.StaticKeyword))
-                            .WithMembers(
-                                List<MemberDeclarationSyntax>(_writeMethodExtensions.Values)
-                                    .Add(MakeWriteNullableStringMethod())
-                                    .Add(MakeWriteObjectPathSafeMethod()))));
-
-            productionContext.AddSource("Avalonia.DBus.SourceGen.ReaderExtensions.cs", readerExtensions.GetText(Encoding.UTF8));
-            productionContext.AddSource("Avalonia.DBus.SourceGen.WriterExtensions.cs", writerExtensions.GetText(Encoding.UTF8));
         });
     }
 }

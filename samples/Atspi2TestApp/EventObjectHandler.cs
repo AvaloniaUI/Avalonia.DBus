@@ -1,3 +1,4 @@
+using Avalonia.DBus.SourceGen;
 using Avalonia.DBus.Wire;
 using static Atspi2TestApp.Program;
 
@@ -13,15 +14,15 @@ internal sealed class EventObjectHandler : OrgA11yAtspiEventObjectHandler
         Version = EventObjectVersion;
     }
 
-    public override Connection Connection => _server.A11yConnection;
+    public override DBusConnection Connection => _server.A11yConnection;
 
-    public void EmitChildrenChangedSignal(string operation, int indexInParent, VariantValue child)
+    public void EmitChildrenChangedSignal(string operation, int indexInParent, DBusVariant child)
     {
-        EmitChildrenChanged(operation, indexInParent, 0, child, null);
+        EmitChildrenChanged(operation, indexInParent, 0, child, new DBusDict<string, DBusVariant>());
     }
 
-    public void EmitPropertyChangeSignal(string propertyName, VariantValue value)
+    public void EmitPropertyChangeSignal(string propertyName, DBusVariant value)
     {
-        EmitPropertyChange(propertyName, 0, 0, value, null);
+        EmitPropertyChange(propertyName, 0, 0, value, new DBusDict<string, DBusVariant>());
     }
 }

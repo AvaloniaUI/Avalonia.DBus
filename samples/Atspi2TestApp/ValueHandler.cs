@@ -1,3 +1,4 @@
+using Avalonia.DBus.SourceGen;
 using Avalonia.DBus.Wire;
 using static Atspi2TestApp.Program;
 
@@ -19,7 +20,7 @@ internal sealed class ValueHandler : OrgA11yAtspiValueHandler
         Text = node.Value?.Text ?? string.Empty;
     }
 
-    public override Connection Connection => _server.A11yConnection;
+    public override DBusConnection Connection => _server.A11yConnection;
 
     public override double CurrentValue
     {

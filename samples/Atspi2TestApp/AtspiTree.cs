@@ -173,7 +173,7 @@ internal sealed class AtspiTree
 
     private AccessibleNode CreateNode(string name, int role, bool isRoot = false)
     {
-        var path = isRoot ? RootPath : $"{AppPathPrefix}/{Guid.NewGuid().ToString(\"D\").Replace('-', '_')}";
+        var path = isRoot ? RootPath : $"{AppPathPrefix}/{Guid.NewGuid().ToString("D").Replace('-', '_')}";
         var node = new AccessibleNode(path, name, role)
         {
             Locale = _locale

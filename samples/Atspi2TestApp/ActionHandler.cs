@@ -1,3 +1,4 @@
+using Avalonia.DBus.SourceGen;
 using Avalonia.DBus.Wire;
 using static Atspi2TestApp.Program;
 
@@ -16,42 +17,40 @@ internal sealed class ActionHandler : OrgA11yAtspiActionHandler
         NActions = node.Action == null ? 0 : 1;
     }
 
-    public override Connection Connection => _server.A11yConnection;
+    public override DBusConnection Connection => _server.A11yConnection;
 
-    protected override ValueTask<string> OnGetDescriptionAsync(Message request, int index)
+    protected override ValueTask<string> OnGetDescriptionAsync(DBusMessage request, int index)
     {
         return ValueTask.FromResult(_node.Action?.Description ?? string.Empty);
     }
 
-    protected override ValueTask<string> OnGetNameAsync(Message request, int index)
+    protected override ValueTask<string> OnGetNameAsync(DBusMessage request, int index)
     {
         return ValueTask.FromResult(_node.Action?.Name ?? string.Empty);
     }
 
-    protected override ValueTask<string> OnGetLocalizedNameAsync(Message request, int index)
+    protected override ValueTask<string> OnGetLocalizedNameAsync(DBusMessage request, int index)
     {
         return ValueTask.FromResult(_node.Action?.LocalizedName ?? string.Empty);
     }
 
-    protected override ValueTask<string> OnGetKeyBindingAsync(Message request, int index)
+    protected override ValueTask<string> OnGetKeyBindingAsync(DBusMessage request, int index)
     {
         return ValueTask.FromResult(_node.Action?.KeyBinding ?? string.Empty);
     }
 
-    protected override ValueTask<(string, string, string)[]> OnGetActionsAsync(Message request)
+    protected override ValueTask<DBusArray<DBusStruct>> OnGetActionsAsync(DBusMessage request)
     {
         if (_node.Action == null)
         {
-            return ValueTask.FromResult(Array.Empty<(string, string, string)>());
+            return ValueTask.FromResult(new DBusArray<DBusStruct>());
         }
 
-        return ValueTask.FromResult(new[]
-        {
-            (_node.Action.LocalizedName, _node.Action.Description, _node.Action.KeyBinding)
-        });
+        var entry = new DBusStruct(_node.Action.LocalizedName, _node.Action.Description, _node.Action.KeyBinding);
+        return ValueTask.FromResult(new DBusArray<DBusStruct>(entry));
     }
 
-    protected override ValueTask<bool> OnDoActionAsync(Message request, int index)
+    protected override ValueTask<bool> OnDoActionAsync(DBusMessage request, int index)
     {
         if (_node.Role == RoleCheckBox)
         {

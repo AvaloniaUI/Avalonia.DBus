@@ -14,6 +14,7 @@ public sealed class DBusConnection : IAsyncDisposable
     private readonly List<SignalSubscription> _subscriptions = new();
     private readonly CancellationTokenSource _dispatchCts = new();
     private readonly Task _dispatchLoop;
+    private static readonly bool s_verbose = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE"));
     private bool _disposed;
 
     private DBusConnection(DBusWireConnection wire)
@@ -29,7 +30,7 @@ public sealed class DBusConnection : IAsyncDisposable
         string address,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken).ConfigureAwait(false);
+        var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken);
         return new DBusConnection(wire);
     }
 
@@ -39,7 +40,7 @@ public sealed class DBusConnection : IAsyncDisposable
     public static async Task<DBusConnection> ConnectSessionAsync(
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken).ConfigureAwait(false);
+        var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken);
         return new DBusConnection(wire);
     }
 
@@ -49,7 +50,7 @@ public sealed class DBusConnection : IAsyncDisposable
     public static async Task<DBusConnection> ConnectSystemAsync(
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken).ConfigureAwait(false);
+        var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken);
         return new DBusConnection(wire);
     }
 
@@ -85,8 +86,10 @@ public sealed class DBusConnection : IAsyncDisposable
         CancellationToken cancellationToken,
         params object[] args)
     {
-        var message = DBusMessage.CreateMethodCall(destination, path, iface, member, args);
-        var reply = await Wire.SendWithReplyAsync(message, cancellationToken).ConfigureAwait(false);
+        LogVerbose($"CallMethod start: dest='{destination}' path='{path}' iface='{iface}' member='{member}' args={(args?.Length ?? 0)}");
+        var message = DBusMessage.CreateMethodCall(destination, path, iface, member, args ?? Array.Empty<object>());
+        var reply = await Wire.SendWithReplyAsync(message, cancellationToken);
+        LogVerbose($"CallMethod reply: type={reply.Type} replySerial={reply.ReplySerial} error='{reply.ErrorName}' body={reply.Body.Count}");
         ThrowIfError(reply);
         return reply;
     }
@@ -126,7 +129,7 @@ public sealed class DBusConnection : IAsyncDisposable
         }
 
         string matchRule = BuildMatchRule(sender, path, iface, member);
-        await AddMatchAsync(matchRule).ConfigureAwait(false);
+        await AddMatchAsync(matchRule);
 
         var subscription = new SignalSubscription(this, sender, path, iface, member, handler, synchronizationContext, matchRule);
         lock (_gate)
@@ -155,7 +158,7 @@ public sealed class DBusConnection : IAsyncDisposable
                 cancellationToken,
                 name,
                 (uint)flags)
-            .ConfigureAwait(false);
+            ;
 
         if (reply.Body.Count == 0)
         {
@@ -184,7 +187,7 @@ public sealed class DBusConnection : IAsyncDisposable
             throw new ArgumentException("Name is required.", nameof(name));
         }
 
-        await CallBusMethodAsync("ReleaseName", cancellationToken, name).ConfigureAwait(false);
+        await CallBusMethodAsync("ReleaseName", cancellationToken, name);
     }
 
     /// <summary>
@@ -238,20 +241,20 @@ public sealed class DBusConnection : IAsyncDisposable
         _dispatchCts.Cancel();
         try
         {
-            await _dispatchLoop.ConfigureAwait(false);
+            await _dispatchLoop;
         }
         catch
         {
             // Ignore dispatch loop failures on shutdown.
         }
 
-        await Wire.DisposeAsync().ConfigureAwait(false);
+        await Wire.DisposeAsync();
         _dispatchCts.Dispose();
     }
 
     private async Task DispatchLoopAsync(CancellationToken cancellationToken)
     {
-        await foreach (var message in Wire.ReceiveAsync(cancellationToken).ConfigureAwait(false))
+        await foreach (var message in Wire.ReceiveAsync(cancellationToken))
         {
             if (message.Type == DBusMessageType.Signal)
             {
@@ -300,7 +303,18 @@ public sealed class DBusConnection : IAsyncDisposable
             return;
         }
 
+        LogVerbose($"Dispatch METHOD_CALL: path='{message.Path}' iface='{message.Interface}' member='{message.Member}'");
         registration.Invoke(message);
+    }
+
+    private static void LogVerbose(string message)
+    {
+        if (!s_verbose)
+        {
+            return;
+        }
+
+        Console.Error.WriteLine($"[DBusConnection {Environment.CurrentManagedThreadId}] {message}");
     }
 
     private async Task<DBusMessage> CallBusMethodAsync(
@@ -315,14 +329,14 @@ public sealed class DBusConnection : IAsyncDisposable
             member,
             body);
 
-        var reply = await Wire.SendWithReplyAsync(message, cancellationToken).ConfigureAwait(false);
+        var reply = await Wire.SendWithReplyAsync(message, cancellationToken);
         ThrowIfError(reply);
         return reply;
     }
 
     private async Task AddMatchAsync(string rule)
     {
-        await CallBusMethodAsync("AddMatch", CancellationToken.None, rule).ConfigureAwait(false);
+        await CallBusMethodAsync("AddMatch", CancellationToken.None, rule);
     }
 
     private void RemoveMatch(string rule)
@@ -344,6 +358,7 @@ public sealed class DBusConnection : IAsyncDisposable
             errorMessage = message;
         }
 
+        LogVerbose($"D-Bus error reply: name='{errorName}' message='{errorMessage}'");
         throw new DBusException(errorName, errorMessage, reply);
     }
 
@@ -580,7 +595,7 @@ public sealed class DBusConnection : IAsyncDisposable
             DBusMessage reply;
             try
             {
-                reply = await _handler(message).ConfigureAwait(false);
+                reply = await _handler(message);
                 if (reply == null)
                 {
                     reply = message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");
@@ -593,7 +608,7 @@ public sealed class DBusConnection : IAsyncDisposable
 
             reply = EnsureReplyMetadata(message, reply);
 
-            await _connection.Wire.SendAsync(reply).ConfigureAwait(false);
+            await _connection.Wire.SendAsync(reply);
         }
 
         private static DBusMessage EnsureReplyMetadata(DBusMessage request, DBusMessage reply)

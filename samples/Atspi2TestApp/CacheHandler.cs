@@ -1,4 +1,5 @@
 using System.Linq;
+using Avalonia.DBus.SourceGen;
 using Avalonia.DBus.Wire;
 using static Atspi2TestApp.Program;
 
@@ -14,10 +15,9 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
         Version = CacheVersion;
     }
 
-    public override Connection Connection => _server.A11yConnection;
+    public override DBusConnection Connection => _server.A11yConnection;
 
-    protected override ValueTask<((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[])[]>
-        OnGetItemsAsync(Message request)
+    protected override ValueTask<DBusArray<DBusStruct>> OnGetItemsAsync(DBusMessage request)
     {
         AccessibleNode[] snapshot;
         lock (_server.TreeGate)
@@ -27,21 +27,21 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
                 .ToArray();
         }
 
-        var items = new ((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[])[snapshot.Length];
+        var items = new DBusStruct[snapshot.Length];
         for (var i = 0; i < snapshot.Length; i++)
         {
             items[i] = _server.BuildCacheItem(snapshot[i]);
         }
 
-        return ValueTask.FromResult(items);
+        return ValueTask.FromResult(new DBusArray<DBusStruct>(items));
     }
 
-    public void EmitAddAccessibleSignal(((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[]) item)
+    public void EmitAddAccessibleSignal(DBusStruct item)
     {
         EmitAddAccessible(item);
     }
 
-    public void EmitRemoveAccessibleSignal((string, ObjectPath) node)
+    public void EmitRemoveAccessibleSignal(DBusStruct node)
     {
         EmitRemoveAccessible(node);
     }

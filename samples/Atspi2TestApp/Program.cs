@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using Avalonia.DBus.Wire;
 
 namespace Atspi2TestApp;
 
@@ -53,11 +54,11 @@ internal static class Program
     internal const uint StateCheckable = 41;
     internal const uint StateChecked = 4;
 
-    internal static uint[] BuildStateSet(IReadOnlyCollection<uint> states)
+    internal static DBusArray<uint> BuildStateSet(IReadOnlyCollection<uint> states)
     {
         if (states == null || states.Count == 0)
         {
-            return new uint[] { 0u, 0u };
+            return new DBusArray<uint>(0u, 0u);
         }
 
         uint low = 0;
@@ -74,7 +75,7 @@ internal static class Program
             }
         }
 
-        return new[] { low, high };
+        return new DBusArray<uint>(low, high);
     }
 
     internal static string ResolveLocale()
@@ -98,7 +99,7 @@ internal static class Program
         return typeof(Program).Assembly.GetName().Version?.ToString() ?? "0";
     }
 
-    public static int Main(string[] args)
+    public static async Task Main(string[] args)
     {
         if (s_verbose && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE")))
         {
@@ -107,7 +108,7 @@ internal static class Program
 
         var tree = new AtspiTree();
         var server = new AtspiServer(tree);
-        return server.Run();
+        Environment.ExitCode = await server.RunAsync();
     }
 
     internal static void LogVerbose(string message)

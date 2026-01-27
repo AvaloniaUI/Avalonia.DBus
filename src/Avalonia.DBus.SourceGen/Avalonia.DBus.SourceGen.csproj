@@ -18,7 +18,7 @@
         <PackageId>Avalonia.DBus.SourceGen</PackageId>
         <Authors>affederaffe</Authors>
         <Copyright>affederaffe</Copyright>
-        <Description>A roslyn source generator for creating proxies and abstract handlers targeting the Avalonia.DBus.AutoGen API</Description>
+        <Description>A roslyn source generator for creating proxies and abstract handlers targeting the Avalonia.DBus API</Description>
         <PackageTags>DBus;SourceGenerator</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/AvaloniaUI/Avalonia.DBus</PackageProjectUrl>

@@ -33,7 +33,7 @@ internal sealed class AsyncMessageQueue
     {
         while (true)
         {
-            await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _signal.WaitAsync(cancellationToken);
 
             while (_queue.TryDequeue(out var message))
             {

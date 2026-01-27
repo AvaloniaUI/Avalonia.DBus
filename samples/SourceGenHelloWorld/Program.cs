@@ -36,7 +36,7 @@ internal static class Program
                 Console.WriteLine($"Notification {id} closed with reason {reason}");
             });
 
-        Console.WriteLine("Press any key to exit.");
-        Console.ReadKey();
+        await Task.Delay(Timeout.Infinite);
+ 
     }
 }

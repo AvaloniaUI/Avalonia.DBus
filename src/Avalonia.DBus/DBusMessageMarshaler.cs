@@ -524,7 +524,8 @@ internal static unsafe class DBusMessageMarshaler
         using var utf8 = new Utf8String(value ?? string.Empty);
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_append_basic(iterPtr, dbusType, utf8.Pointer);
+            var ptr = utf8.Pointer;
+            LibDbus.dbus_message_iter_append_basic(iterPtr, dbusType, &ptr);
         }
     }
 

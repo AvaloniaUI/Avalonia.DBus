@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Avalonia.DBus.AutoGen;
 using Avalonia.DBus.SourceGen;
 using Avalonia.DBus.Wire;
 using static Atspi2TestApp.Program;
@@ -13,10 +12,10 @@ namespace Atspi2TestApp;
 internal sealed class AtspiServer
 {
     private const int WindowToggleIntervalMs = 3000;
+    private const int StartupRetryDelayMs = 2000;
+    private const int StartupRetryMaxDelayMs = 15000;
 
-    internal static readonly (uint, (string, ObjectPath)[])[] s_emptyRelations = Array.Empty<(uint, (string, ObjectPath)[])>();
-    private static readonly MessageValueReader<(string bus, string @event, string[] properties)> s_registryRegisteredReader = ReadRegistryRegistered;
-    private static readonly MessageValueReader<(string bus, string @event)> s_registryDeregisteredReader = ReadRegistryDeregistered;
+    internal static readonly DBusArray<DBusStruct> s_emptyRelations = new();
 
     private readonly AtspiTree _tree;
     private readonly Dictionary<int, string> _roleNames = new();
@@ -26,7 +25,7 @@ internal sealed class AtspiServer
     private readonly object _eventGate = new();
     private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
 
-    private Connection? _a11yConnection;
+    private DBusConnection? _a11yConnection;
     private string _a11yAddress = string.Empty;
     private string _uniqueName = string.Empty;
     private bool _running;
@@ -34,9 +33,10 @@ internal sealed class AtspiServer
     private volatile bool _emitObjectEvents;
     private CacheHandler? _cacheHandler;
     private OrgA11yAtspiRegistryProxy? _registryProxy;
+    private IDisposable? _pathTreeRegistration;
     private IDisposable? _registryRegisteredSubscription;
     private IDisposable? _registryDeregisteredSubscription;
-    private readonly System.Threading.ManualResetEventSlim _shutdownEvent = new(false);
+    private readonly System.Threading.Tasks.TaskCompletionSource<bool> _shutdownTcs = new(System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
     private System.Threading.Timer? _toggleTimer;
     private PosixSignalRegistration? _sigintRegistration;
     private PosixSignalRegistration? _sigtermRegistration;
@@ -55,29 +55,59 @@ internal sealed class AtspiServer
         _roleNames[RoleSlider] = "slider";
     }
 
-    internal Connection A11yConnection => _a11yConnection ?? throw new InvalidOperationException("Connection not initialized.");
+    internal DBusConnection A11yConnection => _a11yConnection ?? throw new InvalidOperationException("Connection not initialized.");
     internal AtspiTree Tree => _tree;
     internal object TreeGate => _treeGate;
 
-    public int Run()
+    public async System.Threading.Tasks.Task<int> RunAsync()
     {
         _running = true;
         LogVerbose("Server starting");
 
-        Console.CancelKeyPress += (_, e) =>
-        {
-            e.Cancel = true;
-            RequestShutdown();
-        };
-
+        Console.CancelKeyPress += OnCancelKeyPress;
         LogVerbose("Registering signal handlers");
         RegisterSignalHandlers();
 
-        LogVerbose("Connecting to accessibility bus");
-        if (!TryConnect())
+        var attempt = 0;
+        var started = false;
+
+        while (_running)
         {
-            Cleanup();
-            return 1;
+            attempt++;
+            if (await TryStartAsync())
+            {
+                started = true;
+                LogVerbose("Waiting for shutdown");
+                await _shutdownTcs.Task;
+                break;
+            }
+
+            await CleanupAttemptAsync();
+
+            if (!_running || _shutdownTcs.Task.IsCompleted)
+            {
+                break;
+            }
+
+            var delay = ComputeRetryDelay(attempt);
+            Console.Error.WriteLine($"Startup failed; retrying in {(int)delay.TotalSeconds}s.");
+            var completed = await System.Threading.Tasks.Task.WhenAny(_shutdownTcs.Task, System.Threading.Tasks.Task.Delay(delay));
+            if (completed == _shutdownTcs.Task)
+            {
+                break;
+            }
+        }
+
+        await CleanupAsync();
+        return started ? 0 : 1;
+    }
+
+    private async System.Threading.Tasks.Task<bool> TryStartAsync()
+    {
+        LogVerbose("Connecting to accessibility bus");
+        if (!await TryConnectAsync())
+        {
+            return false;
         }
 
         BuildHandlers();
@@ -85,29 +115,34 @@ internal sealed class AtspiServer
         LogVerbose("Registering object paths");
         if (!RegisterObjectPaths())
         {
-            Cleanup();
-            return 1;
+            return false;
         }
 
         LogVerbose("Embedding application");
-        if (!EmbedApplication())
+        if (!await EmbedApplicationAsync())
         {
-            Cleanup();
-            return 1;
+            return false;
         }
 
-        InitializeRegistryEventTracking();
+        await InitializeRegistryEventTrackingAsync();
         EmitInitialCacheSnapshot();
 
         StartToggleLoop();
         Console.WriteLine($"AT-SPI2 test app registered on {_uniqueName}");
         Console.WriteLine("Press Ctrl+C to exit.");
-        LogVerbose("Waiting for shutdown");
+        return true;
+    }
 
-        _shutdownEvent.Wait();
+    private static TimeSpan ComputeRetryDelay(int attempt)
+    {
+        var factor = attempt < 1 ? 1 : attempt;
+        var delayMs = StartupRetryDelayMs * factor;
+        if (delayMs > StartupRetryMaxDelayMs)
+        {
+            delayMs = StartupRetryMaxDelayMs;
+        }
 
-        Cleanup();
-        return 0;
+        return TimeSpan.FromMilliseconds(delayMs);
     }
 
     private void BuildHandlers()
@@ -115,7 +150,9 @@ internal sealed class AtspiServer
         _handlersByPath.Clear();
         foreach (var node in _tree.NodesByPath.Values)
         {
-            var handlers = new NodeHandlers(node, _pathTree.AddPath(node.Path));
+            var pathHandler = _pathTree.AddPath(node.Path);
+            pathHandler.Clear();
+            var handlers = new NodeHandlers(node, pathHandler);
 
             if (node.Interfaces.Contains(IfaceAccessible))
             {
@@ -159,6 +196,7 @@ internal sealed class AtspiServer
         }
 
         var cachePathHandler = _pathTree.AddPath(CachePath);
+        cachePathHandler.Clear();
         var cacheHandler = new CacheHandler(this);
         cachePathHandler.Add(cacheHandler);
         _cacheHandler = cacheHandler;
@@ -182,11 +220,11 @@ internal sealed class AtspiServer
         }
     }
 
-    private bool TryConnect()
+    private async System.Threading.Tasks.Task<bool> TryConnectAsync()
     {
         var sw = Stopwatch.StartNew();
         LogVerbose("TryConnect start");
-        var address = GetAccessibilityBusAddress();
+        var address = await GetAccessibilityBusAddressAsync();
         if (string.IsNullOrWhiteSpace(address))
         {
             Console.Error.WriteLine("Failed to resolve the accessibility bus address.");
@@ -197,7 +235,7 @@ internal sealed class AtspiServer
         try
         {
             LogVerbose("Opening private accessibility bus connection");
-            _a11yConnection = new Connection(address);
+            _a11yConnection = await DBusConnection.ConnectAsync(address);
             _uniqueName = _a11yConnection.UniqueName;
             LogVerbose($"TryConnect end ({sw.ElapsedMilliseconds} ms)");
             return true;
@@ -211,17 +249,17 @@ internal sealed class AtspiServer
         }
     }
 
-    private string GetAccessibilityBusAddress()
+    private async System.Threading.Tasks.Task<string> GetAccessibilityBusAddressAsync()
     {
         var sw = Stopwatch.StartNew();
         LogVerbose("GetAddress start");
         try
         {
             LogVerbose("Connecting to session bus for org.a11y.Bus");
-            using var connection = new Connection(DBusBusType.DBUS_BUS_SESSION);
-            var proxy = new OrgA11yBusProxy(connection, BusNameA11y, PathA11y);
+            await using var connection = await DBusConnection.ConnectSessionAsync();
+            var proxy = new OrgA11yBusProxy(connection, BusNameA11y, new DBusObjectPath(PathA11y));
             LogVerbose("Calling org.a11y.Bus.GetAddress");
-            return proxy.GetAddressAsync().GetAwaiter().GetResult();
+            return await proxy.GetAddressAsync();
         }
         catch (Exception ex)
         {
@@ -245,7 +283,7 @@ internal sealed class AtspiServer
 
         try
         {
-            _a11yConnection.RegisterPathHandler(_pathTree);
+            RefreshPathRegistrations();
             LogVerbose($"RegisterObjectPaths end ({sw.ElapsedMilliseconds} ms)");
             return true;
         }
@@ -256,7 +294,18 @@ internal sealed class AtspiServer
         }
     }
 
-    private bool EmbedApplication()
+    private void RefreshPathRegistrations()
+    {
+        if (_a11yConnection == null)
+        {
+            return;
+        }
+
+        _pathTreeRegistration?.Dispose();
+        _pathTreeRegistration = _pathTree.Register(_a11yConnection);
+    }
+
+    private async System.Threading.Tasks.Task<bool> EmbedApplicationAsync()
     {
         if (string.IsNullOrWhiteSpace(_a11yAddress))
         {
@@ -273,10 +322,12 @@ internal sealed class AtspiServer
         LogVerbose("EmbedApplication start");
         try
         {
-            var proxy = new OrgA11yAtspiSocketProxy(_a11yConnection, BusNameRegistry, RootPath);
+            var proxy = new OrgA11yAtspiSocketProxy(_a11yConnection, BusNameRegistry, new DBusObjectPath(RootPath));
             LogVerbose("Calling org.a11y.atspi.Socket.Embed");
-            var reply = proxy.EmbedAsync((_uniqueName, new ObjectPath(RootPath))).GetAwaiter().GetResult();
-            Console.WriteLine($"Registry root: {reply.Item1} {reply.Item2}");
+            var reply = await proxy.EmbedAsync(new DBusStruct(_uniqueName, new DBusObjectPath(RootPath)));
+            var registryBus = reply.Count > 0 ? reply[0] : null;
+            var registryPath = reply.Count > 1 ? reply[1] : null;
+            Console.WriteLine($"Registry root: {registryBus} {registryPath}");
             LogVerbose($"EmbedApplication end ({sw.ElapsedMilliseconds} ms)");
             return true;
         }
@@ -288,7 +339,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private void InitializeRegistryEventTracking()
+    private async System.Threading.Tasks.Task InitializeRegistryEventTrackingAsync()
     {
         if (_a11yConnection == null)
         {
@@ -297,43 +348,28 @@ internal sealed class AtspiServer
 
         try
         {
-            _registryProxy ??= new OrgA11yAtspiRegistryProxy(_a11yConnection, BusNameRegistry, RegistryPath);
-            var events = _registryProxy.GetRegisteredEventsAsync().GetAwaiter().GetResult();
+            _registryProxy ??= new OrgA11yAtspiRegistryProxy(_a11yConnection, BusNameRegistry, new DBusObjectPath(RegistryPath));
+            var events = await _registryProxy.GetRegisteredEventsAsync();
             lock (_eventGate)
             {
                 _registeredEvents.Clear();
                 foreach (var registered in events)
                 {
-                    _registeredEvents.Add(registered.Item2);
+                    if (registered.Count > 1 && registered[1] is string eventName)
+                    {
+                        _registeredEvents.Add(eventName);
+                    }
                 }
                 UpdateEventMaskLocked();
             }
 
-            var registeredRule = new MatchRule
-            {
-                Type = MessageType.Signal,
-                Path = RegistryPath,
-                Interface = "org.a11y.atspi.Registry",
-                Member = "EventListenerRegistered"
-            };
-            _registryRegisteredSubscription = _a11yConnection
-                .AddMatchAsync(registeredRule, s_registryRegisteredReader,
-                    (error, args, _) => OnRegistryEventListenerRegistered(error, args))
-                .GetAwaiter()
-                .GetResult();
+            _registryRegisteredSubscription = await _registryProxy
+                .WatchEventListenerRegisteredAsync(OnRegistryEventListenerRegistered)
+                ;
 
-            var deregisteredRule = new MatchRule
-            {
-                Type = MessageType.Signal,
-                Path = RegistryPath,
-                Interface = "org.a11y.atspi.Registry",
-                Member = "EventListenerDeregistered"
-            };
-            _registryDeregisteredSubscription = _a11yConnection
-                .AddMatchAsync(deregisteredRule, s_registryDeregisteredReader,
-                    (error, args, _) => OnRegistryEventListenerDeregistered(error, args))
-                .GetAwaiter()
-                .GetResult();
+            _registryDeregisteredSubscription = await _registryProxy
+                .WatchEventListenerDeregisteredAsync(OnRegistryEventListenerDeregistered)
+                ;
         }
         catch (Exception ex)
         {
@@ -342,32 +378,20 @@ internal sealed class AtspiServer
         }
     }
 
-    private void OnRegistryEventListenerRegistered(Exception? error, (string bus, string @event, string[] properties) args)
+    private void OnRegistryEventListenerRegistered(string bus, string @event, DBusArray<string> properties)
     {
-        if (error != null)
-        {
-            LogVerbose($"Registry EventListenerRegistered error: {error.Message}");
-            return;
-        }
-
         lock (_eventGate)
         {
-            _registeredEvents.Add(args.@event);
+            _registeredEvents.Add(@event);
             UpdateEventMaskLocked();
         }
     }
 
-    private void OnRegistryEventListenerDeregistered(Exception? error, (string bus, string @event) args)
+    private void OnRegistryEventListenerDeregistered(string bus, string @event)
     {
-        if (error != null)
-        {
-            LogVerbose($"Registry EventListenerDeregistered error: {error.Message}");
-            return;
-        }
-
         lock (_eventGate)
         {
-            _registeredEvents.Remove(args.@event);
+            _registeredEvents.Remove(@event);
             UpdateEventMaskLocked();
         }
     }
@@ -392,34 +416,6 @@ internal sealed class AtspiServer
         return eventName.StartsWith("object:", StringComparison.OrdinalIgnoreCase)
             || eventName.StartsWith("window:", StringComparison.OrdinalIgnoreCase)
             || eventName.StartsWith("focus:", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static (string bus, string @event, string[] properties) ReadRegistryRegistered(Message message, object? state)
-    {
-        var reader = message.GetBodyReader();
-        var bus = reader.ReadString();
-        var eventName = reader.ReadString();
-        var properties = ReadStringArray(ref reader);
-        return (bus, eventName, properties);
-    }
-
-    private static (string bus, string @event) ReadRegistryDeregistered(Message message, object? state)
-    {
-        var reader = message.GetBodyReader();
-        var bus = reader.ReadString();
-        var eventName = reader.ReadString();
-        return (bus, eventName);
-    }
-
-    private static string[] ReadStringArray(ref Reader reader)
-    {
-        var end = reader.ReadArrayStart();
-        var items = new List<string>();
-        while (reader.HasNext(end))
-        {
-            items.Add(reader.ReadString());
-        }
-        return items.ToArray();
     }
 
     private void EmitInitialCacheSnapshot()
@@ -482,28 +478,27 @@ internal sealed class AtspiServer
         EmitCacheRemove(node);
     }
 
-    internal ((string, ObjectPath), (string, ObjectPath), (string, ObjectPath), int, int, string[], string, uint, string, uint[])
-        BuildCacheItem(AccessibleNode node)
+    internal DBusStruct BuildCacheItem(AccessibleNode node)
     {
-        var self = (_uniqueName, new ObjectPath(node.Path));
-        var app = (_uniqueName, new ObjectPath(RootPath));
+        var self = new DBusStruct(_uniqueName, new DBusObjectPath(node.Path));
+        var app = new DBusStruct(_uniqueName, new DBusObjectPath(RootPath));
         var parent = node.Parent == null
-            ? (string.Empty, new ObjectPath(NullPath))
-            : (_uniqueName, new ObjectPath(node.Parent.Path));
+            ? new DBusStruct(string.Empty, new DBusObjectPath(NullPath))
+            : new DBusStruct(_uniqueName, new DBusObjectPath(node.Parent.Path));
         var indexInParent = node.Parent == null ? -1 : node.Parent.Children.IndexOf(node);
         var childCount = node.Children.Count;
         var interfaces = node.Interfaces.Count == 0
-            ? Array.Empty<string>()
-            : node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray();
+            ? new DBusArray<string>()
+            : new DBusArray<string>(node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray());
         var name = node.Name;
         var role = (uint)node.Role;
         var description = node.Description;
         var states = BuildStateSet(node.States);
 
-        return (self, app, parent, indexInParent, childCount, interfaces, name, role, description, states);
+        return new DBusStruct(self, app, parent, indexInParent, childCount, interfaces, name, role, description, states);
     }
 
-    private void Cleanup()
+    private async System.Threading.Tasks.Task CleanupAttemptAsync()
     {
         if (_toggleTimer != null)
         {
@@ -511,13 +506,17 @@ internal sealed class AtspiServer
             _toggleTimer = null;
         }
 
+        _pathTreeRegistration?.Dispose();
+        _pathTreeRegistration = null;
+
         if (_a11yConnection != null)
         {
-            _a11yConnection.Dispose();
+            await _a11yConnection.DisposeAsync();
             _a11yConnection = null;
         }
 
         _a11yAddress = string.Empty;
+        _uniqueName = string.Empty;
         _cacheHandler = null;
         _registryProxy = null;
         _registryRegisteredSubscription?.Dispose();
@@ -529,7 +528,13 @@ internal sealed class AtspiServer
             _registeredEvents.Clear();
             _emitObjectEvents = false;
         }
+    }
 
+    private async System.Threading.Tasks.Task CleanupAsync()
+    {
+        await CleanupAttemptAsync();
+
+        Console.CancelKeyPress -= OnCancelKeyPress;
         _sigintRegistration?.Dispose();
         _sigintRegistration = null;
         _sigtermRegistration?.Dispose();
@@ -555,12 +560,18 @@ internal sealed class AtspiServer
     private void RequestShutdown()
     {
         _running = false;
-        _shutdownEvent.Set();
+        _shutdownTcs.TrySetResult(true);
         _forceExitTimer ??= new System.Threading.Timer(
             _ => Environment.Exit(0),
             null,
             2000,
             System.Threading.Timeout.Infinite);
+    }
+
+    private void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+    {
+        e.Cancel = true;
+        RequestShutdown();
     }
 
     private void StartToggleLoop()
@@ -586,6 +597,7 @@ internal sealed class AtspiServer
                 var index = _tree.GetToggleWindowIndex();
                 _tree.RemoveToggleWindow();
                 _pathTree.RemovePath(_tree.ToggleWindow.Path);
+                RefreshPathRegistrations();
                 RefreshAccessibleHandler(_tree.Root);
                 RefreshAccessibleHandler(_tree.ToggleWindow);
                 EmitChildrenChanged(_tree.Root, "remove", index < 0 ? 0 : index, _tree.ToggleWindow);
@@ -597,6 +609,7 @@ internal sealed class AtspiServer
                 _tree.ToggleWindow.Description = $"Recurring window (cycle {_windowToggleCounter})";
                 _tree.AddToggleWindow();
                 _pathTree.AddPath(_tree.ToggleWindow.Path);
+                RefreshPathRegistrations();
                 RefreshAccessibleHandler(_tree.Root);
                 RefreshAccessibleHandler(_tree.ToggleWindow);
                 var index = _tree.GetToggleWindowIndex();
@@ -607,14 +620,14 @@ internal sealed class AtspiServer
         }
     }
 
-    internal (string busName, ObjectPath path) GetReference(AccessibleNode? node)
+    internal DBusStruct GetReference(AccessibleNode? node)
     {
         if (node == null)
         {
-            return (string.Empty, new ObjectPath(NullPath));
+            return new DBusStruct(string.Empty, new DBusObjectPath(NullPath));
         }
 
-        return (_uniqueName, new ObjectPath(node.Path));
+        return new DBusStruct(_uniqueName, new DBusObjectPath(node.Path));
     }
 
     private void EmitChildrenChanged(AccessibleNode parent, string operation, int index, AccessibleNode child)
@@ -634,7 +647,7 @@ internal sealed class AtspiServer
         }
 
         var reference = GetReference(child);
-        var childVariant = VariantValue.FromSignature("(so)", (reference.busName, reference.path));
+        var childVariant = new DBusVariant(reference);
         handlers.EventObjectHandler.EmitChildrenChangedSignal(operation, index, childVariant);
     }
 
@@ -654,7 +667,7 @@ internal sealed class AtspiServer
             return;
         }
 
-        handlers.EventObjectHandler.EmitPropertyChangeSignal(propertyName, VariantValue.FromSignature("s", value));
+        handlers.EventObjectHandler.EmitPropertyChangeSignal(propertyName, new DBusVariant(value));
     }
 
     internal void SetFocused(AccessibleNode node)

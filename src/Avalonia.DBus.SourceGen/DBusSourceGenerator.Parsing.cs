@@ -27,10 +27,10 @@ public partial class DBusSourceGenerator
         ObjectPath,
         Signature,
         Array,
-        Tuple,
+        Struct,
         Variant,
         Dictionary,
-        SafeFileHandle
+        UnixFd
     }
 
     private static string Pascalize(ReadOnlySpan<char> name, bool camel = false)
@@ -174,7 +174,7 @@ public partial class DBusSourceGenerator
         private static readonly DBusDotnetType StringType = new(DotnetType.String, DBusType.String, "s", []);
         private static readonly DBusDotnetType ObjectPathType = new(DotnetType.ObjectPath, DBusType.ObjectPath, "o", []);
         private static readonly DBusDotnetType SignatureType = new(DotnetType.Signature, DBusType.Signature, "g", []);
-        private static readonly DBusDotnetType UnixFdType = new(DotnetType.SafeFileHandle, DBusType.UnixFd, "h", []);
+        private static readonly DBusDotnetType UnixFdType = new(DotnetType.UnixFd, DBusType.UnixFd, "h", []);
 
         internal static readonly DBusDotnetType StringArrayType = new(DotnetType.Array, DBusType.Array, "as", [StringType]);
 
@@ -233,7 +233,7 @@ public partial class DBusSourceGenerator
                 case DBusType.Array when innerTypes.Length == 1:
                     return new DBusDotnetType(DotnetType.Array, DBusType.Array, signature!, innerTypes);
                 case DBusType.Struct when innerTypes.Length > 0:
-                    return new DBusDotnetType(DotnetType.Tuple, DBusType.Struct, signature!, innerTypes);
+                    return new DBusDotnetType(DotnetType.Struct, DBusType.Struct, signature!, innerTypes);
                 case DBusType.Variant:
                     return new DBusDotnetType(DotnetType.Variant, DBusType.Variant, signature!, innerTypes);
                 case DBusType.DictEntry when innerTypes.Length == 2:
@@ -283,41 +283,27 @@ public partial class DBusSourceGenerator
                         str = NullableType(str);
                     return str;
                 case DotnetType.ObjectPath:
-                    return IdentifierName("ObjectPath");
+                    return IdentifierName("DBusObjectPath");
                 case DotnetType.Signature:
-                    return IdentifierName("Signature");
+                    return IdentifierName("DBusSignature");
                 case DotnetType.Variant:
-                    return IdentifierName("VariantValue");
-                case DotnetType.SafeFileHandle:
-                    return IdentifierName("SafeFileHandle");
+                    return IdentifierName("DBusVariant");
+                case DotnetType.UnixFd:
+                    return IdentifierName("DBusUnixFd");
                 case DotnetType.Array:
-                    TypeSyntax arr = ArrayType(
-                            innerTypes![0].ToTypeSyntax(nullable))
-                        .AddRankSpecifiers(
-                            ArrayRankSpecifier()
-                                .AddSizes(
-                                    OmittedArraySizeExpression()));
-                    if (nullable)
-                        arr = NullableType(arr);
-                    return arr;
+                    TypeSyntax arr = GenericName("DBusArray")
+                        .AddTypeArgumentListArguments(
+                            innerTypes![0].ToTypeSyntax(nullable));
+                    return nullable ? NullableType(arr) : arr;
                 case DotnetType.Dictionary:
-                    TypeSyntax dict = GenericName("Dictionary")
+                    TypeSyntax dict = GenericName("DBusDict")
                         .AddTypeArgumentListArguments(
                             innerTypes![0].ToTypeSyntax(),
                             innerTypes[1].ToTypeSyntax(nullable));
-                    if (nullable)
-                        dict = NullableType(dict);
-                    return dict;
-                case DotnetType.Tuple when innerTypes!.Length == 1:
-                    return GenericName("ValueTuple")
-                        .AddTypeArgumentListArguments(
-                            innerTypes[0].ToTypeSyntax(nullable));
-                case DotnetType.Tuple:
-                    return TupleType()
-                        .AddElements(
-                            innerTypes.Select(innerType => TupleElement(
-                                    innerType.ToTypeSyntax(nullable)))
-                                .ToArray());
+                    return nullable ? NullableType(dict) : dict;
+                case DotnetType.Struct:
+                    TypeSyntax structType = IdentifierName("DBusStruct");
+                    return nullable ? NullableType(structType) : structType;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(type), type, $"Cannot parse DotnetType with value {type}");
             }
