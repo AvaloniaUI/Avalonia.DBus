@@ -24,10 +24,13 @@ internal sealed class AtspiServer
     private readonly PathTree _pathTree;
     private readonly object _eventGate = new();
     private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
+    private readonly object _registryGate = new();
+    private readonly System.Threading.SemaphoreSlim _registrySubscriptionGate = new(1, 1);
 
     private DBusConnection? _a11yConnection;
     private string _a11yAddress = string.Empty;
     private string _uniqueName = string.Empty;
+    private string? _registryUniqueName;
     private bool _running;
     private int _windowToggleCounter;
     private volatile bool _emitObjectEvents;
@@ -36,6 +39,7 @@ internal sealed class AtspiServer
     private IDisposable? _pathTreeRegistration;
     private IDisposable? _registryRegisteredSubscription;
     private IDisposable? _registryDeregisteredSubscription;
+    private IDisposable? _registryOwnerChangedSubscription;
     private readonly System.Threading.Tasks.TaskCompletionSource<bool> _shutdownTcs = new(System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
     private System.Threading.Timer? _toggleTimer;
     private PosixSignalRegistration? _sigintRegistration;
@@ -363,13 +367,28 @@ internal sealed class AtspiServer
                 UpdateEventMaskLocked();
             }
 
-            _registryRegisteredSubscription = await _registryProxy
-                .WatchEventListenerRegisteredAsync(OnRegistryEventListenerRegistered)
-                ;
+            var registryOwner = await ResolveRegistryUniqueNameAsync();
+            await UpdateRegistrySignalSubscriptionsAsync(registryOwner);
 
-            _registryDeregisteredSubscription = await _registryProxy
-                .WatchEventListenerDeregisteredAsync(OnRegistryEventListenerDeregistered)
-                ;
+            _registryOwnerChangedSubscription ??= await _a11yConnection.SubscribeAsync(
+                sender: null,
+                path: new DBusObjectPath("/org/freedesktop/DBus"),
+                iface: "org.freedesktop.DBus",
+                member: "NameOwnerChanged",
+                handler: message =>
+                {
+                    var name = (string)message.Body[0];
+                    if (!string.Equals(name, BusNameRegistry, StringComparison.Ordinal))
+                    {
+                        return System.Threading.Tasks.Task.CompletedTask;
+                    }
+
+                    var newOwner = (string)message.Body[2];
+                    var owner = string.IsNullOrWhiteSpace(newOwner) ? null : newOwner;
+                    FireAndForget(UpdateRegistrySignalSubscriptionsAsync(owner));
+                    return System.Threading.Tasks.Task.CompletedTask;
+                },
+                synchronizationContext: null);
         }
         catch (Exception ex)
         {
@@ -399,6 +418,132 @@ internal sealed class AtspiServer
     private void UpdateEventMaskLocked()
     {
         _emitObjectEvents = _registeredEvents.Any(IsObjectEventClass);
+    }
+
+    private async System.Threading.Tasks.Task<string?> ResolveRegistryUniqueNameAsync()
+    {
+        if (_a11yConnection == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var reply = await _a11yConnection.CallMethodAsync(
+                "org.freedesktop.DBus",
+                new DBusObjectPath("/org/freedesktop/DBus"),
+                "org.freedesktop.DBus",
+                "GetNameOwner",
+                BusNameRegistry);
+
+            if (reply.Body.Count > 0 && reply.Body[0] is string owner && !string.IsNullOrWhiteSpace(owner))
+            {
+                return owner;
+            }
+        }
+        catch (Exception ex)
+        {
+            LogVerbose($"GetNameOwner failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async System.Threading.Tasks.Task UpdateRegistrySignalSubscriptionsAsync(string? registryOwner)
+    {
+        if (_a11yConnection == null)
+        {
+            return;
+        }
+
+        await _registrySubscriptionGate.WaitAsync();
+        try
+        {
+            IDisposable? oldRegistered;
+            IDisposable? oldDeregistered;
+            lock (_registryGate)
+            {
+                if (string.Equals(_registryUniqueName, registryOwner, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                oldRegistered = _registryRegisteredSubscription;
+                oldDeregistered = _registryDeregisteredSubscription;
+                _registryRegisteredSubscription = null;
+                _registryDeregisteredSubscription = null;
+                _registryUniqueName = registryOwner;
+            }
+
+            oldRegistered?.Dispose();
+            oldDeregistered?.Dispose();
+
+            string? senderFilter = string.IsNullOrWhiteSpace(registryOwner) ? null : registryOwner;
+
+            IDisposable? registered = null;
+            IDisposable? deregistered = null;
+            try
+            {
+                registered = await _a11yConnection.SubscribeAsync(
+                    sender: senderFilter,
+                    path: new DBusObjectPath(RegistryPath),
+                    iface: "org.a11y.atspi.Registry",
+                    member: "EventListenerRegistered",
+                    handler: message =>
+                    {
+                        var bus = (string)message.Body[0];
+                        var @event = (string)message.Body[1];
+                        var properties = (DBusArray<string>)message.Body[2];
+                        OnRegistryEventListenerRegistered(bus, @event, properties);
+                        return System.Threading.Tasks.Task.CompletedTask;
+                    },
+                    synchronizationContext: null);
+
+                deregistered = await _a11yConnection.SubscribeAsync(
+                    sender: senderFilter,
+                    path: new DBusObjectPath(RegistryPath),
+                    iface: "org.a11y.atspi.Registry",
+                    member: "EventListenerDeregistered",
+                    handler: message =>
+                    {
+                        var bus = (string)message.Body[0];
+                        var @event = (string)message.Body[1];
+                        OnRegistryEventListenerDeregistered(bus, @event);
+                        return System.Threading.Tasks.Task.CompletedTask;
+                    },
+                    synchronizationContext: null);
+            }
+            catch
+            {
+                registered?.Dispose();
+                deregistered?.Dispose();
+                throw;
+            }
+
+            lock (_registryGate)
+            {
+                _registryRegisteredSubscription = registered;
+                _registryDeregisteredSubscription = deregistered;
+            }
+        }
+        finally
+        {
+            _registrySubscriptionGate.Release();
+        }
+    }
+
+    private static void FireAndForget(System.Threading.Tasks.Task task)
+    {
+        if (task == null)
+        {
+            return;
+        }
+
+        _ = task.ContinueWith(
+            t => _ = t.Exception,
+            System.Threading.CancellationToken.None,
+            System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted,
+            System.Threading.Tasks.TaskScheduler.Default);
     }
 
     private static bool IsObjectEventClass(string eventName)
@@ -523,6 +668,9 @@ internal sealed class AtspiServer
         _registryRegisteredSubscription = null;
         _registryDeregisteredSubscription?.Dispose();
         _registryDeregisteredSubscription = null;
+        _registryOwnerChangedSubscription?.Dispose();
+        _registryOwnerChangedSubscription = null;
+        _registryUniqueName = null;
         lock (_eventGate)
         {
             _registeredEvents.Clear();
