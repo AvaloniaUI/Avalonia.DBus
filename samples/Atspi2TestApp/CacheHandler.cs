@@ -33,7 +33,10 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
             items[i] = _server.BuildCacheItem(snapshot[i]);
         }
 
-        return ValueTask.FromResult(new DBusArray<DBusStruct>(items));
+        return ValueTask.FromResult(
+            items.Length == 0
+                ? new DBusArray<DBusStruct>("((so)(so)(so)iiassusau)")
+                : new DBusArray<DBusStruct>(items));
     }
 
     public void EmitAddAccessibleSignal(DBusStruct item)

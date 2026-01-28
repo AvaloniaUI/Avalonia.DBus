@@ -43,7 +43,7 @@ internal sealed class ActionHandler : OrgA11yAtspiActionHandler
     {
         if (_node.Action == null)
         {
-            return ValueTask.FromResult(new DBusArray<DBusStruct>());
+            return ValueTask.FromResult(new DBusArray<DBusStruct>("(sss)"));
         }
 
         var entry = new DBusStruct(_node.Action.LocalizedName, _node.Action.Description, _node.Action.KeyBinding);

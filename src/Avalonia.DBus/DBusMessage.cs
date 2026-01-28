@@ -79,6 +79,12 @@ public sealed class DBusMessage
         }
     }
 
+    internal void SetBodyWithSignature(IReadOnlyList<object> body, string signature)
+    {
+        _body = body ?? Array.Empty<object>();
+        _signature = new DBusSignature(signature ?? string.Empty);
+    }
+
     /// <summary>
     /// Creates a METHOD_CALL message.
     /// </summary>

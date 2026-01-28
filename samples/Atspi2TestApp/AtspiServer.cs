@@ -15,7 +15,7 @@ internal sealed class AtspiServer
     private const int StartupRetryDelayMs = 2000;
     private const int StartupRetryMaxDelayMs = 15000;
 
-    internal static readonly DBusArray<DBusStruct> s_emptyRelations = new();
+    internal static readonly DBusArray<DBusStruct> s_emptyRelations = new("(ua(so))");
 
     private readonly AtspiTree _tree;
     private readonly Dictionary<int, string> _roleNames = new();

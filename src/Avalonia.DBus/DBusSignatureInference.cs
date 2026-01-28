@@ -267,6 +267,11 @@ internal static class DBusSignatureInference
 
     private static string InferArrayElementSignature(IDBusArray array)
     {
+        if (!string.IsNullOrEmpty(array.ElementSignature))
+        {
+            return array.ElementSignature!;
+        }
+
         try
         {
             return InferSignatureFromType(array.ElementType);

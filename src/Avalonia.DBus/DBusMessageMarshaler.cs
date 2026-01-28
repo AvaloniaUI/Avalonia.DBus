@@ -36,6 +36,9 @@ internal static unsafe class DBusMessageMarshaler
 
     public static DBusMessage FromNative(DBusNativeMessage* message)
     {
+        string signature = DbusHelpers.PtrToString(LibDbus.dbus_message_get_signature(message));
+        var body = ReadBody(message, signature);
+
         var managed = new DBusMessage
         {
             Type = (DBusMessageType)LibDbus.dbus_message_get_type(message),
@@ -47,10 +50,10 @@ internal static unsafe class DBusMessageMarshaler
             Member = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_member(message)),
             ErrorName = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_error_name(message)),
             Destination = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_destination(message)),
-            Sender = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_sender(message)),
-            Body = ReadBody(message)
+            Sender = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_sender(message))
         };
 
+        managed.SetBodyWithSignature(body, signature);
         return managed;
     }
 
@@ -128,9 +131,8 @@ internal static unsafe class DBusMessageMarshaler
         return path == null ? null : new DBusObjectPath(path);
     }
 
-    private static IReadOnlyList<object> ReadBody(DBusNativeMessage* message)
+    private static IReadOnlyList<object> ReadBody(DBusNativeMessage* message, string signature)
     {
-        string signature = DbusHelpers.PtrToString(LibDbus.dbus_message_get_signature(message));
         if (string.IsNullOrEmpty(signature))
         {
             return Array.Empty<object>();
@@ -274,9 +276,8 @@ internal static unsafe class DBusMessageMarshaler
             LibDbus.dbus_message_iter_recurse(iterPtr, &child);
         }
 
-        byte* signaturePtr;
         DBusMessageIter* childPtr = &child;
-        signaturePtr = LibDbus.dbus_message_iter_get_signature(childPtr);
+        var signaturePtr = LibDbus.dbus_message_iter_get_signature(childPtr);
 
         string signature = signaturePtr == null ? string.Empty : DbusHelpers.PtrToString(signaturePtr);
         if (signaturePtr != null)
@@ -437,6 +438,13 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         Type arrayType = typeof(DBusArray<>).MakeGenericType(elementType);
+        Type enumerableType = typeof(IEnumerable<>).MakeGenericType(elementType);
+        var ctor = arrayType.GetConstructor(new[] { typeof(string), enumerableType });
+        if (ctor != null)
+        {
+            return ctor.Invoke(new object?[] { elementSignature, list });
+        }
+
         return Activator.CreateInstance(arrayType, list)!;
     }
 

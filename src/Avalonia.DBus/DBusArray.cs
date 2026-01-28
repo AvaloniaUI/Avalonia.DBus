@@ -8,6 +8,8 @@ internal interface IDBusArray
 {
     Type ElementType { get; }
 
+    string? ElementSignature { get; }
+
     IEnumerable<object?> Items { get; }
 }
 
@@ -17,9 +19,16 @@ internal interface IDBusArray
 public sealed class DBusArray<T> : IReadOnlyList<T>, IDBusArray
 {
     private readonly List<T> _items;
+    private readonly string? _elementSignature;
 
     public DBusArray()
     {
+        _items = new List<T>();
+    }
+
+    public DBusArray(string elementSignature)
+    {
+        _elementSignature = string.IsNullOrEmpty(elementSignature) ? null : elementSignature;
         _items = new List<T>();
     }
 
@@ -28,8 +37,20 @@ public sealed class DBusArray<T> : IReadOnlyList<T>, IDBusArray
         _items = items == null ? new List<T>() : new List<T>(items);
     }
 
+    public DBusArray(string elementSignature, IEnumerable<T> items)
+    {
+        _elementSignature = string.IsNullOrEmpty(elementSignature) ? null : elementSignature;
+        _items = items == null ? new List<T>() : new List<T>(items);
+    }
+
     public DBusArray(params T[] items)
     {
+        _items = items == null ? new List<T>() : new List<T>(items);
+    }
+
+    public DBusArray(string elementSignature, params T[] items)
+    {
+        _elementSignature = string.IsNullOrEmpty(elementSignature) ? null : elementSignature;
         _items = items == null ? new List<T>() : new List<T>(items);
     }
 
@@ -42,6 +63,8 @@ public sealed class DBusArray<T> : IReadOnlyList<T>, IDBusArray
     IEnumerator IEnumerable.GetEnumerator() => _items.GetEnumerator();
 
     Type IDBusArray.ElementType => typeof(T);
+
+    string? IDBusArray.ElementSignature => _elementSignature;
 
     IEnumerable<object?> IDBusArray.Items => EnumerateObjects();
 

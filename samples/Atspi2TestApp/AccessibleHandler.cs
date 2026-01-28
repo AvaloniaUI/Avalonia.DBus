@@ -43,7 +43,7 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
     {
         if (_node.Children.Count == 0)
         {
-            return ValueTask.FromResult(new DBusArray<DBusStruct>());
+            return ValueTask.FromResult(new DBusArray<DBusStruct>("(so)"));
         }
 
         var children = new DBusStruct[_node.Children.Count];
