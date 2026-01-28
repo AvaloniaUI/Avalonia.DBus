@@ -23,15 +23,14 @@ internal sealed class AtspiServer
     private readonly Dictionary<string, NodeHandlers> _handlersByPath = new(StringComparer.Ordinal);
     private readonly PathTree _pathTree;
     private readonly object _eventGate = new();
-    private readonly Dictionary<string, int> _eventListeners = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
 
     private DBusConnection? _a11yConnection;
     private string _a11yAddress = string.Empty;
     private string _uniqueName = string.Empty;
     private bool _running;
     private int _windowToggleCounter;
-    private volatile bool _canUseEventListeners;
-    private volatile bool _hasEventListeners;
+    private volatile bool _emitObjectEvents;
     private CacheHandler? _cacheHandler;
     private OrgA11yAtspiRegistryProxy? _registryProxy;
     private IDisposable? _pathTreeRegistration;
@@ -353,22 +352,15 @@ internal sealed class AtspiServer
             var events = await _registryProxy.GetRegisteredEventsAsync();
             lock (_eventGate)
             {
-                _eventListeners.Clear();
+                _registeredEvents.Clear();
                 foreach (var registered in events)
                 {
-                    if (registered.Count > 1 && registered[0] is string sender)
+                    if (registered.Count > 1 && registered[1] is string eventName)
                     {
-                        if (_eventListeners.TryGetValue(sender, out var count))
-                        {
-                            _eventListeners[sender] = count + 1;
-                        }
-                        else
-                        {
-                            _eventListeners[sender] = 1;
-                        }
+                        _registeredEvents.Add(eventName);
                     }
                 }
-                _hasEventListeners = _eventListeners.Count > 0;
+                UpdateEventMaskLocked();
             }
 
             _registryRegisteredSubscription = await _registryProxy
@@ -378,14 +370,11 @@ internal sealed class AtspiServer
             _registryDeregisteredSubscription = await _registryProxy
                 .WatchEventListenerDeregisteredAsync(OnRegistryEventListenerDeregistered)
                 ;
-
-            _canUseEventListeners = true;
         }
         catch (Exception ex)
         {
             LogVerbose($"Registry event tracking unavailable: {ex.Message}");
-            _canUseEventListeners = false;
-            _hasEventListeners = true;
+            _emitObjectEvents = true;
         }
     }
 
@@ -393,16 +382,8 @@ internal sealed class AtspiServer
     {
         lock (_eventGate)
         {
-            if (_eventListeners.TryGetValue(bus, out var count))
-            {
-                _eventListeners[bus] = count + 1;
-            }
-            else
-            {
-                _eventListeners[bus] = 1;
-            }
-
-            _hasEventListeners = _eventListeners.Count > 0;
+            _registeredEvents.Add(@event);
+            UpdateEventMaskLocked();
         }
     }
 
@@ -410,23 +391,32 @@ internal sealed class AtspiServer
     {
         lock (_eventGate)
         {
-            if (_eventListeners.TryGetValue(bus, out var count))
-            {
-                if (count > 1)
-                {
-                    _eventListeners[bus] = count - 1;
-                }
-                else
-                {
-                    _eventListeners.Remove(bus);
-                }
-            }
-
-            _hasEventListeners = _eventListeners.Count > 0;
+            _registeredEvents.Remove(@event);
+            UpdateEventMaskLocked();
         }
     }
 
-    private bool ShouldEmitEvents => !_canUseEventListeners || _hasEventListeners;
+    private void UpdateEventMaskLocked()
+    {
+        _emitObjectEvents = _registeredEvents.Any(IsObjectEventClass);
+    }
+
+    private static bool IsObjectEventClass(string eventName)
+    {
+        if (string.IsNullOrWhiteSpace(eventName))
+        {
+            return false;
+        }
+
+        if (eventName == "*")
+        {
+            return true;
+        }
+
+        return eventName.StartsWith("object:", StringComparison.OrdinalIgnoreCase)
+            || eventName.StartsWith("window:", StringComparison.OrdinalIgnoreCase)
+            || eventName.StartsWith("focus:", StringComparison.OrdinalIgnoreCase);
+    }
 
     private void EmitInitialCacheSnapshot()
     {
@@ -535,9 +525,8 @@ internal sealed class AtspiServer
         _registryDeregisteredSubscription = null;
         lock (_eventGate)
         {
-            _eventListeners.Clear();
-            _canUseEventListeners = false;
-            _hasEventListeners = false;
+            _registeredEvents.Clear();
+            _emitObjectEvents = false;
         }
     }
 
@@ -647,7 +636,7 @@ internal sealed class AtspiServer
         {
             return;
         }
-        if (!ShouldEmitEvents)
+        if (!_emitObjectEvents)
         {
             return;
         }
@@ -668,7 +657,7 @@ internal sealed class AtspiServer
         {
             return;
         }
-        if (!ShouldEmitEvents)
+        if (!_emitObjectEvents)
         {
             return;
         }
