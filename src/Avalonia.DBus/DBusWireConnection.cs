@@ -21,30 +21,39 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
     private readonly object _pendingGate = new();
     private readonly object _watchGate = new();
     private readonly Dictionary<uint, TaskCompletionSource<DBusMessage>> _pendingReplies = new();
-    private static readonly bool s_verbose = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE"));
-    private static readonly SharedWorker s_worker = new();
+
+    private static readonly bool s_verbose =
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE"));
+
     private static readonly DBusAddWatchFunction s_addWatchCallback = AddWatchCallback;
     private static readonly DBusRemoveWatchFunction s_removeWatchCallback = RemoveWatchCallback;
     private static readonly DBusWatchToggledFunction s_toggleWatchCallback = ToggleWatchCallback;
     private static readonly DBusWakeupMainFunction s_wakeupCallback = WakeupCallback;
     private static readonly DBusDispatchStatusFunction s_dispatchCallback = DispatchStatusCallback;
+    private static readonly DBusFreeFunction s_freeCallback= FreeCallback;
+
+    private static void FreeCallback(void* data)
+    {
+        if(data != null)
+            GCHandle.FromIntPtr((IntPtr)data).Free();
+    }
+
     private static readonly IntPtr s_addWatchPtr = Marshal.GetFunctionPointerForDelegate(s_addWatchCallback);
     private static readonly IntPtr s_removeWatchPtr = Marshal.GetFunctionPointerForDelegate(s_removeWatchCallback);
     private static readonly IntPtr s_toggleWatchPtr = Marshal.GetFunctionPointerForDelegate(s_toggleWatchCallback);
     private static readonly IntPtr s_wakeupPtr = Marshal.GetFunctionPointerForDelegate(s_wakeupCallback);
     private static readonly IntPtr s_dispatchPtr = Marshal.GetFunctionPointerForDelegate(s_dispatchCallback);
+    private static readonly IntPtr s_freePtr = Marshal.GetFunctionPointerForDelegate(s_freeCallback);
+
     private readonly AsyncMessageQueue _incoming = new();
-    private readonly Channel<SendWorkItem> _sendQueue;
     private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Dictionary<IntPtr, WatchState> _watches = new();
-    private GCHandle _watchHandle;
-    private bool _watchHandleAllocated;
-    private bool _watchConfigured;
-    private string? _uniqueName;
     private DBusNativeConnection* _connection;
     private readonly bool _closeOnDispose;
     private bool _disposed;
-    private Exception? _workerFailure;
+    private Exception? _workerFailure; 
+    private void* _wireInstPtr =  null;
+    private Thread? _workerThread;
 
     private DBusWireConnection(DBusNativeConnection* connection, bool closeOnDispose)
     {
@@ -55,26 +64,31 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
 
         _connection = connection;
         _closeOnDispose = closeOnDispose;
-        _uniqueName = DbusHelpers.PtrToStringNullable(LibDbus.dbus_bus_get_unique_name(connection));
+ 
+        ConfigureWatchFunctions(connection); 
+        
+        using var signalMatch = new Utf8String("type='signal'");
+        using var methodMatch = new Utf8String("type='method_call'");
+        
+        LibDbus.dbus_bus_add_match(connection, signalMatch.Pointer, null);
+        LibDbus.dbus_bus_add_match(connection, methodMatch.Pointer, null);
 
-        _sendQueue = Channel.CreateUnbounded<SendWorkItem>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            AllowSynchronousContinuations = false
-        });
+        StartEventLoop();
+    }
 
-        _watchHandle = GCHandle.Alloc(this);
-        _watchHandleAllocated = true;
-        try
+    private void StartEventLoop()
+    {
+        _workerThread = new Thread(MainLoop)
         {
-            ConfigureWatchFunctions(connection);
-        }
-        catch
-        {
-            FreeWatchHandle();
-            throw;
-        }
-        s_worker.Register(this);
+            IsBackground = true,
+            Name = $"DBusWireConnection_{GetHashCode()}"
+        };
+        _workerThread.Start();
+    }
+
+    private void MainLoop()
+    {
+        
     }
 
     /// <summary>
@@ -136,21 +150,12 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         get
         {
             ThrowIfDisposedOrFailed();
+
             lock (_gate)
-            {
-                if (_connection == null)
-                {
-                    throw new ObjectDisposedException(nameof(DBusWireConnection));
-                }
+                if (_connection != null)
+                    _uniqueName = DbusHelpers.PtrToStringNullable(LibDbus.dbus_bus_get_unique_name(_connection));
 
-                var name = DbusHelpers.PtrToStringNullable(LibDbus.dbus_bus_get_unique_name(_connection));
-                if (!string.IsNullOrEmpty(name))
-                {
-                    _uniqueName = name;
-                }
-
-                return _uniqueName;
-            }
+            return _uniqueName;
         }
     }
 
@@ -161,10 +166,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         DBusMessage message,
         CancellationToken cancellationToken = default)
     {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
+        ArgumentNullException.ThrowIfNull(message);
 
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfDisposedOrFailed();
@@ -197,7 +199,8 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
 
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfDisposedOrFailed();
-        LogVerbose($"SendWithReply begin: dest='{message.Destination}' path='{message.Path}' iface='{message.Interface}' member='{message.Member}' body={message.Body.Count}");
+        LogVerbose(
+            $"SendWithReply begin: dest='{message.Destination}' path='{message.Path}' iface='{message.Interface}' member='{message.Member}' body={message.Body.Count}");
 
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         var workItem = new SendWithReplyWorkItem(message, tcs, cancellationToken, DateTime.UtcNow);
@@ -233,197 +236,14 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
             {
                 return new ValueTask(_disposeCompletion.Task);
             }
+
             _disposed = true;
             connectionPtr = _connection;
             _connection = null;
         }
 
-        _sendQueue.Writer.TryComplete();
         s_worker.ScheduleDispose(this, connectionPtr, _closeOnDispose, _disposeCompletion);
         return new ValueTask(_disposeCompletion.Task);
-    }
-
-    private bool DrainSendQueue(DBusNativeConnection* connection, int maxItems)
-    {
-        var processed = false;
-        for (int i = 0; i < maxItems && _sendQueue.Reader.TryRead(out var workItem); i++)
-        {
-            processed = true;
-            if (workItem.CancellationToken.IsCancellationRequested)
-            {
-                workItem.Cancel();
-                continue;
-            }
-
-            if (workItem is FireAndForgetWorkItem send)
-            {
-                ProcessSend(send, connection);
-            }
-            else if (workItem is SendWithReplyWorkItem sendWithReply)
-            {
-                ProcessSendWithReply(sendWithReply, connection);
-            }
-        }
-
-        return processed;
-    }
-
-    private void ProcessSend(FireAndForgetWorkItem workItem, DBusNativeConnection* connection)
-    {
-        DBusNativeMessage* native = DBusMessageMarshaler.ToNative(workItem.Message);
-        try
-        {
-            LogVerbose("Send sending...");
-            uint serial = 0;
-            if (LibDbus.dbus_connection_send(connection, native, &serial) == 0)
-            {
-                workItem.Fail(new InvalidOperationException("Failed to send D-Bus message."));
-                return;
-            }
-
-            if (serial != 0)
-            {
-                workItem.Message.Serial = serial;
-            }
-
-            workItem.Complete();
-        }
-        catch (Exception ex)
-        {
-            workItem.Fail(ex);
-        }
-        finally
-        {
-            LibDbus.dbus_message_unref(native);
-        }
-    }
-
-    private void ProcessSendWithReply(SendWithReplyWorkItem workItem, DBusNativeConnection* connection)
-    {
-        DBusNativeMessage* native = DBusMessageMarshaler.ToNative(workItem.Message);
-        uint serial = 0;
-        var pendingAdded = false;
-        try
-        {
-            LogVerbose("SendWithReply sending...");
-            if (LibDbus.dbus_connection_send(connection, native, &serial) == 0)
-            {
-                LogVerbose("SendWithReply send failed (dbus_connection_send returned 0)");
-                workItem.Fail(new InvalidOperationException("Failed to send D-Bus message."));
-                return;
-            }
-
-            if (serial != 0)
-            {
-                workItem.Message.Serial = serial;
-            }
-            LogVerbose($"SendWithReply send ok: serial={serial}");
-
-            lock (_pendingGate)
-            {
-                _pendingReplies[serial] = workItem.Completion;
-            }
-            pendingAdded = true;
-
-            if (workItem.CancellationToken.CanBeCanceled)
-            {
-                _ = workItem.CancellationToken.Register(state =>
-                {
-                    var tuple = (Tuple<DBusWireConnection, uint>)state!;
-                    if (tuple.Item1.TryRemovePending(tuple.Item2, out var pending))
-                    {
-                        pending.TrySetCanceled();
-                    }
-                }, Tuple.Create(this, serial));
-            }
-
-            var elapsed = DateTime.UtcNow - workItem.StartTimestamp;
-            LogVerbose($"SendWithReply queued: serial={serial} after {elapsed.TotalMilliseconds:0} ms");
-        }
-        catch (Exception ex)
-        {
-            LogVerbose($"SendWithReply failed: {ex.GetType().Name}: {ex.Message}");
-            if (pendingAdded)
-            {
-                TryRemovePending(serial, out _);
-            }
-            workItem.Fail(ex);
-        }
-        finally
-        {
-            LibDbus.dbus_message_unref(native);
-        }
-    }
-
-    private void RequestSendDrain()
-        => s_worker.Wakeup();
-
-    private bool WorkerDrainSendQueue(int maxItems)
-    {
-        var connection = _connection;
-        if (connection == null || _disposed || _workerFailure != null)
-        {
-            return false;
-        }
-
-        try
-        {
-            if (LibDbus.dbus_connection_has_messages_to_send(connection) != 0)
-            {
-                return false;
-            }
-
-            var progressed = false;
-            for (int i = 0; i < maxItems && _sendQueue.Reader.TryRead(out var workItem); i++)
-            {
-                progressed = true;
-                if (workItem.CancellationToken.IsCancellationRequested)
-                {
-                    workItem.Cancel();
-                    continue;
-                }
-
-                if (workItem is FireAndForgetWorkItem send)
-                {
-                    ProcessSend(send, connection);
-                }
-                else if (workItem is SendWithReplyWorkItem sendWithReply)
-                {
-                    ProcessSendWithReply(sendWithReply, connection);
-                }
-
-                if (LibDbus.dbus_connection_has_messages_to_send(connection) != 0)
-                {
-                    return false;
-                }
-            }
-
-            return progressed;
-        }
-        catch (Exception ex)
-        {
-            FailConnection(ex);
-            return true;
-        }
-    }
-
-    private bool WorkerDrainMessages()
-    {
-        var connection = _connection;
-        if (connection == null || _disposed || _workerFailure != null)
-        {
-            return false;
-        }
-
-        try
-        {
-            return DrainMessagesUnsafe((IntPtr)connection, useReadWrite: !_watchConfigured) > 0;
-        }
-        catch (Exception ex)
-        {
-            FailConnection(ex);
-            return false;
-        }
     }
 
     private bool IsActive => !_disposed && _connection != null && _workerFailure == null;
@@ -446,21 +266,28 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
 
     private void ConfigureWatchFunctions(DBusNativeConnection* connection)
     {
-        if (_watchConfigured)
+        try
         {
-            return;
-        }
+            _wireInstPtr = (void*)GCHandle.Alloc(this).AddrOfPinnedObject();
 
-        void* data = (void*)GCHandle.ToIntPtr(_watchHandle);
-        if (LibDbus.dbus_connection_set_watch_functions(connection, s_addWatchPtr, s_removeWatchPtr, s_toggleWatchPtr, data, IntPtr.Zero) == 0)
+            if (LibDbus.dbus_connection_set_watch_functions(connection, s_addWatchPtr, s_removeWatchPtr,
+                    s_toggleWatchPtr,
+                    _wireInstPtr, s_freePtr) == 0)
+            {
+                throw new InvalidOperationException("Failed to configure D-Bus watch functions.");
+            }
+
+            LibDbus.dbus_connection_set_wakeup_main_function(connection, s_wakeupPtr, _wireInstPtr, s_freePtr);
+            LibDbus.dbus_connection_set_dispatch_status_function(connection, s_dispatchPtr, _wireInstPtr, s_freePtr);
+        }
+        catch (Exception e)
         {
-            throw new InvalidOperationException("Failed to configure D-Bus watch functions.");
+            LogVerbose(e.ToString());
         }
-
-        LibDbus.dbus_connection_set_wakeup_main_function(connection, s_wakeupPtr, data, IntPtr.Zero);
-        LibDbus.dbus_connection_set_dispatch_status_function(connection, s_dispatchPtr, data, IntPtr.Zero);
-
-        _watchConfigured = true;
+        finally
+        {
+            FreeCallback(_wireInstPtr);
+        } 
     }
 
     private static uint AddWatchCallback(DBusWatch* watch, void* data)
@@ -521,7 +348,8 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         s_worker.Wakeup();
     }
 
-    private static void DispatchStatusCallback(DBusNativeConnection* connection, DBusDispatchStatus newStatus, void* data)
+    private static void DispatchStatusCallback(DBusNativeConnection* connection, DBusDispatchStatus newStatus,
+        void* data)
     {
         if (data == null)
         {
@@ -541,7 +369,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
             return false;
         }
 
-        if (!TryGetWatchFd(watch, out int fd))
+        if (!TryGetWatchFd(watch, out var fd))
         {
             return false;
         }
@@ -603,7 +431,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
 
     private static bool TryGetWatchFd(DBusWatch* watch, out int fd)
     {
-        int localFd = LibDbus.dbus_watch_get_unix_fd(watch);
+        var localFd = LibDbus.dbus_watch_get_unix_fd(watch);
         if (localFd >= 0)
         {
             fd = localFd;
@@ -619,50 +447,8 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
 
         fd = -1;
         return false;
-    }
-
-    private static PollEvents ToPollEvents(uint watchFlags)
-    {
-        PollEvents events = PollEvents.None;
-        if ((watchFlags & DBusWatchFlags.Readable) != 0)
-        {
-            events |= PollEvents.POLLIN;
-        }
-        if ((watchFlags & DBusWatchFlags.Writable) != 0)
-        {
-            events |= PollEvents.POLLOUT;
-        }
-
-        return events;
-    }
-
-    private static uint ToWatchFlags(PollEvents events)
-    {
-        uint flags = 0;
-        if ((events & PollEvents.POLLIN) != 0)
-        {
-            flags |= DBusWatchFlags.Readable;
-        }
-        if ((events & PollEvents.POLLOUT) != 0)
-        {
-            flags |= DBusWatchFlags.Writable;
-        }
-        if ((events & PollEvents.POLLERR) != 0)
-        {
-            flags |= DBusWatchFlags.Error;
-        }
-        if ((events & (PollEvents.POLLHUP | PollEvents.POLLRDHUP)) != 0)
-        {
-            flags |= DBusWatchFlags.Hangup;
-        }
-        if ((events & PollEvents.POLLNVAL) != 0)
-        {
-            flags |= DBusWatchFlags.Error;
-        }
-
-        return flags;
-    }
-
+    } 
+    
     private void CollectWatchItems(List<WatchItem> items)
     {
         lock (_watchGate)
@@ -698,7 +484,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
             return false;
         }
 
-        uint flags = ToWatchFlags(events);
+        var flags = ToWatchFlags(events);
         if (flags == 0)
         {
             return false;
@@ -742,25 +528,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         FreeWatchHandle();
         s_worker.RemoveConnectionImmediate(this);
     }
-
-    private void DisposeFromWorker(DBusNativeConnection* connectionPtr, bool closeOnDispose, TaskCompletionSource completion)
-    {
-        try
-        {
-            s_worker.RemoveConnectionImmediate(this);
-            FailSendQueue(new ObjectDisposedException(nameof(DBusWireConnection)));
-            CancelPendingReplies();
-            _incoming.Complete();
-            ClearWatchList();
-            CloseConnection(connectionPtr, closeOnDispose);
-            FreeWatchHandle();
-            completion.TrySetResult();
-        }
-        catch (Exception ex)
-        {
-            completion.TrySetException(ex);
-        }
-    }
+ 
 
     private static void CloseConnection(DBusNativeConnection* connection, bool closeOnDispose)
     {
@@ -773,53 +541,8 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         {
             LibDbus.dbus_connection_close(connection);
         }
+
         LibDbus.dbus_connection_unref(connection);
-    }
-
-    private void FailSendQueue(Exception error)
-    {
-        while (_sendQueue.Reader.TryRead(out var workItem))
-        {
-            workItem.Fail(error);
-        }
-    }
-
-    private void ClearWatchList()
-    {
-        lock (_watchGate)
-        {
-            _watches.Clear();
-        }
-    }
-
-    private void FreeWatchHandle()
-    {
-        if (_watchHandleAllocated)
-        {
-            _watchHandle.Free();
-            _watchHandleAllocated = false;
-        }
-    }
-
-    private void CancelPendingReplies(Exception? error = null)
-    {
-        List<TaskCompletionSource<DBusMessage>> pending;
-        lock (_pendingGate)
-        {
-            if (_pendingReplies.Count == 0)
-            {
-                return;
-            }
-
-            pending = new List<TaskCompletionSource<DBusMessage>>(_pendingReplies.Values);
-            _pendingReplies.Clear();
-        }
-
-        var exception = error ?? new ObjectDisposedException(nameof(DBusWireConnection));
-        foreach (var tcs in pending)
-        {
-            tcs.TrySetException(exception);
-        }
     }
 
 
@@ -829,7 +552,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         DBusError error = default;
         LibDbus.dbus_error_init(&error);
 
-        DBusNativeConnection* connection = LibDbus.dbus_bus_get(busType, &error);
+        var connection = LibDbus.dbus_bus_get(busType, &error);
         if (connection == null)
         {
             ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.");
@@ -846,7 +569,7 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         LibDbus.dbus_error_init(&error);
 
         using var addressUtf8 = new Utf8String(address);
-        DBusNativeConnection* connection = LibDbus.dbus_connection_open_private(addressUtf8.Pointer, &error);
+        var connection = LibDbus.dbus_connection_open_private(addressUtf8.Pointer, &error);
         if (connection == null)
         {
             ThrowErrorAndFree(ref error, "Failed to open D-Bus connection.");
@@ -863,66 +586,6 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         return new DBusWireConnection(connection, closeOnDispose: true);
     }
 
-    internal int DrainMessagesUnsafe(IntPtr connectionPtr, bool useReadWrite = true)
-    {
-        DBusNativeConnection* connection = (DBusNativeConnection*)connectionPtr;
-        if (useReadWrite)
-        {
-            LibDbus.dbus_connection_read_write(connection, 0);
-        }
-
-        int processed = 0;
-        DBusNativeMessage* message;
-        while ((message = LibDbus.dbus_connection_pop_message(connection)) != null)
-        {
-            try
-            {
-                processed++;
-                var managed = DBusMessageMarshaler.FromNative(message);
-                if (managed.Type == DBusMessageType.MethodReturn || managed.Type == DBusMessageType.Error)
-                {
-                    if (managed.ReplySerial != 0 && TryRemovePending(managed.ReplySerial, out var pending))
-                    {
-                        LogVerbose($"SendWithReply reply: type={managed.Type} replySerial={managed.ReplySerial} error='{managed.ErrorName}' body={managed.Body.Count}");
-                        pending.TrySetResult(managed);
-                        continue;
-                    }
-
-                    LogVerbose($"Unmatched reply: type={managed.Type} replySerial={managed.ReplySerial} error='{managed.ErrorName}' body={managed.Body.Count}");
-                }
-                if (managed.Type == DBusMessageType.MethodCall)
-                {
-                    LogVerbose($"Receive METHOD_CALL: path='{managed.Path}' iface='{managed.Interface}' member='{managed.Member}'");
-                }
-                else if (managed.Type == DBusMessageType.Signal)
-                {
-                    LogVerbose($"Receive SIGNAL: path='{managed.Path}' iface='{managed.Interface}' member='{managed.Member}'");
-                }
-                _incoming.Enqueue(managed);
-            }
-            finally
-            {
-                LibDbus.dbus_message_unref(message);
-            }
-        }
-
-        return processed;
-    }
-
-    private bool TryRemovePending(uint serial, out TaskCompletionSource<DBusMessage> pending)
-    {
-        lock (_pendingGate)
-        {
-            if (_pendingReplies.TryGetValue(serial, out pending!))
-            {
-                _pendingReplies.Remove(serial);
-                return true;
-            }
-        }
-
-        pending = null!;
-        return false;
-    }
 
     private static void LogVerbose(string message)
     {
@@ -936,8 +599,8 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
 
     private static void ThrowErrorAndFree(ref DBusError error, string fallbackMessage)
     {
-        string name = error.name != null ? DbusHelpers.PtrToString(error.name) : "DBus error";
-        string message = error.message != null ? DbusHelpers.PtrToString(error.message) : fallbackMessage;
+        var name = error.name != null ? DbusHelpers.PtrToString(error.name) : "DBus error";
+        var message = error.message != null ? DbusHelpers.PtrToString(error.message) : fallbackMessage;
         LogVerbose($"libdbus error: {name}: {message}");
         fixed (DBusError* errorPtr = &error)
         {
@@ -950,294 +613,56 @@ public sealed unsafe class DBusWireConnection : IAsyncDisposable
         throw new InvalidOperationException($"{name}: {message}");
     }
 
-    private readonly struct WatchItem
+    private readonly struct WatchItem(DBusWireConnection connection, IntPtr watch, int fd, PollEvents events)
     {
-        public WatchItem(DBusWireConnection connection, IntPtr watch, int fd, PollEvents events)
-        {
-            Connection = connection;
-            Watch = watch;
-            Fd = fd;
-            Events = events;
-        }
-
-        public DBusWireConnection Connection { get; }
-        public IntPtr Watch { get; }
-        public int Fd { get; }
-        public PollEvents Events { get; }
+        public DBusWireConnection Connection { get; } = connection;
+        public IntPtr Watch { get; } = watch;
+        public int Fd { get; } = fd;
+        public PollEvents Events { get; } = events;
     }
 
-    private struct WatchState
+    private struct WatchState(int fd, PollEvents events, bool enabled)
     {
-        public WatchState(int fd, PollEvents events, bool enabled)
-        {
-            Fd = fd;
-            Events = events;
-            Enabled = enabled;
-        }
-
-        public int Fd { get; set; }
-        public PollEvents Events { get; set; }
-        public bool Enabled { get; set; }
+        public int Fd { get; set; } = fd;
+        public PollEvents Events { get; set; } = events;
+        public bool Enabled { get; set; } = enabled;
     }
+ 
 
-    private static class DBusWatchFlags
+    private abstract class SendWorkItem(DBusMessage message, CancellationToken cancellationToken)
     {
-        public const uint Readable = 1;
-        public const uint Writable = 2;
-        public const uint Error = 4;
-        public const uint Hangup = 8;
-    }
-
-    private sealed class SharedWorker
-    {
-        private const int SendBatchSize = 64;
-        private readonly ConcurrentQueue<Action> _pending = new();
-        private readonly List<DBusWireConnection> _connections = new();
-        private readonly WakeupFd _wakeup = new();
-
-        public SharedWorker()
-        {
-            var thread = new Thread(Run)
-            {
-                IsBackground = true,
-                Name = "DBusWireConnection"
-            };
-            thread.Start();
-        }
-
-        public void Register(DBusWireConnection connection)
-            => Enqueue(() => _connections.Add(connection));
-
-        public void ScheduleDispose(DBusWireConnection connection, DBusNativeConnection* connectionPtr, bool closeOnDispose, TaskCompletionSource completion)
-            => Enqueue(() => connection.DisposeFromWorker(connectionPtr, closeOnDispose, completion));
-
-        public void Enqueue(Action action)
-        {
-            _pending.Enqueue(action);
-            _wakeup.Set();
-        }
-
-        public void Wakeup()
-            => _wakeup.Set();
-
-        public void RemoveConnectionImmediate(DBusWireConnection connection)
-            => _connections.Remove(connection);
-
-        private void Run()
-        {
-            var snapshot = new List<DBusWireConnection>();
-            var watchItems = new List<WatchItem>();
-
-            while (true)
-            {
-                DrainPending();
-
-                snapshot.Clear();
-                for (int i = 0; i < _connections.Count; i++)
-                {
-                    var connection = _connections[i];
-                    if (connection.IsActive)
-                    {
-                        snapshot.Add(connection);
-                    }
-                }
-
-                var progressed = false;
-                for (int i = 0; i < snapshot.Count; i++)
-                {
-                    if (snapshot[i].WorkerDrainSendQueue(SendBatchSize))
-                    {
-                        progressed = true;
-                    }
-                }
-
-                var processed = false;
-                for (int i = 0; i < snapshot.Count; i++)
-                {
-                    if (snapshot[i].WorkerDrainMessages())
-                    {
-                        processed = true;
-                    }
-                }
-
-                if (processed || progressed)
-                {
-                    continue;
-                }
-
-                unsafe
-                {
-                    watchItems.Clear();
-                    for (int i = 0; i < snapshot.Count; i++)
-                    {
-                        snapshot[i].CollectWatchItems(watchItems);
-                    }
-
-                    int count = watchItems.Count + 1;
-                    var fdsArray = ArrayPool<PollFd>.Shared.Rent(count);
-                    try
-                    {
-                        fdsArray[0] = new PollFd
-                        {
-                            fd = _wakeup.PollFd,
-                            events = PollEvents.POLLIN
-                        };
-
-                        var errorMask = PollEvents.POLLERR | PollEvents.POLLHUP | PollEvents.POLLNVAL | PollEvents.POLLRDHUP;
-                        for (int i = 0; i < watchItems.Count; i++)
-                        {
-                            fdsArray[i + 1] = new PollFd
-                            {
-                                fd = watchItems[i].Fd,
-                                events = watchItems[i].Events | errorMask
-                            };
-                        }
-
-                        fixed (PollFd* fds = fdsArray)
-                        {
-                            try
-                            {
-                                DoPoll(fds, count);
-                            }
-                            catch (Exception ex)
-                            {
-                                LogVerbose($"Poll failed: {ex.GetType().Name}: {ex.Message}");
-                                FailSnapshot(snapshot, ex);
-                                continue;
-                            }
-                        }
-
-                        if ((fdsArray[0].revents & PollEvents.POLLIN) != 0)
-                        {
-                            _wakeup.Clear();
-                            DrainPending();
-                        }
-
-                        var handled = false;
-                        for (int i = 0; i < watchItems.Count; i++)
-                        {
-                            var revents = fdsArray[i + 1].revents;
-                            if (revents != 0)
-                            {
-                                if (watchItems[i].Connection.HandleWatch(watchItems[i].Watch, revents))
-                                {
-                                    handled = true;
-                                }
-                            }
-                        }
-
-                        if (handled)
-                        {
-                            continue;
-                        }
-                    }
-                    finally
-                    {
-                        ArrayPool<PollFd>.Shared.Return(fdsArray, clearArray: true);
-                    }
-                }
-            }
-        }
-
-        private void DrainPending()
-        {
-            while (_pending.TryDequeue(out var action))
-            {
-                try
-                {
-                    action();
-                }
-                catch (Exception ex)
-                {
-                    LogVerbose($"Worker action failed: {ex.GetType().Name}: {ex.Message}");
-                }
-            }
-        }
-
-        private static unsafe void DoPoll(PollFd* fds, int count)
-        {
-            while (true)
-            {
-                int pollRet = LinuxPoll.ppoll(fds, new IntPtr(count), IntPtr.Zero, IntPtr.Zero);
-                if (pollRet > 0)
-                {
-                    return;
-                }
-
-                if (pollRet == 0)
-                {
-                    return;
-                }
-
-                int errno = Marshal.GetLastPInvokeError();
-                if (errno == LinuxPoll.EINTR)
-                {
-                    continue;
-                }
-
-                throw new InvalidOperationException($"ppoll failed with errno {errno}.");
-            }
-        }
-
-        private static void FailSnapshot(List<DBusWireConnection> snapshot, Exception exception)
-        {
-            for (int i = 0; i < snapshot.Count; i++)
-            {
-                snapshot[i].FailConnection(exception);
-            }
-        }
-    }
-
-    private abstract class SendWorkItem
-    {
-        protected SendWorkItem(DBusMessage message, CancellationToken cancellationToken)
-        {
-            Message = message;
-            CancellationToken = cancellationToken;
-        }
-
-        public DBusMessage Message { get; }
-        public CancellationToken CancellationToken { get; }
+        public DBusMessage Message { get; } = message;
+        public CancellationToken CancellationToken { get; } = cancellationToken;
 
         public abstract void Cancel();
         public abstract void Fail(Exception exception);
     }
 
-    private sealed class FireAndForgetWorkItem : SendWorkItem
+    private sealed class FireAndForgetWorkItem(
+        DBusMessage message,
+        TaskCompletionSource completion,
+        CancellationToken cancellationToken)
+        : SendWorkItem(message, cancellationToken)
     {
-        private readonly TaskCompletionSource _completion;
-
-        public FireAndForgetWorkItem(DBusMessage message, TaskCompletionSource completion, CancellationToken cancellationToken)
-            : base(message, cancellationToken)
-        {
-            _completion = completion;
-        }
-
         public void Complete()
-            => _completion.TrySetResult();
+            => completion.TrySetResult();
 
         public override void Cancel()
-            => _completion.TrySetCanceled(CancellationToken);
+            => completion.TrySetCanceled(CancellationToken);
 
         public override void Fail(Exception exception)
-            => _completion.TrySetException(exception);
+            => completion.TrySetException(exception);
     }
 
-    private sealed class SendWithReplyWorkItem : SendWorkItem
+    private sealed class SendWithReplyWorkItem(
+        DBusMessage message,
+        TaskCompletionSource<DBusMessage> completion,
+        CancellationToken cancellationToken,
+        DateTime startTimestamp)
+        : SendWorkItem(message, cancellationToken)
     {
-        public SendWithReplyWorkItem(
-            DBusMessage message,
-            TaskCompletionSource<DBusMessage> completion,
-            CancellationToken cancellationToken,
-            DateTime startTimestamp)
-            : base(message, cancellationToken)
-        {
-            Completion = completion;
-            StartTimestamp = startTimestamp;
-        }
-
-        public TaskCompletionSource<DBusMessage> Completion { get; }
-        public DateTime StartTimestamp { get; }
+        public TaskCompletionSource<DBusMessage> Completion { get; } = completion;
+        public DateTime StartTimestamp { get; } = startTimestamp;
 
         public override void Cancel()
             => Completion.TrySetCanceled(CancellationToken);
