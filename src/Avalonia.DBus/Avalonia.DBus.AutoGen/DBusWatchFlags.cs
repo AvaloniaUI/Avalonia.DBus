@@ -1,6 +1,9 @@
+using System;
+
 namespace Avalonia.DBus.AutoGen;
 
 [NativeTypeName("unsigned int")]
+[Flags]
 internal enum DBusWatchFlags : uint
 {
     DBUS_WATCH_READABLE = 1 << 0,

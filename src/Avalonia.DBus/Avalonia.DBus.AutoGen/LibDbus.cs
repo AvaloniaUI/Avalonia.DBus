@@ -753,7 +753,7 @@ namespace Avalonia.DBus.AutoGen
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static partial uint dbus_watch_handle(DBusWatch* watch, [NativeTypeName("unsigned int")] uint flags);
+        public static partial uint dbus_watch_handle(DBusWatch* watch, [NativeTypeName("unsigned int")] DBusWatchFlags flags);
 
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
