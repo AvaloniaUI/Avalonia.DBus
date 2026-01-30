@@ -871,7 +871,7 @@ namespace Avalonia.DBus.AutoGen
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: NativeTypeName("dbus_bool_t")]
-        public static partial uint dbus_pending_call_set_notify(DBusPendingCall* pending, [NativeTypeName("DBusPendingCallNotifyFunction")] IntPtr function, void* user_data, [NativeTypeName("DBusFreeFunction")] IntPtr free_user_data);
+        public static partial uint dbus_pending_call_set_notify(DBusPendingCall* pending, [NativeTypeName("DBusPendingCallNotifyFunction")] IntPtr function, IntPtr user_data, [NativeTypeName("DBusFreeFunction")] IntPtr free_user_data);
 
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
