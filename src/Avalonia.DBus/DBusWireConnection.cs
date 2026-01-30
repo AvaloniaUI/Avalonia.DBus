@@ -23,11 +23,6 @@ namespace Avalonia.DBus.Wire;
 /// </summary>
 public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
 {
-    private readonly Dictionary<uint, TaskCompletionSource<DBusMessage>> _pendingReplies = new();
-
-    private static readonly bool s_verbose =
-        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE"));
-
     private static readonly DBusAddWatchFunction s_addWatchCallback = AddWatchCallback;
     private static readonly DBusRemoveWatchFunction s_removeWatchCallback = RemoveWatchCallback;
     private static readonly DBusWatchToggledFunction s_toggleWatchCallback = ToggleWatchCallback;
@@ -36,7 +31,6 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
     private static readonly DBusFreeFunction s_freeCallback = FreeCallback;
     private static readonly DBusPendingCallNotifyFunction s_pendingCallNotifyCallback = PendingCallNotifyCallback;
     private static readonly DBusHandleMessageFunction s_handleMsgCallback = HandleMessageCallback;
-
 
     private static readonly IntPtr s_addWatchPtr = Marshal.GetFunctionPointerForDelegate(s_addWatchCallback);
     private static readonly IntPtr s_removeWatchPtr = Marshal.GetFunctionPointerForDelegate(s_removeWatchCallback);
@@ -54,10 +48,9 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
     private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly ConcurrentDictionary<DBusWatchPtr, WatchState> _watches = new();
     private DBusNativeConnection* _connection;
-    private readonly bool _closeOnDispose;
     private bool _disposed;
     private Thread? _workerThread;
-    private readonly GCHandle _filterRefGC;
+    private readonly GCHandle _callbackHandle;
 
     private DBusWireConnection(DBusNativeConnection* connection, bool closeOnDispose)
     {
@@ -68,24 +61,23 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
 
         _connection = connection;
         _closeOnDispose = closeOnDispose;
+        _callbackHandle = GCHandle.Alloc(this);
 
-        ConfigureWatchFunctions(connection);
-
-        _filterRefGC = GCHandle.Alloc(this);
-        var ptr = GCHandle.ToIntPtr(_filterRefGC);
         try
         {
-            if (dbus_connection_add_filter(connection, s_handleMsgPtr, (void*)ptr,
-                    s_freePtr)
-                != 1)
-            {
-                throw new InvalidOperationException("Could not add the message handler to the DBus connection.");
-            }
+            ConfigureWatchFunctions(connection);
         }
-        finally
+        catch
         {
-            // TODO: Maybe add a better disposal method here.
-            _filterRefGC.Free();
+            _callbackHandle.Free();
+            throw;
+        }
+
+        var ptr = GCHandle.ToIntPtr(_callbackHandle);
+        if (dbus_connection_add_filter(connection, s_handleMsgPtr, (void*)ptr, IntPtr.Zero) != 1)
+        {
+            _callbackHandle.Free();
+            throw new InvalidOperationException("Could not add the message handler to the DBus connection.");
         }
 
         StartEventLoop();
@@ -104,40 +96,36 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
     private const PollEvents PollEventsErrorMask =
         PollEvents.POLLERR | PollEvents.POLLHUP | PollEvents.POLLNVAL | PollEvents.POLLRDHUP;
 
-    private ManualResetEventSlim loopSem = new ManualResetEventSlim(false);
-    
+    private ManualResetEventSlim loopSem = new(false);
+    private readonly bool _closeOnDispose;
+
     private void MainEventLoop()
     {
         while (!_disposed)
         {
-            loopSem.Wait();
-            
             RefreshWatches();
 
-            if (!_watches.IsEmpty)
+            (IntPtr Key, PollFd pollFd)[] activeWatches =
+                _watches.Where(x => x.Value.Enabled)
+                    .Select(x => (x.Key, new PollFd
+                    {
+                        fd = x.Value.Fd,
+                        events = x.Value.Events | PollEventsErrorMask,
+                        revents = 0
+                    }))
+                    .ToArray();
+
+            var pollFds = activeWatches.Select(x => x.pollFd).ToArray();
+
+            if (pollFds.Length > 0)
+                DoPoll(pollFds);
+
+            for (var i = 0; i < pollFds.Length; i++)
             {
-                
-                (IntPtr Key, PollFd pollFd)[] activeWatches =
-                    _watches.Where(x => x.Value.Enabled)
-                        .Select(x => (x.Key, new PollFd
-                        {
-                            fd = x.Value.Fd,
-                            events = x.Value.Events | PollEventsErrorMask,
-                            revents = 0
-                        }))
-                        .ToArray();
-
-                DoPoll(activeWatches
-                    .Select(x => x.pollFd)
-                    .ToArray());
-
-                foreach (var watch in activeWatches)
-                {
-                    var handled = dbus_watch_handle((DBusWatch*)watch.Key,
-                        ToWatchFlags(watch.pollFd.revents));
-                    Debug.Assert(handled != IntPtr.Zero);
-                }
-
+                var handled = dbus_watch_handle(
+                    (DBusWatch*)activeWatches[i].Key,
+                    ToWatchFlags(pollFds[i].revents));
+                Debug.Assert(handled != IntPtr.Zero);
             }
 
             dbus_connection_ref(_connection);
@@ -194,7 +182,7 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
     private void DoPoll(PollFd[] activeFds)
     {
         LogCalleeVerbose();
-        LogVerbose(activeFds.Length.ToString());
+
         fixed (PollFd* awPtr = &activeFds[0])
             while (true)
             {
@@ -224,7 +212,7 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
 
         var watch = (DBusWatch*)watchPtrKey;
 
-        var isEnabled = dbus_watch_get_enabled(watch) == 0;
+        var isEnabled = dbus_watch_get_enabled(watch) != 0;
         var cond = PollEvents.POLLHUP | PollEvents.POLLERR;
         var fd = dbus_watch_get_unix_fd(watch);
         cond |= ToPollEvents(dbus_watch_get_flags(watch));
@@ -334,6 +322,8 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
             {
                 message.Serial = serial;
             }
+
+            WakeupEventLoop();
         }
         catch (Exception ex)
         {
@@ -378,6 +368,7 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
         DBusPendingCall* pending = null;
 
         dbus_connection_send_with_reply(_connection, nativeMessage, &pending, DBusDefaultTimeout);
+        WakeupEventLoop();
 
         if (cancellationToken.CanBeCanceled)
         {
@@ -411,18 +402,15 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
     {
         LogCalleeVerbose();
 
-        DBusNativeConnection* connectionPtr;
-
         if (_disposed)
         {
             return new ValueTask(_disposeCompletion.Task);
         }
 
         _disposed = true;
-        connectionPtr = _connection;
-        _connection = null;
-
-        //  s_worker.ScheduleDispose(this, connectionPtr, _closeOnDispose, _disposeCompletion);
+        loopSem.Set();
+        _incoming.Complete();
+        _disposeCompletion.TrySetResult();
         return new ValueTask(_disposeCompletion.Task);
     }
 
@@ -440,30 +428,17 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
     {
         LogCalleeVerbose();
 
-        var wireInst = GCHandle.Alloc(this);
-        var wireInstPtr = (void*)GCHandle.ToIntPtr(_filterRefGC);
+        var wireInstPtr = (void*)GCHandle.ToIntPtr(_callbackHandle);
 
-        try
+        if (dbus_connection_set_watch_functions(connection, s_addWatchPtr, s_removeWatchPtr,
+                s_toggleWatchPtr,
+                wireInstPtr, IntPtr.Zero) == 0)
         {
-            if (dbus_connection_set_watch_functions(connection, s_addWatchPtr, s_removeWatchPtr,
-                    s_toggleWatchPtr,
-                    wireInstPtr, s_freePtr) == 1)
-            {
-                throw new InvalidOperationException("Failed to configure D-Bus watch functions.");
-            }
+            throw new InvalidOperationException("Failed to configure D-Bus watch functions.");
+        }
 
-            dbus_connection_set_wakeup_main_function(connection, s_wakeupPtr, wireInstPtr, s_freePtr);
-            dbus_connection_set_dispatch_status_function(connection, s_dispatchPtr, wireInstPtr, s_freePtr);
-        }
-        catch (Exception e)
-        {
-            LogVerbose(e.ToString());
-        }
-        finally
-        {
-            wireInst.Free();
-            FreeCallback(wireInstPtr);
-        }
+        dbus_connection_set_wakeup_main_function(connection, s_wakeupPtr, wireInstPtr, IntPtr.Zero);
+        dbus_connection_set_dispatch_status_function(connection, s_dispatchPtr, wireInstPtr, IntPtr.Zero);
     }
 
     private static uint AddWatchCallback(DBusWatch* watch, void* data)
@@ -610,7 +585,9 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
         {
             var msg = DBusMessageMarshaler.FromNative(message);
             _incoming.Enqueue(msg);
-            return DBusHandlerResult.DBUS_HANDLER_RESULT_HANDLED;
+            return msg.Type == DBusMessageType.MethodReturn || msg.Type == DBusMessageType.Error
+                ? DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED
+                : DBusHandlerResult.DBUS_HANDLER_RESULT_HANDLED;
         }
         catch (Exception e)
         {
@@ -658,6 +635,7 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
             return false;
 
         RefreshWatch((IntPtr)watch);
+        WakeupEventLoop();
         return true;
     }
 
@@ -679,6 +657,7 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
             return;
 
         RefreshWatch((DBusWatchPtr)watch);
+        WakeupEventLoop();
     }
 
     private static bool TryGetWatchFd(DBusWatch* watch, out int fd)
@@ -758,8 +737,7 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
         Console.Error.WriteLine($"[DBusWire {Environment.CurrentManagedThreadId}] {message}");
 #endif
     }
-    
-    
+
 
     private static void LogCalleeVerbose([CallerMemberName] string callee = "<nocallee>")
     {
@@ -767,7 +745,6 @@ public sealed unsafe partial class DBusWireConnection : IAsyncDisposable
         Console.Error.WriteLine($"Callback {callee} called.");
 #endif
     }
-
 
 
     private static void ThrowErrorAndFree(ref DBusError error, string fallbackMessage)

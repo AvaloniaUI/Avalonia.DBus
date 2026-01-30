@@ -300,6 +300,32 @@ public sealed class DBusConnection : IAsyncDisposable
 
         if (registration == null)
         {
+            if ((message.Flags & DBusMessageFlags.NoReplyExpected) == 0)
+            {
+                var iface = string.IsNullOrWhiteSpace(message.Interface) ? "<null>" : message.Interface;
+                var member = string.IsNullOrWhiteSpace(message.Member) ? "<null>" : message.Member;
+                var path = message.Path.HasValue ? message.Path.Value.Value : "<null>";
+                string errorName;
+                string errorMessage;
+                lock (_gate)
+                {
+                    bool hasPath = _handlers.Keys.Any(k => string.Equals(k.Path, path, StringComparison.Ordinal));
+                    if (hasPath)
+                    {
+                        errorName = "org.freedesktop.DBus.Error.UnknownInterface";
+                        errorMessage = $"No handler registered for interface '{iface}' on '{path}'.";
+                    }
+                    else
+                    {
+                        errorName = "org.freedesktop.DBus.Error.UnknownObject";
+                        errorMessage = $"No handler registered for object '{path}'.";
+                    }
+                }
+
+                LogVerbose($"Dispatch METHOD_CALL missing handler: path='{path}' iface='{iface}' member='{member}' -> {errorName}");
+                var error = message.CreateError(errorName, errorMessage);
+                FireAndForget(Wire.SendAsync(error));
+            }
             return;
         }
 
@@ -428,6 +454,8 @@ public sealed class DBusConnection : IAsyncDisposable
         public bool Equals(ObjectHandlerKey other)
             => string.Equals(_path, other._path, StringComparison.Ordinal)
                && string.Equals(_iface, other._iface, StringComparison.Ordinal);
+
+        public string Path => _path;
 
         public override bool Equals(object? obj) => obj is ObjectHandlerKey other && Equals(other);
 
