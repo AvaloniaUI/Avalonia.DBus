@@ -32,13 +32,14 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     private static readonly IntPtr s_removeWatchPtr = Marshal.GetFunctionPointerForDelegate(s_removeWatchCallback);
     private static readonly IntPtr s_toggleWatchPtr = Marshal.GetFunctionPointerForDelegate(s_toggleWatchCallback);
     private static readonly IntPtr s_handleMsgPtr = Marshal.GetFunctionPointerForDelegate(s_handleMsgCallback);
-    private static ConcurrentDictionary<int, DBusWireConnection> _activeConns = new();
+    private static readonly ConcurrentDictionary<int, DBusWireConnection> _activeConns = new();
     private static int _activeConnCounter;
 
     private readonly unsafe DBusNativeConnection* _connection;
 
     private readonly Channel<DBusMessage> _receiving = Channel.CreateUnbounded<DBusMessage>();
     private readonly ConcurrentQueue<SendWorkItem> _pendingSends = new();
+    private readonly ConcurrentQueue<Action> _pendingNativeActions = new();
     private readonly ConcurrentDictionary<uint, SendWorkItem> _pendingReplies = new();
 
     private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -46,9 +47,12 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     private Thread? _workerThread;
 
     private bool _disposed;
+    private int _disposeRequested;
     private readonly int _activeConnId;
 
     private readonly WakeupFd _curWakeupFd = new();
+   
+    private bool IsWorkerThread => Thread.CurrentThread == _workerThread;
 
     private unsafe DBusWireConnection(DBusNativeConnection* connection, bool closeOnDispose)
     {
@@ -59,6 +63,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         _closeOnDispose = closeOnDispose;
         _activeConnId = Interlocked.Increment(ref _activeConnCounter);
         _activeConns[_activeConnId] = this;
+
         try
         {
             ConfigureWatchFunctions(connection);
@@ -69,7 +74,8 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
             throw;
         }
 
-        if (dbus_connection_add_filter(connection, s_handleMsgPtr, (void*)_activeConnId, IntPtr.Zero) != 1)
+        if (dbus_connection_add_filter(connection, s_handleMsgPtr, 
+                (void*)_activeConnId, IntPtr.Zero) != 1)
         {
             _activeConns.TryRemove(_activeConnId, out _);
             throw new InvalidOperationException("Could not add the message handler to the DBus connection.");
@@ -136,7 +142,8 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
                 var wakeupIndex = pollFds.Length - 1;
                 if (wakeupIndex >= 0 &&
-                    (pollFds[wakeupIndex].revents & (PollEvents.POLLIN | PollEvents.POLLERR | PollEvents.POLLHUP)) != 0)
+                    (pollFds[wakeupIndex].revents &
+                     (PollEvents.POLLIN | PollEvents.POLLERR | PollEvents.POLLHUP)) != 0)
                     _curWakeupFd.Clear();
 
                 dbus_connection_ref(_connection);
@@ -145,6 +152,21 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
                        == DBusDispatchStatus.DBUS_DISPATCH_DATA_REMAINS) ;
 
                 dbus_connection_unref(_connection);
+
+                while (_pendingNativeActions.TryDequeue(out var action))
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogVerbose(ex.ToString());
+                    }
+                }
+
+                if (_disposed)
+                    break;
 
                 while (_pendingSends.TryDequeue(out var pending))
                     ProcessSend(pending);
@@ -198,7 +220,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         return events;
     }
 
-    private unsafe void DoPoll(PollFd[] activeFds)
+    private static unsafe void DoPoll(PollFd[] activeFds)
     {
         LogCalleeVerbose();
 
@@ -241,11 +263,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
     /// <summary>
     /// Connects to a D-Bus bus at the specified address.
-    /// </summary>
-    /// <param name="address">
-    /// D-Bus address string (e.g., "unix:path=/run/dbus/system_bus_socket")
-    /// or well-known bus type ("session", "system").
-    /// </param>
+    /// </summary> 
     public static Task<DBusWireConnection> ConnectAsync(
         string address,
         CancellationToken cancellationToken = default)
@@ -291,15 +309,12 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     /// The unique name assigned by the message bus (e.g., ":1.42").
     /// Null if not connected to a message bus.
     /// </summary>
-    public unsafe string? UniqueName
+    public string? UniqueName
     {
         get
         {
             ThrowIfDisposedOrFailed();
-            string? uniqueName = null;
-            if (_connection != null)
-                uniqueName = DbusHelpers.PtrToStringNullable(dbus_bus_get_unique_name(_connection));
-            return uniqueName;
+            return InvokeOnWorkerAsync(GetUniqueNameCore).GetAwaiter().GetResult();
         }
     }
 
@@ -427,9 +442,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     {
         if (_receiving.Reader is not { } reader) yield break;
         await foreach (var item in reader.ReadAllAsync(cancellationToken))
-        {
             yield return item;
-        }
     }
 
     /// <summary>
@@ -439,35 +452,20 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     {
         LogCalleeVerbose();
 
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeRequested, 1) != 0)
             return new ValueTask(_disposeCompletion.Task);
 
-        _disposed = true;
-        _receiving.Writer.Complete();
-        _watches.Clear();
+        _pendingNativeActions.Enqueue(DisposeOnWorker);
         _curWakeupFd.Set();
-        while (_pendingSends.TryDequeue(out var pending))
-        {
-            pending.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
-        }
-        foreach (var kvp in _pendingReplies)
-        {
-            kvp.Value.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
-        }
-        _pendingReplies.Clear();
-        _disposeCompletion.TrySetResult();
-        _activeConns.TryRemove(_activeConnId, out _);
 
         return new ValueTask(_disposeCompletion.Task);
     }
-
-    private unsafe bool IsActive => !_disposed && _connection != null;
 
     private unsafe void ThrowIfDisposedOrFailed()
     {
         LogCalleeVerbose();
 
-        if (!_disposed && _connection != null) return;
+        if (!_disposed && Volatile.Read(ref _disposeRequested) == 0 && _connection != null) return;
 
         throw new ObjectDisposedException(nameof(DBusWireConnection));
     }
@@ -561,6 +559,87 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         }
 
         return DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+
+    private unsafe string? GetUniqueNameCore()
+    {
+        string? uniqueName = null;
+        if (_connection != null)
+            uniqueName = DbusHelpers.PtrToStringNullable(dbus_bus_get_unique_name(_connection));
+
+        return uniqueName;
+    }
+
+    private Task<T> InvokeOnWorkerAsync<T>(Func<T> func)
+    {
+        if (IsWorkerThread)
+        {
+            try
+            {
+                return Task.FromResult(func());
+            }
+            catch (Exception ex)
+            {
+                var faulted = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+                faulted.TrySetException(ex);
+                return faulted.Task;
+            }
+        }
+
+        var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingNativeActions.Enqueue(() =>
+        {
+            if (_disposed || Volatile.Read(ref _disposeRequested) != 0)
+            {
+                tcs.TrySetException(new ObjectDisposedException(nameof(DBusWireConnection)));
+                return;
+            }
+
+            try
+            {
+                tcs.TrySetResult(func());
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        });
+        _curWakeupFd.Set();
+        return tcs.Task;
+    }
+
+    private unsafe void DisposeOnWorker()
+    {
+        if (_disposed)
+        {
+            _disposeCompletion.TrySetResult();
+            return;
+        }
+
+        _disposed = true;
+        _receiving.Writer.Complete();
+        _watches.Clear();
+
+        while (_pendingSends.TryDequeue(out var pending))
+        {
+            pending.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
+        }
+
+        foreach (var kvp in _pendingReplies)
+        {
+            kvp.Value.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
+        }
+
+        _pendingReplies.Clear();
+
+        if (_closeOnDispose)
+        {
+            dbus_connection_close(_connection);
+        }
+
+        dbus_connection_unref(_connection);
+        _activeConns.TryRemove(_activeConnId, out _);
+        _disposeCompletion.TrySetResult();
     }
 
     private unsafe bool AddWatch(DBusWatch* watch)
