@@ -105,12 +105,12 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     {
         while (!_disposed)
         {
-            foreach (var pending in pendingMsgs)
+            while (pendingMsgs.TryDequeue(out var pending))
             {
-                if (pendingItems.Remove(pending.Serial, out var replyWorkItem))
+                var replySerial = pending.ReplySerial;
+                if (replySerial != 0 && pendingItems.Remove(replySerial, out var replyWorkItem))
                 {
                     replyWorkItem.Completion.TrySetResult(pending);
-                    continue;
                 }
             }
             
@@ -333,6 +333,8 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
             {
                 message.Serial = serial;
             }
+
+            tcs.TrySetResult();
         }
         catch (Exception ex)
         {
@@ -581,11 +583,14 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
                 msg = DBusMessageMarshaler.FromNative(msg1);
             }
             
-            pendingMsgs.Enqueue(msg);
-            
-            return msg.Type is DBusMessageType.MethodReturn or DBusMessageType.Error
-                ? DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED
-                : DBusHandlerResult.DBUS_HANDLER_RESULT_HANDLED;
+            if (msg.Type is DBusMessageType.MethodReturn or DBusMessageType.Error)
+            {
+                pendingMsgs.Enqueue(msg);
+                return DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+            }
+
+            _incoming.Writer.TryWrite(msg);
+            return DBusHandlerResult.DBUS_HANDLER_RESULT_HANDLED;
         }
         catch (Exception e)
         {
