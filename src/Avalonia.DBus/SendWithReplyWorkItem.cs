@@ -7,13 +7,13 @@ namespace Avalonia.DBus.Wire;
 public sealed unsafe partial class DBusWireConnection
 {
 
-    private sealed partial class SendWithReplyWorkItem
+    private sealed partial class SendWorkItem
     {
-        public SendWithReplyWorkItem(DBusWireConnection connection,
+        public SendWorkItem(DBusWireConnection connection,
             DBusMessage message,
             TaskCompletionSource<DBusMessage> completion,
             CancellationToken cancellationToken,
-            DateTime startTimestamp)
+            DateTime startTimestamp, bool expectingReply = false)
         {
             Message = message;
             CancellationToken = cancellationToken;
