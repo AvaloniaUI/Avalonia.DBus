@@ -39,7 +39,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     private readonly Channel<DBusMessage> _incoming = Channel.CreateUnbounded<DBusMessage>();
     private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly ConcurrentDictionary<DBusWatchPtr, WatchState> _watches = new();
-    private readonly ConcurrentQueue<DBusMessage> _pendingMsgs = new ();
+    private readonly ConcurrentQueue<DBusMessage> _pendingMsgs = new();
     private Thread? _workerThread;
 
     private bool _disposed;
@@ -165,7 +165,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
     private static PollEvents ToPollEvents(DBusWatchFlags watchFlags)
     {
-        PollEvents events = PollEvents.None;
+        var events = PollEvents.None;
         if ((watchFlags & DBusWatchFlags.DBUS_WATCH_READABLE) != 0)
         {
             events |= PollEvents.POLLIN;
@@ -408,10 +408,10 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         _disposed = true;
         _incoming.Writer.Complete();
         _watches.Clear();
-        _pendingMsgs.Clear();   
+        _pendingMsgs.Clear();
         _disposeCompletion.TrySetResult();
         _activeConns.TryRemove(_activeConnId, out _);
-        
+
         return new ValueTask(_disposeCompletion.Task);
     }
 
@@ -444,7 +444,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
         if (data == null || !_activeConns.TryGetValue((int)data, out var wire))
             return 0;
-        
+
         return wire.AddWatch(watch) ? 1u : 0u;
     }
 
@@ -454,7 +454,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
         if (data == null || !_activeConns.TryGetValue((int)data, out var wire))
             return;
-        
+
         wire.RemoveWatch(watch);
     }
 
@@ -474,7 +474,8 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     {
         LogCalleeVerbose();
 
-        if (connection == null || message == null || userData == null || !_activeConns.TryGetValue((int)userData, out DBusWireConnection? conn))
+        if (connection == null || message == null || userData == null ||
+            !_activeConns.TryGetValue((int)userData, out var conn))
             return DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
         return conn.HandleMessage(new IntPtr(message));
@@ -510,7 +511,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
         return DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
- 
+
     private unsafe bool AddWatch(DBusWatch* watch)
     {
         LogCalleeVerbose();
@@ -571,7 +572,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
         dbus_connection_unref(connection);
     }
-    
+
     private static unsafe DBusWireConnection OpenBus(DBusBusType busType)
     {
         DbusHelpers.EnsureThreadsInitialized();
