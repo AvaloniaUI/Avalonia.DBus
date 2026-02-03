@@ -37,10 +37,9 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
     private readonly unsafe DBusNativeConnection* _connection;
 
-    private readonly Channel<DBusMessage> _sending = Channel.CreateUnbounded<DBusMessage>();
     private readonly Channel<DBusMessage> _receiving = Channel.CreateUnbounded<DBusMessage>();
-    private readonly Queue<SendWorkItem> _pendingSends = new();
-    private object PendingSendsLock = new();
+    private readonly ConcurrentQueue<SendWorkItem> _pendingSends = new();
+    private readonly ConcurrentDictionary<uint, SendWorkItem> _pendingReplies = new();
 
     private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly ConcurrentDictionary<DBusWatchPtr, WatchState> _watches = new();
@@ -49,14 +48,12 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     private bool _disposed;
     private readonly int _activeConnId;
 
-    private WakeupFd _curWakeupFd = new();
+    private readonly WakeupFd _curWakeupFd = new();
 
     private unsafe DBusWireConnection(DBusNativeConnection* connection, bool closeOnDispose)
     {
         if (!OperatingSystem.IsLinux())
-        {
             throw new PlatformNotSupportedException("The D-Bus wire connection requires Linux polling.");
-        }
 
         _connection = connection;
         _closeOnDispose = closeOnDispose;
@@ -98,62 +95,64 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
     private unsafe void MainEventLoop()
     {
-        while (!_disposed)
+        try
         {
-            RefreshWatches();
-
-            (IntPtr Key, PollFd pollFd)[] activeWatches =
-                _watches.Where(x => x.Value.Enabled)
-                    .Select(x => (x.Key, new PollFd
-                    {
-                        fd = x.Value.Fd,
-                        events = x.Value.Events | PollEventsErrorMask,
-                        revents = 0
-                    }))
-                    .ToArray();
-
-            var pollFds1 = activeWatches.Select(x => x.pollFd).ToList();
-
-            pollFds1.Add(new PollFd()
+            while (!_disposed)
             {
-                fd = _curWakeupFd.PollFd,
-                events = PollEventsErrorMask | PollEvents.POLLOUT,
-                revents = 0
-            });
+                RefreshWatches();
 
-            var pollFds = pollFds1.ToArray();
+                (IntPtr Key, PollFd pollFd)[] activeWatches =
+                    _watches.Where(x => x.Value.Enabled)
+                        .Select(x => (x.Key, new PollFd
+                        {
+                            fd = x.Value.Fd,
+                            events = x.Value.Events | PollEventsErrorMask,
+                            revents = 0
+                        }))
+                        .ToArray();
 
-            if (pollFds.Length > 0)
-                DoPoll(pollFds);
+                var pollFds1 = activeWatches.Select(x => x.pollFd).ToList();
 
-            for (var i = 0; i < pollFds.Length; i++)
-            {
-                var handled = dbus_watch_handle(
-                    (DBusWatch*)activeWatches[i].Key,
-                    ToWatchFlags(pollFds[i].revents));
-                Debug.Assert(handled != IntPtr.Zero);
-            }
-
-            dbus_connection_ref(_connection);
-
-            while (dbus_connection_dispatch(_connection)
-                   == DBusDispatchStatus.DBUS_DISPATCH_DATA_REMAINS) ;
-
-            dbus_connection_unref(_connection);
-            
-            
-            lock (PendingSendsLock)
-            while (_pendingSends.TryDequeue(out var pending))
-            {
-                
-                
-                
-                var replySerial = pending.Message.;
-                if (replySerial != 0 && pendingItems.Remove(replySerial, out var replyWorkItem))
+                pollFds1.Add(new PollFd()
                 {
-                    replyWorkItem.Completion.TrySetResult(pending);
+                    fd = _curWakeupFd.PollFd,
+                    events = PollEventsErrorMask | PollEvents.POLLIN,
+                    revents = 0
+                });
+
+                var pollFds = pollFds1.ToArray();
+
+                if (pollFds.Length > 0)
+                    DoPoll(pollFds);
+
+                for (var i = 0; i < activeWatches.Length; i++)
+                {
+                    var handled = dbus_watch_handle(
+                        (DBusWatch*)activeWatches[i].Key,
+                        ToWatchFlags(pollFds[i].revents));
+
+                    Debug.Assert(handled != IntPtr.Zero);
                 }
+
+                var wakeupIndex = pollFds.Length - 1;
+                if (wakeupIndex >= 0 &&
+                    (pollFds[wakeupIndex].revents & (PollEvents.POLLIN | PollEvents.POLLERR | PollEvents.POLLHUP)) != 0)
+                    _curWakeupFd.Clear();
+
+                dbus_connection_ref(_connection);
+
+                while (dbus_connection_dispatch(_connection)
+                       == DBusDispatchStatus.DBUS_DISPATCH_DATA_REMAINS) ;
+
+                dbus_connection_unref(_connection);
+
+                while (_pendingSends.TryDequeue(out var pending))
+                    ProcessSend(pending);
             }
+        }
+        finally
+        {
+            _curWakeupFd.Dispose();
         }
     }
 
@@ -254,19 +253,13 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         LogCalleeVerbose();
 
         if (string.IsNullOrWhiteSpace(address))
-        {
             throw new ArgumentException("Address is required.", nameof(address));
-        }
 
         if (string.Equals(address, "session", StringComparison.OrdinalIgnoreCase))
-        {
             return ConnectSessionAsync(cancellationToken);
-        }
 
         if (string.Equals(address, "system", StringComparison.OrdinalIgnoreCase))
-        {
             return ConnectSystemAsync(cancellationToken);
-        }
 
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(OpenAddress(address));
@@ -322,54 +315,14 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfDisposedOrFailed();
         LogVerbose(
-            $"SendWithReply begin: dest='{message.Destination}' path='{message.Path}' iface='{message.Interface}' member='{message.Member}' body={message.Body.Count}");
+            $"Send begin: dest='{message.Destination}' path='{message.Path}' iface='{message.Interface}' member='{message.Member}' body={message.Body.Count}");
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (PendingSendsLock)
-        {
-            _pendingSends.Enqueue(new SendWorkItem(this, message, tcs, cancellationToken, DateTime.UtcNow));
-        }
+        var workItem = new SendWorkItem(this, message, tcs, cancellationToken, DateTime.UtcNow);
+        RegisterCancellation(workItem);
+        _pendingSends.Enqueue(workItem);
+        _curWakeupFd.Set();
 
         await tcs.Task;
-
-
-        // LogCalleeVerbose();
-        //
-        // ArgumentNullException.ThrowIfNull(message);
-        //
-        // cancellationToken.ThrowIfCancellationRequested();
-        // ThrowIfDisposedOrFailed();
-        //
-        // var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        // var native = DBusMessageMarshaler.ToNative(message);
-        //
-        // try
-        // {
-        //     uint serial = 0;
-        //     var ret = dbus_connection_send(_connection, native, &serial);
-        //     if (ret == 0)
-        //     {
-        //         tcs.TrySetException(
-        //             new InvalidOperationException($"Failed to send D-Bus message. libdbus returned {ret}"));
-        //         return tcs.Task;
-        //     }
-        //
-        //     if (serial != 0)
-        //     {
-        //         message.Serial = serial;
-        //     }
-        //
-        //     tcs.TrySetResult();
-        // }
-        // catch (Exception ex)
-        // {
-        //     tcs.TrySetException(ex);
-        // }
-        // finally
-        // {
-        //     dbus_message_unref(native);
-        // }
-        //
-        // return tcs.Task;
     }
 
     /// <summary>
@@ -388,12 +341,81 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
             $"SendWithReply begin: dest='{message.Destination}' path='{message.Path}' iface='{message.Interface}' member='{message.Member}' body={message.Body.Count}");
 
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (PendingSendsLock)
-        {
-            _pendingSends.Enqueue(new SendWorkItem(this, message, tcs, cancellationToken, DateTime.UtcNow, true));
-        }
+        var workItem = new SendWorkItem(this, message, tcs, cancellationToken, DateTime.UtcNow, true);
+        RegisterCancellation(workItem);
+        _pendingSends.Enqueue(workItem);
+        _curWakeupFd.Set();
 
         return await tcs.Task;
+    }
+
+    private void RegisterCancellation(SendWorkItem workItem)
+    {
+        if (!workItem.CancellationToken.CanBeCanceled)
+            return;
+
+        workItem.CancellationToken.Register(() =>
+        {
+            if (!workItem.TryCancel())
+                return;
+
+            var serial = workItem.Serial;
+            if (serial != 0)
+                _pendingReplies.TryRemove(serial, out _);
+        });
+    }
+
+    private unsafe void ProcessSend(SendWorkItem pending)
+    {
+        if (pending.IsCanceled)
+        {
+            pending.Completion.TrySetCanceled(pending.CancellationToken);
+            return;
+        }
+
+        DBusNativeMessage* native = null;
+        try
+        {
+            native = DBusMessageMarshaler.ToNative(pending.Message);
+            uint serial = 0;
+            var ret = dbus_connection_send(_connection, native, &serial);
+            if (ret == 0)
+                throw new InvalidOperationException($"Failed to send D-Bus message. libdbus returned {ret}");
+
+            if (serial != 0)
+                pending.Message.Serial = serial;
+
+            pending.Serial = serial;
+
+            if (pending.ExpectingReply)
+            {
+                if (serial == 0)
+                    throw new InvalidOperationException("Failed to obtain a reply serial for the sent message.");
+
+                if (pending.IsCanceled)
+                {
+                    pending.Completion.TrySetCanceled(pending.CancellationToken);
+                    return;
+                }
+
+                _pendingReplies[serial] = pending;
+            }
+            else
+            {
+                pending.Completion.TrySetResult(pending.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            pending.Completion.TrySetException(ex);
+        }
+        finally
+        {
+            if (native != null)
+            {
+                dbus_message_unref(native);
+            }
+        }
     }
 
     /// <summary>
@@ -403,7 +425,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     public async IAsyncEnumerable<DBusMessage> ReceiveAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (_sending.Reader is not { } reader) yield break;
+        if (_receiving.Reader is not { } reader) yield break;
         await foreach (var item in reader.ReadAllAsync(cancellationToken))
         {
             yield return item;
@@ -418,13 +440,21 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         LogCalleeVerbose();
 
         if (_disposed)
-        {
             return new ValueTask(_disposeCompletion.Task);
-        }
 
         _disposed = true;
-        _sending.Writer.Complete();
+        _receiving.Writer.Complete();
         _watches.Clear();
+        _curWakeupFd.Set();
+        while (_pendingSends.TryDequeue(out var pending))
+        {
+            pending.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
+        }
+        foreach (var kvp in _pendingReplies)
+        {
+            kvp.Value.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
+        }
+        _pendingReplies.Clear();
         _disposeCompletion.TrySetResult();
         _activeConns.TryRemove(_activeConnId, out _);
 
@@ -513,9 +543,15 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
             if (msg.Type is DBusMessageType.MethodReturn or DBusMessageType.Error)
             {
+                var replySerial = msg.ReplySerial;
+
+                if (replySerial != 0 && _pendingReplies.TryRemove(replySerial, out var pending))
+                    pending.Completion.TrySetResult(msg);
+                
+                return DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
             }
 
-            return _sending.Writer.TryWrite(msg)
+            return _receiving.Writer.TryWrite(msg)
                 ? DBusHandlerResult.DBUS_HANDLER_RESULT_HANDLED
                 : DBusHandlerResult.DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
         }
@@ -573,21 +609,6 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         return false;
     }
 
-    private static unsafe void CloseConnection(DBusNativeConnection* connection, bool closeOnDispose)
-    {
-        if (connection == null)
-        {
-            return;
-        }
-
-        if (closeOnDispose)
-        {
-            dbus_connection_close(connection);
-        }
-
-        dbus_connection_unref(connection);
-    }
-
     private static unsafe DBusWireConnection OpenBus(DBusBusType busType)
     {
         DbusHelpers.EnsureThreadsInitialized();
@@ -596,9 +617,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
         var connection = dbus_bus_get(busType, &error);
         if (connection == null)
-        {
             ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.");
-        }
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
         return new DBusWireConnection(connection, closeOnDispose: false);
@@ -628,35 +647,29 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
         return new DBusWireConnection(connection, closeOnDispose: true);
     }
 
-
     private static void LogVerbose(string message)
     {
 #if DEBUG
         Console.Error.WriteLine($"[DBusWire {Environment.CurrentManagedThreadId}] {message}");
 #endif
     }
-
-
+    
     private static void LogCalleeVerbose([CallerMemberName] string callee = "<nocallee>")
     {
 #if DEBUG
         Console.Error.WriteLine($"Callback {callee} called.");
 #endif
     }
-
-
+    
     private static unsafe void ThrowErrorAndFree(ref DBusError error, string fallbackMessage)
     {
         var name = error.name != null ? DbusHelpers.PtrToString(error.name) : "DBus error";
         var message = error.message != null ? DbusHelpers.PtrToString(error.message) : fallbackMessage;
         LogVerbose($"libdbus error: {name}: {message}");
+
         fixed (DBusError* errorPtr = &error)
-        {
             if (dbus_error_is_set(errorPtr) != 0)
-            {
                 dbus_error_free(errorPtr);
-            }
-        }
 
         throw new InvalidOperationException($"{name}: {message}");
     }
