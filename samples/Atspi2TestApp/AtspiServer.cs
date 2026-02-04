@@ -240,7 +240,7 @@ internal sealed class AtspiServer
         {
             LogVerbose("Opening private accessibility bus connection");
             _a11yConnection = await DBusConnection.ConnectAsync(address);
-            _uniqueName = _a11yConnection.UniqueName;
+            _uniqueName = await _a11yConnection.GetUniqueNameAsync() ?? "";
             LogVerbose($"TryConnect end ({sw.ElapsedMilliseconds} ms)");
             return true;
         }

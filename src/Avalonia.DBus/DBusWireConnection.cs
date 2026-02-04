@@ -202,8 +202,7 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
         return flags;
     }
-
-
+    
     private static PollEvents ToPollEvents(DBusWatchFlags watchFlags)
     {
         var events = PollEvents.None;
@@ -309,13 +308,9 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
     /// The unique name assigned by the message bus (e.g., ":1.42").
     /// Null if not connected to a message bus.
     /// </summary>
-    public string? UniqueName
+    public async Task<string?> GetUniqueNameAsync()
     {
-        get
-        {
-            ThrowIfDisposedOrFailed();
-            return InvokeOnWorkerAsync(GetUniqueNameCore).GetAwaiter().GetResult();
-        }
+        return await InvokeOnWorkerAsync(GetUniqueNameCore);
     }
 
     /// <summary>

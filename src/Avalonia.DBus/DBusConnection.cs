@@ -60,11 +60,6 @@ public sealed class DBusConnection : IAsyncDisposable
     public DBusWireConnection Wire { get; }
 
     /// <summary>
-    /// The unique name assigned by the message bus (e.g., ":1.42").
-    /// </summary>
-    public string UniqueName => Wire.UniqueName ?? string.Empty;
-
-    /// <summary>
     /// Calls a method on a remote object and returns the reply.
     /// </summary>
     public Task<DBusMessage> CallMethodAsync(
@@ -675,5 +670,10 @@ public sealed class DBusConnection : IAsyncDisposable
                 Body = reply.Body
             };
         }
+    }
+
+    public async Task<string?> GetUniqueNameAsync()
+    {
+        return await Wire.GetUniqueNameAsync();
     }
 }
