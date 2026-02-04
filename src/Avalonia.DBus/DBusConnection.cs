@@ -234,6 +234,7 @@ public sealed class DBusConnection : IAsyncDisposable
         }
 
         _dispatchCts.Cancel();
+        
         try
         {
             await _dispatchLoop;
