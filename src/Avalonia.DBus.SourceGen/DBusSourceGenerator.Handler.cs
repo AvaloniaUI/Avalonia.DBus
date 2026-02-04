@@ -347,7 +347,7 @@ public partial class DBusSourceGenerator
                                                         IdentifierName(Pascalize(property.Name.AsSpan())))))))))));
 
         return MethodDeclaration(
-                GenericName("DBusDict")
+                GenericName("Dictionary")
                     .AddTypeArgumentListArguments(
                         PredefinedType(Token(SyntaxKind.StringKeyword)),
                         IdentifierName("DBusVariant")),
@@ -372,7 +372,7 @@ public partial class DBusSourceGenerator
                     Block(addStatements),
                     ReturnStatement(
                         ObjectCreationExpression(
-                                GenericName("DBusDict")
+                                GenericName("Dictionary")
                                     .AddTypeArgumentListArguments(
                                         PredefinedType(Token(SyntaxKind.StringKeyword)),
                                         IdentifierName("DBusVariant")))

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 
 using Avalonia.DBus.Native;
 using DBusNativeMessage = Avalonia.DBus.Native.DBusMessage;
@@ -439,15 +440,7 @@ internal static unsafe class DBusMessageMarshaler
             list.Add(item);
         }
 
-        Type arrayType = typeof(DBusArray<>).MakeGenericType(elementType);
-        Type enumerableType = typeof(IEnumerable<>).MakeGenericType(elementType);
-        var ctor = arrayType.GetConstructor([typeof(string), enumerableType]);
-        if (ctor != null)
-        {
-            return ctor.Invoke([elementSignature, list]);
-        }
-
-        return Activator.CreateInstance(arrayType, list)!;
+        return list;
     }
 
     private static object CreateDictInstance(string entrySignature, List<KeyValuePair<object?, object?>> entries)
@@ -456,18 +449,20 @@ internal static unsafe class DBusMessageMarshaler
         Type keyType = DBusSignatureInference.GetTypeForSignature(keySig);
         Type valueType = DBusSignatureInference.GetTypeForSignature(valueSig);
 
-        Type kvType = typeof(KeyValuePair<,>).MakeGenericType(keyType, valueType);
-        Type listType = typeof(List<>).MakeGenericType(kvType);
-        var list = (IList)Activator.CreateInstance(listType)!;
+        Type dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+        var dict = (IDictionary)Activator.CreateInstance(dictType)!;
 
         foreach (var entry in entries)
         {
-            object kv = Activator.CreateInstance(kvType, entry.Key, entry.Value)!;
-            list.Add(kv);
+            if (entry.Key is null)
+            {
+                throw new InvalidOperationException("Dictionary contains null keys.");
+            }
+
+            dict.Add(entry.Key, entry.Value);
         }
 
-        Type dictType = typeof(DBusDict<,>).MakeGenericType(keyType, valueType);
-        return Activator.CreateInstance(dictType, list)!;
+        return dict;
     }
 
     private static void AppendBody(DBusMessage message, DBusNativeMessage* native)
@@ -541,13 +536,25 @@ internal static unsafe class DBusMessageMarshaler
             case DBusStruct dbusStruct:
                 AppendStruct(ref iter, dbusStruct);
                 return;
-            case IDBusDict dict:
-                AppendDict(ref iter, dict);
-                return;
-            case IDBusArray array:
-                AppendArray(ref iter, array);
-                return;
             default:
+                if (TryConvertToDbusStruct(value, out DBusStruct convertedStruct))
+                {
+                    AppendStruct(ref iter, convertedStruct);
+                    return;
+                }
+
+                if (DBusCollectionHelpers.TryGetDictionaryTypes(value.GetType(), out _, out _) || value is IDictionary)
+                {
+                    AppendDict(ref iter, value);
+                    return;
+                }
+
+                if (DBusCollectionHelpers.TryGetListElementType(value.GetType(), out _) || value is IList)
+                {
+                    AppendArray(ref iter, value);
+                    return;
+                }
+
                 throw new NotSupportedException($"Unsupported D-Bus value type: {value.GetType().FullName}");
         }
     }
@@ -570,7 +577,7 @@ internal static unsafe class DBusMessageMarshaler
         }
     }
 
-    private static void AppendArray(ref DBusMessageIter iter, IDBusArray array)
+    private static void AppendArray(ref DBusMessageIter iter, object array)
     {
         string arraySignature = DBusSignatureInference.InferSignatureFromValue(array);
         if (arraySignature.Length < 2 || arraySignature[0] != DBusSignatureToken.Array)
@@ -589,7 +596,7 @@ internal static unsafe class DBusMessageMarshaler
             }
         }
 
-        foreach (var item in array.Items)
+        foreach (var item in DBusCollectionHelpers.EnumerateListItems(array))
         {
             AppendValue(ref child, item ?? throw new InvalidOperationException("Array contains null values."));
         }
@@ -600,7 +607,7 @@ internal static unsafe class DBusMessageMarshaler
         }
     }
 
-    private static void AppendDict(ref DBusMessageIter iter, IDBusDict dict)
+    private static void AppendDict(ref DBusMessageIter iter, object dict)
     {
         string arraySignature = DBusSignatureInference.InferSignatureFromValue(dict);
         if (arraySignature.Length < 3
@@ -621,7 +628,7 @@ internal static unsafe class DBusMessageMarshaler
             }
         }
 
-        foreach (var entry in dict.Entries)
+        foreach (var entry in DBusCollectionHelpers.EnumerateDictionaryEntries(dict))
         {
             DBusMessageIter entryIter;
             DBusMessageIter* childPtr = &child;
@@ -688,6 +695,43 @@ internal static unsafe class DBusMessageMarshaler
         {
             LibDbus.dbus_message_iter_close_container(iterPtr, &child);
         }
+    }
+
+    private static readonly Dictionary<Type, MethodInfo?> s_structConverters = new();
+    private static readonly object s_structConvertersLock = new();
+
+    private static bool TryConvertToDbusStruct(object value, out DBusStruct dbusStruct)
+    {
+        if (value is DBusStruct structValue)
+        {
+            dbusStruct = structValue;
+            return true;
+        }
+
+        Type type = value.GetType();
+        MethodInfo? method;
+        lock (s_structConvertersLock)
+        {
+            if (!s_structConverters.TryGetValue(type, out method))
+            {
+                method = type.GetMethod("ToDbusStruct", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+                if (method is not null && method.ReturnType != typeof(DBusStruct))
+                {
+                    method = null;
+                }
+
+                s_structConverters[type] = method;
+            }
+        }
+
+        if (method is null)
+        {
+            dbusStruct = null!;
+            return false;
+        }
+
+        dbusStruct = (DBusStruct)method.Invoke(value, null)!;
+        return true;
     }
 
 }

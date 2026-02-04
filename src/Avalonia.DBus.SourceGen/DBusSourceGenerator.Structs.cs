@@ -98,14 +98,6 @@ public partial class DBusSourceGenerator
     private static string GetStructTypeName(string signature)
         => $"DbusStruct_{Pascalize(SanitizeSignature(signature).AsSpan())}";
 
-    private static string GetArrayElementSignature(DBusDotnetType arrayType)
-    {
-        if (string.IsNullOrEmpty(arrayType.DBusTypeSignature) || arrayType.DBusTypeSignature.Length < 2)
-            throw new InvalidOperationException("Array type signature is missing or invalid.");
-
-        return arrayType.DBusTypeSignature.Substring(1);
-    }
-
     private static bool ContainsStruct(DBusDotnetType type)
     {
         if (type.DotnetType == DotnetType.Struct)
@@ -130,8 +122,8 @@ public partial class DBusSourceGenerator
         return type.DotnetType switch
         {
             DotnetType.Struct => "DBusStruct",
-            DotnetType.Array => $"DBusArray<{GetRawTypeName(type.InnerTypes[0])}>",
-            DotnetType.Dictionary => $"DBusDict<{GetRawTypeName(type.InnerTypes[0])}, {GetRawTypeName(type.InnerTypes[1])}>",
+            DotnetType.Array => $"List<{GetRawTypeName(type.InnerTypes[0])}>",
+            DotnetType.Dictionary => $"Dictionary<{GetRawTypeName(type.InnerTypes[0])}, {GetRawTypeName(type.InnerTypes[1])}>",
             _ => type.ToTypeSyntax().ToString()
         };
     }
@@ -160,14 +152,13 @@ public partial class DBusSourceGenerator
             return $"({GetTypeName(type)}){source}";
 
         string rawElementType = GetRawTypeName(elementType);
-        string rawArrayType = $"DBusArray<{rawElementType}>";
+        string rawArrayType = $"List<{rawElementType}>";
         string strongElementType = GetTypeName(elementType);
-        string strongArrayType = $"DBusArray<{strongElementType}>";
-        string elementSignature = GetArrayElementSignature(type);
+        string strongArrayType = $"List<{strongElementType}>";
         string itemVar = "item";
         string convertedItem = MakeFromDbusValueExpressionString(elementType, itemVar);
 
-        return $"new {strongArrayType}({SymbolDisplay.FormatLiteral(elementSignature, true)}, (({rawArrayType}){source}).Select({itemVar} => {convertedItem}))";
+        return $"new {strongArrayType}((({rawArrayType}){source}).Select({itemVar} => {convertedItem}))";
     }
 
     private static string MakeFromDbusDictExpressionString(DBusDotnetType type, string source)
@@ -179,10 +170,10 @@ public partial class DBusSourceGenerator
 
         string rawKeyType = GetRawTypeName(keyType);
         string rawValueType = GetRawTypeName(valueType);
-        string rawDictType = $"DBusDict<{rawKeyType}, {rawValueType}>";
+        string rawDictType = $"Dictionary<{rawKeyType}, {rawValueType}>";
         string strongKeyType = GetTypeName(keyType);
         string strongValueType = GetTypeName(valueType);
-        string strongDictType = $"DBusDict<{strongKeyType}, {strongValueType}>";
+        string strongDictType = $"Dictionary<{strongKeyType}, {strongValueType}>";
 
         string keyExpr = MakeFromDbusValueExpressionString(keyType, "kv.Key");
         string valueExpr = MakeFromDbusValueExpressionString(valueType, "kv.Value");
@@ -195,42 +186,8 @@ public partial class DBusSourceGenerator
         return type.DotnetType switch
         {
             DotnetType.Struct => $"{source}.ToDbusStruct()",
-            DotnetType.Array => MakeToDbusArrayExpressionString(type, source),
-            DotnetType.Dictionary => MakeToDbusDictExpressionString(type, source),
             _ => source
         };
-    }
-
-    private static string MakeToDbusArrayExpressionString(DBusDotnetType type, string source)
-    {
-        var elementType = type.InnerTypes[0];
-        if (!ContainsStruct(elementType))
-            return source;
-
-        string rawElementType = GetRawTypeName(elementType);
-        string rawArrayType = $"DBusArray<{rawElementType}>";
-        string elementSignature = GetArrayElementSignature(type);
-        string itemVar = "item";
-        string convertedItem = MakeToDbusValueExpressionString(elementType, itemVar);
-
-        return $"new {rawArrayType}({SymbolDisplay.FormatLiteral(elementSignature, true)}, {source}.Select({itemVar} => {convertedItem}))";
-    }
-
-    private static string MakeToDbusDictExpressionString(DBusDotnetType type, string source)
-    {
-        var keyType = type.InnerTypes[0];
-        var valueType = type.InnerTypes[1];
-        if (!ContainsStruct(keyType) && !ContainsStruct(valueType))
-            return source;
-
-        string rawKeyType = GetRawTypeName(keyType);
-        string rawValueType = GetRawTypeName(valueType);
-        string rawDictType = $"DBusDict<{rawKeyType}, {rawValueType}>";
-
-        string keyExpr = MakeToDbusValueExpressionString(keyType, "kv.Key");
-        string valueExpr = MakeToDbusValueExpressionString(valueType, "kv.Value");
-
-        return $"new {rawDictType}({source}.Select(kv => new KeyValuePair<{rawKeyType}, {rawValueType}>({keyExpr}, {valueExpr})))";
     }
 
     private static string BuildStructsSource(IEnumerable<StructDefinition> definitions)
@@ -279,18 +236,18 @@ public partial class DBusSourceGenerator
             sb.AppendLine($"            return new DBusStruct({toFields});");
             sb.AppendLine("        }");
             sb.AppendLine();
-            sb.AppendLine($"        public static DBusArray<{typeName}> FromDbusArray(DBusArray<DBusStruct> value)");
+            sb.AppendLine($"        public static List<{typeName}> FromDbusArray(List<DBusStruct> value)");
             sb.AppendLine("        {");
             sb.AppendLine("            if (value is null)");
             sb.AppendLine("                throw new ArgumentNullException(nameof(value));");
-            sb.AppendLine($"            return new DBusArray<{typeName}>(Signature, value.Select(static item => FromDbusStruct(item)));" );
+            sb.AppendLine($"            return new List<{typeName}>(value.Select(static item => FromDbusStruct(item)));" );
             sb.AppendLine("        }");
             sb.AppendLine();
-            sb.AppendLine($"        public static DBusArray<DBusStruct> ToDbusArray(DBusArray<{typeName}> value)");
+            sb.AppendLine($"        public static List<DBusStruct> ToDbusArray(List<{typeName}> value)");
             sb.AppendLine("        {");
             sb.AppendLine("            if (value is null)");
             sb.AppendLine("                throw new ArgumentNullException(nameof(value));");
-            sb.AppendLine("            return new DBusArray<DBusStruct>(Signature, value.Select(static item => item.ToDbusStruct()));");
+            sb.AppendLine("            return new List<DBusStruct>(value.Select(static item => item.ToDbusStruct()));");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
         }

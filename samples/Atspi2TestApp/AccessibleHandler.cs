@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;
@@ -36,20 +37,20 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(_server.GetReference(child));
     }
 
-    protected override ValueTask<DBusArray<DbusStruct_Rsoz>> OnGetChildrenAsync(DBusMessage request)
+    protected override ValueTask<List<DbusStruct_Rsoz>> OnGetChildrenAsync(DBusMessage request)
     {
         if (_node.Children.Count == 0)
         {
-            return ValueTask.FromResult(new DBusArray<DbusStruct_Rsoz>(DbusStruct_Rsoz.Signature));
+            return ValueTask.FromResult(new List<DbusStruct_Rsoz>());
         }
 
-        var children = new DbusStruct_Rsoz[_node.Children.Count];
+        var children = new List<DbusStruct_Rsoz>(_node.Children.Count);
         for (var i = 0; i < _node.Children.Count; i++)
         {
-            children[i] = _server.GetReference(_node.Children[i]);
+            children.Add(_server.GetReference(_node.Children[i]));
         }
 
-        return ValueTask.FromResult(new DBusArray<DbusStruct_Rsoz>(DbusStruct_Rsoz.Signature, children));
+        return ValueTask.FromResult(children);
     }
 
     protected override ValueTask<int> OnGetIndexInParentAsync(DBusMessage request)
@@ -58,7 +59,7 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(index);
     }
 
-    protected override ValueTask<DBusArray<DbusStruct_Ruarsozz>> OnGetRelationSetAsync(DBusMessage request)
+    protected override ValueTask<List<DbusStruct_Ruarsozz>> OnGetRelationSetAsync(DBusMessage request)
     {
         return ValueTask.FromResult(AtspiServer.s_emptyRelations);
     }
@@ -78,14 +79,14 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(_server.GetRoleName(_node.Role));
     }
 
-    protected override ValueTask<DBusArray<uint>> OnGetStateAsync(DBusMessage request)
+    protected override ValueTask<List<uint>> OnGetStateAsync(DBusMessage request)
     {
         return ValueTask.FromResult(BuildStateSet(_node.States));
     }
 
-    protected override ValueTask<DBusDict<string, string>> OnGetAttributesAsync(DBusMessage request)
+    protected override ValueTask<Dictionary<string, string>> OnGetAttributesAsync(DBusMessage request)
     {
-        return ValueTask.FromResult(new DBusDict<string, string>());
+        return ValueTask.FromResult(new Dictionary<string, string>());
     }
 
     protected override ValueTask<DbusStruct_Rsoz> OnGetApplicationAsync(DBusMessage request)
@@ -93,14 +94,14 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(_server.GetReference(_server.Tree.Root));
     }
 
-    protected override ValueTask<DBusArray<string>> OnGetInterfacesAsync(DBusMessage request)
+    protected override ValueTask<List<string>> OnGetInterfacesAsync(DBusMessage request)
     {
         if (_node.Interfaces.Count == 0)
         {
-            return ValueTask.FromResult(new DBusArray<string>());
+            return ValueTask.FromResult(new List<string>());
         }
 
         var interfaces = _node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray();
-        return ValueTask.FromResult(new DBusArray<string>(interfaces));
+        return ValueTask.FromResult(new List<string>(interfaces));
     }
 }

@@ -375,7 +375,7 @@ public partial class DBusSourceGenerator
                             .WithInitializer(
                                 EqualsValueClause(
                                     CastExpression(
-                                        GenericName("DBusDict")
+                                        GenericName("Dictionary")
                                             .AddTypeArgumentListArguments(
                                                 PredefinedType(Token(SyntaxKind.StringKeyword)),
                                                 IdentifierName("DBusVariant")),
@@ -494,7 +494,7 @@ public partial class DBusSourceGenerator
                     Parameter(
                             Identifier("values"))
                         .WithType(
-                            GenericName("DBusDict")
+                            GenericName("Dictionary")
                                 .AddTypeArgumentListArguments(
                                     PredefinedType(Token(SyntaxKind.StringKeyword)),
                                     IdentifierName("DBusVariant"))),
@@ -605,8 +605,8 @@ public partial class DBusSourceGenerator
         {
             ParseStatement("if (!string.Equals((string)message.Body[0], Interface, StringComparison.Ordinal))\n{\n    return Task.CompletedTask;\n}\n"),
             ParseStatement("var changed = new List<string>();"),
-            ParseStatement($"var props = ReadProperties((DBusDict<string, DBusVariant>)message.Body[1], changed);"),
-            ParseStatement("var invalidated = (DBusArray<string>)message.Body[2];"),
+            ParseStatement($"var props = ReadProperties((Dictionary<string, DBusVariant>)message.Body[1], changed);"),
+            ParseStatement("var invalidated = (List<string>)message.Body[2];"),
             ParseStatement($"handler(new PropertyChanges<{propsType}>(props, invalidated.ToArray(), changed.ToArray()));"),
             ParseStatement("return Task.CompletedTask;")
         };

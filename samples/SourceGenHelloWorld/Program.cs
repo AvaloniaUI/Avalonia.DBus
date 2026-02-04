@@ -1,4 +1,5 @@
-﻿using Avalonia.DBus;
+﻿using System.Collections.Generic;
+using Avalonia.DBus;
 
 namespace SourceGenHelloWorld;
 
@@ -16,7 +17,7 @@ internal static class Program
             "ListNames");
 
         var reply = await wire.SendWithReplyAsync(message);
-        var names = (DBusArray<string>)reply.Body[0];
+        var names = (List<string>)reply.Body[0];
 
         foreach (var name in names)
             Console.WriteLine(name);

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using Avalonia.DBus;
@@ -52,11 +53,11 @@ internal static class Program
     internal const uint StateCheckable = 41;
     internal const uint StateChecked = 4;
 
-    internal static DBusArray<uint> BuildStateSet(IReadOnlyCollection<uint> states)
+    internal static List<uint> BuildStateSet(IReadOnlyCollection<uint> states)
     {
         if (states == null || states.Count == 0)
         {
-            return new DBusArray<uint>(0u, 0u);
+            return [0u, 0u];
         }
 
         uint low = 0;
@@ -73,7 +74,7 @@ internal static class Program
             }
         }
 
-        return new DBusArray<uint>(low, high);
+        return [low, high];
     }
 
     internal static string ResolveLocale()

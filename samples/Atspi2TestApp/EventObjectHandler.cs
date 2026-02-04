@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;
@@ -18,11 +19,11 @@ internal sealed class EventObjectHandler : OrgA11yAtspiEventObjectHandler
 
     public void EmitChildrenChangedSignal(string operation, int indexInParent, DBusVariant child)
     {
-        EmitChildrenChanged(operation, indexInParent, 0, child, new DBusDict<string, DBusVariant>());
+        EmitChildrenChanged(operation, indexInParent, 0, child, []);
     }
 
     public void EmitPropertyChangeSignal(string propertyName, DBusVariant value)
     {
-        EmitPropertyChange(propertyName, 0, 0, value, new DBusDict<string, DBusVariant>());
+        EmitPropertyChange(propertyName, 0, 0, value, []);
     }
 }

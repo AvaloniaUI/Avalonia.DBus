@@ -39,15 +39,15 @@ internal sealed class ActionHandler : OrgA11yAtspiActionHandler
         return ValueTask.FromResult(_node.Action?.KeyBinding ?? string.Empty);
     }
 
-    protected override ValueTask<DBusArray<DbusStruct_Rsssz>> OnGetActionsAsync(DBusMessage request)
+    protected override ValueTask<List<DbusStruct_Rsssz>> OnGetActionsAsync(DBusMessage request)
     {
         if (_node.Action == null)
         {
-            return ValueTask.FromResult(new DBusArray<DbusStruct_Rsssz>(DbusStruct_Rsssz.Signature));
+            return ValueTask.FromResult(new List<DbusStruct_Rsssz>());
         }
 
         var entry = new DbusStruct_Rsssz(_node.Action.LocalizedName, _node.Action.Description, _node.Action.KeyBinding);
-        return ValueTask.FromResult(new DBusArray<DbusStruct_Rsssz>(DbusStruct_Rsssz.Signature, entry));
+        return ValueTask.FromResult(new List<DbusStruct_Rsssz> { entry });
     }
 
     protected override ValueTask<bool> OnDoActionAsync(DBusMessage request, int index)

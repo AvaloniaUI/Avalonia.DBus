@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace Avalonia.DBus;
 
@@ -60,22 +62,58 @@ internal static class DBusSignatureInference
                 return DBusSignatureToken.Variant;
             case DBusStruct dbusStruct:
                 return InferStructSignature(dbusStruct);
-            case IDBusArray dbusArray:
-                return string.Concat(DBusSignatureToken.Array, InferArrayElementSignature(dbusArray));
-            case IDBusDict dbusDict:
-                return string.Concat(
-                    DBusSignatureToken.Array,
-                    DBusSignatureToken.DictEntryBegin,
-                    InferDictKeySignature(dbusDict),
-                    InferDictValueSignature(dbusDict),
-                    DBusSignatureToken.DictEntryEnd);
             default:
-                throw new NotSupportedException($"Unsupported D-Bus value type: {value.GetType().FullName}");
+                return InferSignatureFromCollectionOrStruct(value);
         }
+    }
+
+    private static string InferSignatureFromCollectionOrStruct(object value)
+    {
+        Type type = value.GetType();
+        if (TryGetStructSignatureFromType(type, out string structSignature))
+        {
+            return structSignature;
+        }
+
+        if (DBusCollectionHelpers.TryGetDictionaryTypes(type, out Type keyType, out Type valueType))
+        {
+            return string.Concat(
+                DBusSignatureToken.Array,
+                DBusSignatureToken.DictEntryBegin,
+                InferDictKeySignature(value, keyType),
+                InferDictValueSignature(value, valueType),
+                DBusSignatureToken.DictEntryEnd);
+        }
+
+        if (DBusCollectionHelpers.TryGetListElementType(type, out Type elementType))
+        {
+            return string.Concat(DBusSignatureToken.Array, InferArrayElementSignature(value, elementType));
+        }
+
+        if (value is IDictionary)
+        {
+            return string.Concat(
+                DBusSignatureToken.Array,
+                DBusSignatureToken.DictEntryBegin,
+                InferDictKeySignatureFromEntries(value),
+                InferDictValueSignatureFromEntries(value),
+                DBusSignatureToken.DictEntryEnd);
+        }
+
+        if (value is IList)
+        {
+            return string.Concat(DBusSignatureToken.Array, InferArrayElementSignatureFromItems(value));
+        }
+
+        throw new NotSupportedException($"Unsupported D-Bus value type: {type.FullName}");
     }
 
     internal static string InferSignatureFromType(Type type)
     {
+        if (TryGetStructSignatureFromType(type, out string structSignature))
+        {
+            return structSignature;
+        }
         if (type == typeof(byte))
         {
             return DBusSignatureToken.Byte;
@@ -136,25 +174,18 @@ internal static class DBusSignatureInference
         {
             throw new NotSupportedException("DBusStruct requires value-based signature inference.");
         }
-        if (type.IsGenericType)
+        if (DBusCollectionHelpers.TryGetDictionaryTypes(type, out Type keyType, out Type valueType))
         {
-            var genericType = type.GetGenericTypeDefinition();
-            if (genericType == typeof(DBusArray<>))
-            {
-                var elementType = type.GetGenericArguments()[0];
-                return string.Concat(DBusSignatureToken.Array, InferSignatureFromType(elementType));
-            }
-            if (genericType == typeof(DBusDict<,>))
-            {
-                var keyType = type.GetGenericArguments()[0];
-                var valueType = type.GetGenericArguments()[1];
-                return string.Concat(
-                    DBusSignatureToken.Array,
-                    DBusSignatureToken.DictEntryBegin,
-                    InferSignatureFromType(keyType),
-                    InferSignatureFromType(valueType),
-                    DBusSignatureToken.DictEntryEnd);
-            }
+            return string.Concat(
+                DBusSignatureToken.Array,
+                DBusSignatureToken.DictEntryBegin,
+                InferSignatureFromType(keyType),
+                InferSignatureFromType(valueType),
+                DBusSignatureToken.DictEntryEnd);
+        }
+        if (DBusCollectionHelpers.TryGetListElementType(type, out Type elementType))
+        {
+            return string.Concat(DBusSignatureToken.Array, InferSignatureFromType(elementType));
         }
 
         throw new NotSupportedException($"Unsupported D-Bus type: {type.FullName}");
@@ -233,11 +264,11 @@ internal static class DBusSignatureInference
                 var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(elementSignature);
                 Type keyType = GetTypeForSignature(keySig);
                 Type valueType = GetTypeForSignature(valueSig);
-                return typeof(DBusDict<,>).MakeGenericType(keyType, valueType);
+                return typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
             }
 
             Type elementType = GetTypeForSignature(elementSignature);
-            return typeof(DBusArray<>).MakeGenericType(elementType);
+            return typeof(List<>).MakeGenericType(elementType);
         }
         if (token == DBusSignatureToken.StructBegin)
         {
@@ -265,21 +296,16 @@ internal static class DBusSignatureInference
         return string.Concat(DBusSignatureToken.StructBegin, string.Concat(parts), DBusSignatureToken.StructEnd);
     }
 
-    private static string InferArrayElementSignature(IDBusArray array)
+    private static string InferArrayElementSignature(object array, Type elementType)
     {
-        if (!string.IsNullOrEmpty(array.ElementSignature))
-        {
-            return array.ElementSignature!;
-        }
-
-        if (RequiresValueBasedInference(array.ElementType))
+        if (RequiresValueBasedInference(elementType))
         {
             return InferArrayElementSignatureFromItems(array);
         }
 
         try
         {
-            return InferSignatureFromType(array.ElementType);
+            return InferSignatureFromType(elementType);
         }
         catch (NotSupportedException)
         {
@@ -287,16 +313,16 @@ internal static class DBusSignatureInference
         }
     }
 
-    private static string InferDictKeySignature(IDBusDict dict)
+    private static string InferDictKeySignature(object dict, Type keyType)
     {
-        if (RequiresValueBasedInference(dict.KeyType))
+        if (RequiresValueBasedInference(keyType))
         {
             return InferDictKeySignatureFromEntries(dict);
         }
 
         try
         {
-            return InferSignatureFromType(dict.KeyType);
+            return InferSignatureFromType(keyType);
         }
         catch (NotSupportedException)
         {
@@ -304,16 +330,16 @@ internal static class DBusSignatureInference
         }
     }
 
-    private static string InferDictValueSignature(IDBusDict dict)
+    private static string InferDictValueSignature(object dict, Type valueType)
     {
-        if (RequiresValueBasedInference(dict.ValueType))
+        if (RequiresValueBasedInference(valueType))
         {
             return InferDictValueSignatureFromEntries(dict);
         }
 
         try
         {
-            return InferSignatureFromType(dict.ValueType);
+            return InferSignatureFromType(valueType);
         }
         catch (NotSupportedException)
         {
@@ -324,9 +350,9 @@ internal static class DBusSignatureInference
     private static bool RequiresValueBasedInference(Type type)
         => type == typeof(DBusStruct);
 
-    private static string InferArrayElementSignatureFromItems(IDBusArray array)
+    private static string InferArrayElementSignatureFromItems(object array)
     {
-        foreach (var item in array.Items)
+        foreach (var item in DBusCollectionHelpers.EnumerateListItems(array))
         {
             if (item == null)
             {
@@ -338,9 +364,9 @@ internal static class DBusSignatureInference
         throw new InvalidOperationException("Array is empty; cannot infer element signature for this type.");
     }
 
-    private static string InferDictKeySignatureFromEntries(IDBusDict dict)
+    private static string InferDictKeySignatureFromEntries(object dict)
     {
-        foreach (var entry in dict.Entries)
+        foreach (var entry in DBusCollectionHelpers.EnumerateDictionaryEntries(dict))
         {
             if (entry.Key == null)
             {
@@ -352,9 +378,9 @@ internal static class DBusSignatureInference
         throw new InvalidOperationException("Dictionary is empty; cannot infer key signature for this type.");
     }
 
-    private static string InferDictValueSignatureFromEntries(IDBusDict dict)
+    private static string InferDictValueSignatureFromEntries(object dict)
     {
-        foreach (var entry in dict.Entries)
+        foreach (var entry in DBusCollectionHelpers.EnumerateDictionaryEntries(dict))
         {
             if (entry.Value == null)
             {
@@ -364,5 +390,34 @@ internal static class DBusSignatureInference
         }
 
         throw new InvalidOperationException("Dictionary is empty; cannot infer value signature for this type.");
+    }
+
+    private static bool TryGetStructSignatureFromType(Type type, out string signature)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
+
+        FieldInfo? field = type.GetField("Signature", flags);
+        if (field is not null && field.FieldType == typeof(string))
+        {
+            object? value = field.IsLiteral ? field.GetRawConstantValue() : field.GetValue(null);
+            if (value is string literal)
+            {
+                signature = literal;
+                return true;
+            }
+        }
+
+        PropertyInfo? property = type.GetProperty("Signature", flags);
+        if (property is not null && property.PropertyType == typeof(string) && property.GetMethod is not null)
+        {
+            if (property.GetValue(null) is string literal)
+            {
+                signature = literal;
+                return true;
+            }
+        }
+
+        signature = string.Empty;
+        return false;
     }
 }

@@ -296,12 +296,12 @@ public partial class DBusSourceGenerator
                 case DotnetType.UnixFd:
                     return IdentifierName("DBusUnixFd");
                 case DotnetType.Array:
-                    TypeSyntax arr = GenericName("DBusArray")
+                    TypeSyntax arr = GenericName("List")
                         .AddTypeArgumentListArguments(
                             innerTypes![0].ToTypeSyntax(nullable));
                     return nullable ? NullableType(arr) : arr;
                 case DotnetType.Dictionary:
-                    TypeSyntax dict = GenericName("DBusDict")
+                    TypeSyntax dict = GenericName("Dictionary")
                         .AddTypeArgumentListArguments(
                             innerTypes![0].ToTypeSyntax(),
                             innerTypes[1].ToTypeSyntax(nullable));

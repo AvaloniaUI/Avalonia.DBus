@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia.DBus;
@@ -12,8 +13,7 @@ internal sealed class AtspiServer
     private const int StartupRetryDelayMs = 2000;
     private const int StartupRetryMaxDelayMs = 15000;
 
-    internal static readonly DBusArray<DbusStruct_Ruarsozz> s_emptyRelations =
-        new(DbusStruct_Ruarsozz.Signature);
+    internal static readonly List<DbusStruct_Ruarsozz> s_emptyRelations = [];
 
     private readonly AtspiTree _tree;
     private readonly Dictionary<int, string> _roleNames = new();
@@ -392,7 +392,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private void OnRegistryEventListenerRegistered(string bus, string @event, DBusArray<string> properties)
+    private void OnRegistryEventListenerRegistered(string bus, string @event, List<string> properties)
     {
         lock (_eventGate)
         {
@@ -488,7 +488,7 @@ internal sealed class AtspiServer
                     {
                         var bus = (string)message.Body[0];
                         var @event = (string)message.Body[1];
-                        var properties = (DBusArray<string>)message.Body[2];
+                        var properties = (List<string>)message.Body[2];
                         OnRegistryEventListenerRegistered(bus, @event, properties);
                         return System.Threading.Tasks.Task.CompletedTask;
                     },
@@ -628,8 +628,8 @@ internal sealed class AtspiServer
         var indexInParent = node.Parent == null ? -1 : node.Parent.Children.IndexOf(node);
         var childCount = node.Children.Count;
         var interfaces = node.Interfaces.Count == 0
-            ? new DBusArray<string>()
-            : new DBusArray<string>(node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray());
+            ? new List<string>()
+            : new List<string>(node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray());
         var name = node.Name;
         var role = (uint)node.Role;
         var description = node.Description;
