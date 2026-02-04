@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -15,9 +14,9 @@ public partial class DBusSourceGenerator
 {
     private ClassDeclarationSyntax GenerateHandler(DBusInterface dBusInterface)
     {
-        string identifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Handler";
+        var identifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Handler";
 
-        ClassDeclarationSyntax cl = ClassDeclaration(identifier)
+        var cl = ClassDeclaration(identifier)
             .AddModifiers(
                 Token(SyntaxKind.InternalKeyword),
                 Token(SyntaxKind.AbstractKeyword))
@@ -58,23 +57,23 @@ public partial class DBusSourceGenerator
     {
         dBusInterface.Methods ??= [];
 
-        SyntaxList<SwitchSectionSyntax> switchSections = List<SwitchSectionSyntax>();
+        var switchSections = List<SwitchSectionSyntax>();
 
-        foreach (DBusMethod dBusMethod in dBusInterface.Methods)
+        foreach (var dBusMethod in dBusInterface.Methods)
         {
-            DBusArgument[]? inArgs = dBusMethod.Arguments?.Where(static m => m.Direction is null or "in").ToArray();
-            DBusArgument[]? outArgs = dBusMethod.Arguments?.Where(static m => m.Direction == "out").ToArray();
+            var inArgs = dBusMethod.Arguments?.Where(static m => m.Direction is null or "in").ToArray();
+            var outArgs = dBusMethod.Arguments?.Where(static m => m.Direction == "out").ToArray();
 
-            SwitchSectionSyntax switchSection = SwitchSection()
+            var switchSection = SwitchSection()
                 .AddLabels(
                     CaseSwitchLabel(
                         MakeLiteralExpression(dBusMethod.Name!)));
 
-            BlockSyntax switchSectionBlock = Block();
+            var switchSectionBlock = Block();
 
-            string abstractMethodName = $"On{Pascalize(dBusMethod.Name.AsSpan())}Async";
+            var abstractMethodName = $"On{Pascalize(dBusMethod.Name.AsSpan())}Async";
 
-            MethodDeclarationSyntax abstractMethod = MethodDeclaration(
+            var abstractMethod = MethodDeclaration(
                     ParseValueTaskReturnType(outArgs), abstractMethodName)
                 .WithParameterList(
                     ParameterList(
@@ -99,9 +98,9 @@ public partial class DBusSourceGenerator
 
             if (inArgs?.Length > 0)
             {
-                for (int i = 0; i < inArgs.Length; i++)
+                for (var i = 0; i < inArgs.Length; i++)
                 {
-                    string identifier = inArgs[i].Name is not null
+                    var identifier = inArgs[i].Name is not null
                         ? SanitizeIdentifier(Camelize(inArgs[i].Name.AsSpan()))
                         : $"arg{i}";
 
@@ -116,7 +115,7 @@ public partial class DBusSourceGenerator
                 }
             }
 
-            ArgumentListSyntax callArgs = ArgumentList(
+            var callArgs = ArgumentList(
                 SingletonSeparatedList(
                     Argument(
                         IdentifierName("request"))));
@@ -384,9 +383,9 @@ public partial class DBusSourceGenerator
     {
         XmlSerializer xmlSerializer = new(typeof(DBusInterface));
         using StringWriter stringWriter = new();
-        using XmlWriter xmlWriter = XmlWriter.Create(stringWriter, new XmlWriterSettings { OmitXmlDeclaration = true, Indent = true });
+        using var xmlWriter = XmlWriter.Create(stringWriter, new XmlWriterSettings { OmitXmlDeclaration = true, Indent = true });
         xmlSerializer.Serialize(xmlWriter, dBusInterface);
-        string introspect = stringWriter.ToString();
+        var introspect = stringWriter.ToString();
 
         cl = cl.AddMembers(
             MakeGetOnlyProperty(
@@ -406,9 +405,9 @@ public partial class DBusSourceGenerator
         if (dBusInterface.Signals is null)
             return;
 
-        foreach (DBusSignal signal in dBusInterface.Signals)
+        foreach (var signal in dBusInterface.Signals)
         {
-            MethodDeclarationSyntax method = MethodDeclaration(
+            var method = MethodDeclaration(
                     PredefinedType(
                         Token(SyntaxKind.VoidKeyword)),
                     $"Emit{Pascalize(signal.Name.AsSpan())}")
@@ -429,7 +428,7 @@ public partial class DBusSourceGenerator
                                     argument.DBusDotnetType.ToTypeSyntax())))));
             }
 
-            BlockSyntax body = Block();
+            var body = Block();
 
             body = body.AddStatements(
                 IfStatement(
@@ -441,7 +440,7 @@ public partial class DBusSourceGenerator
                             .AddArgumentListArguments(
                                 Argument(MakeLiteralExpression("Handler is not attached to a path."))))));
 
-            ArgumentListSyntax args = ArgumentList()
+            var args = ArgumentList()
                 .AddArguments(
                     Argument(
                         MakeMemberAccessExpression("PathHandler", "Path")),

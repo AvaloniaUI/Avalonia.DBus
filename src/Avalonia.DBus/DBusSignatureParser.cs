@@ -17,7 +17,7 @@ internal static class DBusSignatureParser
             throw new ArgumentException("Signature index is out of range.", nameof(index));
         }
 
-        int start = index;
+        var start = index;
         DBusSignatureToken token = signature[index++];
         if (token == DBusSignatureToken.Array)
         {
@@ -56,7 +56,7 @@ internal static class DBusSignatureParser
             throw new ArgumentException("Struct signature is invalid.", nameof(signature));
         }
 
-        int index = 1;
+        var index = 1;
         List<string> parts = [];
         while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd)
         {
@@ -84,9 +84,9 @@ internal static class DBusSignatureParser
             throw new ArgumentException("Dict entry signature is invalid.", nameof(signature));
         }
 
-        int index = 1;
-        string keySignature = ReadSingleType(signature, ref index);
-        string valueSignature = ReadSingleType(signature, ref index);
+        var index = 1;
+        var keySignature = ReadSingleType(signature, ref index);
+        var valueSignature = ReadSingleType(signature, ref index);
         if (index >= signature.Length || signature[index] != DBusSignatureToken.DictEntryEnd)
         {
             throw new ArgumentException("Dict entry signature is not closed.", nameof(signature));

@@ -72,11 +72,11 @@ internal static class DBusCollectionHelpers
                     continue;
                 }
 
-                Type entryType = entry.GetType();
+                var entryType = entry.GetType();
                 if (entryType.IsGenericType && entryType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
                 {
-                    object? key = entryType.GetProperty("Key")?.GetValue(entry);
-                    object? value = entryType.GetProperty("Value")?.GetValue(entry);
+                    var key = entryType.GetProperty("Key")?.GetValue(entry);
+                    var value = entryType.GetProperty("Value")?.GetValue(entry);
                     yield return new KeyValuePair<object?, object?>(key, value);
                 }
             }

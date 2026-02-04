@@ -13,16 +13,16 @@ public partial class DBusSourceGenerator
 {
     private ClassDeclarationSyntax GenerateProxy(DBusInterface dBusInterface)
     {
-        string identifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
-        ClassDeclarationSyntax cl = ClassDeclaration(identifier)
+        var identifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
+        var cl = ClassDeclaration(identifier)
             .AddModifiers(Token(SyntaxKind.InternalKeyword));
 
-        FieldDeclarationSyntax interfaceConst = MakePrivateStringConst("Interface", dBusInterface.Name!, PredefinedType(Token(SyntaxKind.StringKeyword)));
-        FieldDeclarationSyntax connectionField = MakePrivateReadOnlyField("_connection", IdentifierName("DBusConnection"));
-        FieldDeclarationSyntax destinationField = MakePrivateReadOnlyField("_destination", PredefinedType(Token(SyntaxKind.StringKeyword)));
-        FieldDeclarationSyntax pathField = MakePrivateReadOnlyField("_path", IdentifierName("DBusObjectPath"));
+        var interfaceConst = MakePrivateStringConst("Interface", dBusInterface.Name!, PredefinedType(Token(SyntaxKind.StringKeyword)));
+        var connectionField = MakePrivateReadOnlyField("_connection", IdentifierName("DBusConnection"));
+        var destinationField = MakePrivateReadOnlyField("_destination", PredefinedType(Token(SyntaxKind.StringKeyword)));
+        var pathField = MakePrivateReadOnlyField("_path", IdentifierName("DBusObjectPath"));
 
-        ConstructorDeclarationSyntax ctor = ConstructorDeclaration(identifier)
+        var ctor = ConstructorDeclaration(identifier)
             .AddModifiers(
                 Token(SyntaxKind.PublicKeyword))
             .AddParameterListParameters(
@@ -59,12 +59,12 @@ public partial class DBusSourceGenerator
         if (dBusInterface.Methods is null)
             return;
 
-        foreach (DBusMethod dBusMethod in dBusInterface.Methods)
+        foreach (var dBusMethod in dBusInterface.Methods)
         {
-            DBusArgument[]? inArgs = dBusMethod.Arguments?.Where(static m => m.Direction is null or "in").ToArray();
-            DBusArgument[]? outArgs = dBusMethod.Arguments?.Where(static m => m.Direction == "out").ToArray();
+            var inArgs = dBusMethod.Arguments?.Where(static m => m.Direction is null or "in").ToArray();
+            var outArgs = dBusMethod.Arguments?.Where(static m => m.Direction == "out").ToArray();
 
-            MethodDeclarationSyntax proxyMethod = MethodDeclaration(
+            var proxyMethod = MethodDeclaration(
                     ParseTaskReturnType(outArgs), $"{Pascalize(dBusMethod.Name.AsSpan())}Async")
                 .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.AsyncKeyword));
 
@@ -83,12 +83,12 @@ public partial class DBusSourceGenerator
                         : $"arg{i}")))
                 ?? [];
 
-            InvocationExpressionSyntax call = InvocationExpression(
+            var call = InvocationExpression(
                     MakeMemberAccessExpression("_connection", "CallMethodAsync"))
                 .WithArgumentList(
                     MakeCallArguments(IdentifierName("Interface"), dBusMethod.Name!, extraArgs));
 
-            BlockSyntax body = Block();
+            var body = Block();
 
             if (outArgs is null || outArgs.Length == 0)
             {
@@ -131,12 +131,12 @@ public partial class DBusSourceGenerator
         if (dBusInterface.Signals is null)
             return;
 
-        foreach (DBusSignal dBusSignal in dBusInterface.Signals)
+        foreach (var dBusSignal in dBusInterface.Signals)
         {
-            DBusArgument[]? outArgs = dBusSignal.Arguments?.Where(static x => x.Direction is null or "out").ToArray();
-            TypeSyntax? returnType = ParseReturnType(outArgs);
+            var outArgs = dBusSignal.Arguments?.Where(static x => x.Direction is null or "out").ToArray();
+            var returnType = ParseReturnType(outArgs);
 
-            ParameterListSyntax parameters = ParameterList();
+            var parameters = ParameterList();
 
             if (returnType is not null)
             {
@@ -168,7 +168,7 @@ public partial class DBusSourceGenerator
                         EqualsValueClause(
                             LiteralExpression(SyntaxKind.TrueLiteralExpression))));
 
-            MethodDeclarationSyntax watchSignalMethod = MethodDeclaration(
+            var watchSignalMethod = MethodDeclaration(
                     GenericName("Task")
                         .AddTypeArgumentListArguments(
                             IdentifierName("IDisposable")),
@@ -271,7 +271,7 @@ public partial class DBusSourceGenerator
 
     private MethodDeclarationSyntax MakeGetMethod(DBusProperty dBusProperty)
     {
-        InvocationExpressionSyntax call = InvocationExpression(
+        var call = InvocationExpression(
                 MakeMemberAccessExpression("_connection", "CallMethodAsync"))
             .WithArgumentList(
                 MakeCallArguments(
@@ -282,7 +282,7 @@ public partial class DBusSourceGenerator
                         MakeLiteralExpression(dBusProperty.Name!)
                     ]));
 
-        BlockSyntax body = Block(
+        var body = Block(
             LocalDeclarationStatement(
                 VariableDeclaration(IdentifierName("var"))
                     .AddVariables(
@@ -317,7 +317,7 @@ public partial class DBusSourceGenerator
 
     private MethodDeclarationSyntax MakeSetMethod(DBusProperty dBusProperty)
     {
-        InvocationExpressionSyntax call = InvocationExpression(
+        var call = InvocationExpression(
                 MakeMemberAccessExpression("_connection", "CallMethodAsync"))
             .WithArgumentList(
                 MakeCallArguments(
@@ -334,7 +334,7 @@ public partial class DBusSourceGenerator
                                         IdentifierName("value"))))
                     ]));
 
-        BlockSyntax body = Block(
+        var body = Block(
             ExpressionStatement(AwaitExpression(call)));
 
         return MethodDeclaration(
@@ -353,7 +353,7 @@ public partial class DBusSourceGenerator
 
     private static void AddGetAllMethod(ref ClassDeclarationSyntax cl, DBusInterface dBusInterface)
     {
-        InvocationExpressionSyntax call = InvocationExpression(
+        var call = InvocationExpression(
                 MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, IdentifierName("_connection"), IdentifierName("CallMethodAsync")))
             .WithArgumentList(
                 MakeCallArguments(
@@ -361,7 +361,7 @@ public partial class DBusSourceGenerator
                     "GetAll",
                     [IdentifierName("Interface")]));
 
-        BlockSyntax body = Block(
+        var body = Block(
             LocalDeclarationStatement(
                 VariableDeclaration(IdentifierName("var"))
                     .AddVariables(
@@ -404,7 +404,7 @@ public partial class DBusSourceGenerator
 
     private static void AddPropertiesClass(ref ClassDeclarationSyntax cl, DBusInterface dBusInterface)
     {
-        ClassDeclarationSyntax propertiesClass = ClassDeclaration(
+        var propertiesClass = ClassDeclaration(
                 GetPropertiesClassIdentifier(dBusInterface))
             .AddModifiers(
                 Token(SyntaxKind.PublicKeyword));
@@ -422,37 +422,17 @@ public partial class DBusSourceGenerator
 
     private void AddReadProperties(ref ClassDeclarationSyntax cl, DBusInterface dBusInterface)
     {
-        var switchSections = new System.Collections.Generic.List<SwitchSectionSyntax>();
-        foreach (var property in dBusInterface.Properties!)
-        {
-            var statements = new System.Collections.Generic.List<StatementSyntax>
+        var switchSections = (from property in dBusInterface.Properties!
+            let statements = new List<StatementSyntax>
             {
-                ExpressionStatement(
-                    AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
-                        MakeMemberAccessExpression("props", Pascalize(property.Name.AsSpan())),
-                        MakeFromDbusValueExpression(
-                            property.DBusDotnetType,
-                            MakeMemberAccessExpression("entry", "Value", "Value")))),
-                ExpressionStatement(
-                    ConditionalAccessExpression(
-                        IdentifierName("changed"),
-                        InvocationExpression(
-                                MemberBindingExpression(
-                                    IdentifierName("Add")))
-                            .AddArgumentListArguments(
-                                Argument(
-                                    MakeLiteralExpression(
-                                        Pascalize(property.Name.AsSpan())))))),
+                ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, MakeMemberAccessExpression("props", Pascalize(property.Name.AsSpan())), MakeFromDbusValueExpression(property.DBusDotnetType, MakeMemberAccessExpression("entry", "Value", "Value")))),
+                ExpressionStatement(ConditionalAccessExpression(IdentifierName("changed"), InvocationExpression(MemberBindingExpression(IdentifierName("Add")))
+                    .AddArgumentListArguments(Argument(MakeLiteralExpression(Pascalize(property.Name.AsSpan())))))),
                 BreakStatement()
-            };
-
-            switchSections.Add(
-                SwitchSection()
-                    .AddLabels(
-                        CaseSwitchLabel(
-                            MakeLiteralExpression(property.Name!)))
-                    .AddStatements(statements.ToArray()));
-        }
+            }
+            select SwitchSection()
+                .AddLabels(CaseSwitchLabel(MakeLiteralExpression(property.Name!)))
+                .AddStatements(statements.ToArray())).ToList();
 
         StatementSyntax propsDeclaration = LocalDeclarationStatement(
             VariableDeclaration(
@@ -476,7 +456,7 @@ public partial class DBusSourceGenerator
                         MakeMemberAccessExpression("entry", "Key"))
                     .WithSections(List(switchSections))));
 
-        BlockSyntax body = Block(
+        var body = Block(
             propsDeclaration,
             foreachStatement,
             ReturnStatement(
@@ -514,7 +494,7 @@ public partial class DBusSourceGenerator
 
     private static ArgumentListSyntax MakeCallArguments(ExpressionSyntax interfaceExpression, string methodName, IEnumerable<ExpressionSyntax>? extraArgs)
     {
-        ArgumentListSyntax args = ArgumentList()
+        var args = ArgumentList()
             .AddArguments(
                 Argument(
                     IdentifierName("_destination")),
@@ -526,7 +506,7 @@ public partial class DBusSourceGenerator
 
         if (extraArgs is not null)
         {
-            foreach (ExpressionSyntax arg in extraArgs)
+            foreach (var arg in extraArgs)
             {
                 args = args.AddArguments(Argument(arg));
             }
@@ -550,16 +530,16 @@ public partial class DBusSourceGenerator
 
     private static ParenthesizedLambdaExpressionSyntax MakeSignalHandlerLambda(DBusArgument[]? args)
     {
-        ParameterSyntax parameter = Parameter(Identifier("message"))
+        var parameter = Parameter(Identifier("message"))
             .WithType(IdentifierName("DBusMessage"));
 
         var statements = new SyntaxList<StatementSyntax>();
 
         if (args is not null)
         {
-            for (int i = 0; i < args.Length; i++)
+            for (var i = 0; i < args.Length; i++)
             {
-                string argName = args[i].Name is not null
+                var argName = args[i].Name is not null
                     ? SanitizeIdentifier(Camelize(args[i].Name.AsSpan()))
                     : $"arg{i}";
 
@@ -574,7 +554,7 @@ public partial class DBusSourceGenerator
             }
         }
 
-        InvocationExpressionSyntax invoke = InvocationExpression(
+        var invoke = InvocationExpression(
             IdentifierName("handler"));
 
         if (args is not null && args.Length > 0)
@@ -599,7 +579,7 @@ public partial class DBusSourceGenerator
 
     private ParenthesizedLambdaExpressionSyntax MakePropertiesChangedLambda(DBusInterface dBusInterface)
     {
-        string propsType = GetPropertiesClassIdentifier(dBusInterface);
+        var propsType = GetPropertiesClassIdentifier(dBusInterface);
 
         var statements = new StatementSyntax[]
         {

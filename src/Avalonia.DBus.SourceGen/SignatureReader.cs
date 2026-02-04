@@ -7,11 +7,11 @@ internal ref struct SignatureReader
 {
     private static int DetermineLength(ReadOnlySpan<byte> span, byte startChar, byte endChar)
     {
-        int length = 1;
-        int count = 1;
+        var length = 1;
+        var count = 1;
         do
         {
-            int offset = span.IndexOfAny(startChar, endChar);
+            var offset = span.IndexOfAny(startChar, endChar);
             if (offset == -1)
                 return 0;
 
@@ -33,7 +33,7 @@ internal ref struct SignatureReader
             return default;
 
         int length;
-        DBusType type = (DBusType)signature[0];
+        var type = (DBusType)signature[0];
         switch (type)
         {
             case DBusType.Struct:
@@ -43,7 +43,7 @@ internal ref struct SignatureReader
                 length = DetermineLength(signature.Slice(1), (byte)'{', (byte)'}');
                 break;
             case DBusType.Array:
-                ReadOnlySpan<byte> remainder = signature.Slice(1);
+                var remainder = signature.Slice(1);
                 length = 1 + ReadSingleType(ref remainder).Length;
                 break;
             default:
@@ -51,40 +51,40 @@ internal ref struct SignatureReader
                 break;
         }
 
-        ReadOnlySpan<byte> rv = signature.Slice(0, length);
+        var rv = signature.Slice(0, length);
         signature = signature.Slice(length);
         return rv;
     }
 
     public static T Transform<T>(ReadOnlySpan<byte> signature, Func<DBusType, string?, T[], T> map)
     {
-        DBusType dbusType = signature.Length == 0 ? DBusType.Invalid : (DBusType)signature[0];
+        var dbusType = signature.Length == 0 ? DBusType.Invalid : (DBusType)signature[0];
 
         switch (dbusType)
         {
             case DBusType.Array when (DBusType)signature[1] == DBusType.DictEntry:
-                string sig = Encoding.UTF8.GetString(signature.ToArray());
+                var sig = Encoding.UTF8.GetString(signature.ToArray());
                 signature = signature.Slice(2);
-                ReadOnlySpan<byte> keySignature = ReadSingleType(ref signature);
-                ReadOnlySpan<byte> valueSignature = ReadSingleType(ref signature);
+                var keySignature = ReadSingleType(ref signature);
+                var valueSignature = ReadSingleType(ref signature);
                 signature = signature.Slice(1);
-                T keyType = Transform(keySignature, map);
-                T valueType = Transform(valueSignature, map);
+                var keyType = Transform(keySignature, map);
+                var valueType = Transform(valueSignature, map);
                 return map(DBusType.DictEntry, sig, [keyType, valueType]);
             case DBusType.Array:
                 sig = Encoding.UTF8.GetString(signature.ToArray());
                 signature = signature.Slice(1);
-                T elementType = Transform(signature, map);
+                var elementType = Transform(signature, map);
                 //signature = signature.Slice(1);
                 return map(DBusType.Array, sig, [elementType]);
             case DBusType.Struct:
                 sig = Encoding.UTF8.GetString(signature.ToArray());
                 signature = signature.Slice(1, signature.Length - 2);
-                int typeCount = CountTypes(signature);
-                T[] innerTypes = new T[typeCount];
-                for (int i = 0; i < innerTypes.Length; i++)
+                var typeCount = CountTypes(signature);
+                var innerTypes = new T[typeCount];
+                for (var i = 0; i < innerTypes.Length; i++)
                 {
-                    ReadOnlySpan<byte> innerTypeSignature = ReadSingleType(ref signature);
+                    var innerTypeSignature = ReadSingleType(ref signature);
                     innerTypes[i] = Transform(innerTypeSignature, map);
                 }
 
@@ -100,7 +100,7 @@ internal ref struct SignatureReader
         if (signature.Length is 0 or 1)
             return signature.Length;
 
-        DBusType type = (DBusType)signature[0];
+        var type = (DBusType)signature[0];
         signature = signature.Slice(1);
 
         if (type == DBusType.Struct)
@@ -112,10 +112,10 @@ internal ref struct SignatureReader
 
         static void ReadToEnd(ref ReadOnlySpan<byte> span, byte startChar, byte endChar)
         {
-            int count = 1;
+            var count = 1;
             do
             {
-                int offset = span.IndexOfAny(startChar, endChar);
+                var offset = span.IndexOfAny(startChar, endChar);
                 if (span[offset] == startChar)
                     count++;
                 else

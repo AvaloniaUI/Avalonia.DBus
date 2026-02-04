@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Avalonia.DBus;
+﻿using Avalonia.DBus;
 
 namespace SourceGenHelloWorld;
 

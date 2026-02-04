@@ -36,7 +36,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select((x, _) =>
             {
-                if (!x.Right.GetOptions(x.Left).TryGetValue("build_metadata.AdditionalFiles.DBusGeneratorMode", out string? generatorMode))
+                if (!x.Right.GetOptions(x.Left).TryGetValue("build_metadata.AdditionalFiles.DBusGeneratorMode", out var generatorMode))
                     return default;
                 if (xmlSerializer.Deserialize(XmlReader.Create(new StringReader(x.Left.GetText()!.ToString()), xmlReaderSettings)) is not DBusNode dBusNode)
                     return default;
@@ -62,25 +62,25 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 switch (value.GeneratorMode)
                 {
                     case "Proxy":
-                        foreach (DBusInterface dBusInterface in value.Node.Interfaces!)
+                        foreach (var dBusInterface in value.Node.Interfaces!)
                         {
                             TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface);
-                            NamespaceDeclarationSyntax namespaceDeclaration = NamespaceDeclaration(
+                            var namespaceDeclaration = NamespaceDeclaration(
                                     IdentifierName("Avalonia.DBus.SourceGen"))
                                 .AddMembers(typeDeclarationSyntax);
-                            CompilationUnitSyntax compilationUnit = MakeCompilationUnit(namespaceDeclaration);
+                            var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
                             productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs", compilationUnit.GetText(Encoding.UTF8));
                         }
 
                         break;
                     case "Handler":
-                        foreach (DBusInterface dBusInterface in value.Node.Interfaces!)
+                        foreach (var dBusInterface in value.Node.Interfaces!)
                         {
                             TypeDeclarationSyntax typeDeclarationSyntax = GenerateHandler(dBusInterface);
-                            NamespaceDeclarationSyntax namespaceDeclaration = NamespaceDeclaration(
+                            var namespaceDeclaration = NamespaceDeclaration(
                                     IdentifierName("Avalonia.DBus.SourceGen"))
                                 .AddMembers(typeDeclarationSyntax);
-                            CompilationUnitSyntax compilationUnit = MakeCompilationUnit(namespaceDeclaration);
+                            var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
                             productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs", compilationUnit.GetText(Encoding.UTF8));
                         }
 

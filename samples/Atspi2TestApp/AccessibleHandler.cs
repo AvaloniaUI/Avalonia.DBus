@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;

@@ -69,13 +69,13 @@ internal static class DBusSignatureInference
 
     private static string InferSignatureFromCollectionOrStruct(object value)
     {
-        Type type = value.GetType();
-        if (TryGetStructSignatureFromType(type, out string structSignature))
+        var type = value.GetType();
+        if (TryGetStructSignatureFromType(type, out var structSignature))
         {
             return structSignature;
         }
 
-        if (DBusCollectionHelpers.TryGetDictionaryTypes(type, out Type keyType, out Type valueType))
+        if (DBusCollectionHelpers.TryGetDictionaryTypes(type, out var keyType, out var valueType))
         {
             return string.Concat(
                 DBusSignatureToken.Array,
@@ -85,7 +85,7 @@ internal static class DBusSignatureInference
                 DBusSignatureToken.DictEntryEnd);
         }
 
-        if (DBusCollectionHelpers.TryGetListElementType(type, out Type elementType))
+        if (DBusCollectionHelpers.TryGetListElementType(type, out var elementType))
         {
             return string.Concat(DBusSignatureToken.Array, InferArrayElementSignature(value, elementType));
         }
@@ -110,7 +110,7 @@ internal static class DBusSignatureInference
 
     internal static string InferSignatureFromType(Type type)
     {
-        if (TryGetStructSignatureFromType(type, out string structSignature))
+        if (TryGetStructSignatureFromType(type, out var structSignature))
         {
             return structSignature;
         }
@@ -174,7 +174,7 @@ internal static class DBusSignatureInference
         {
             throw new NotSupportedException("DBusStruct requires value-based signature inference.");
         }
-        if (DBusCollectionHelpers.TryGetDictionaryTypes(type, out Type keyType, out Type valueType))
+        if (DBusCollectionHelpers.TryGetDictionaryTypes(type, out var keyType, out var valueType))
         {
             return string.Concat(
                 DBusSignatureToken.Array,
@@ -183,7 +183,7 @@ internal static class DBusSignatureInference
                 InferSignatureFromType(valueType),
                 DBusSignatureToken.DictEntryEnd);
         }
-        if (DBusCollectionHelpers.TryGetListElementType(type, out Type elementType))
+        if (DBusCollectionHelpers.TryGetListElementType(type, out var elementType))
         {
             return string.Concat(DBusSignatureToken.Array, InferSignatureFromType(elementType));
         }
@@ -257,17 +257,17 @@ internal static class DBusSignatureInference
         }
         if (token == DBusSignatureToken.Array)
         {
-            int index = 1;
-            string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+            var index = 1;
+            var elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
             if (elementSignature.Length > 0 && elementSignature[0] == DBusSignatureToken.DictEntryBegin)
             {
                 var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(elementSignature);
-                Type keyType = GetTypeForSignature(keySig);
-                Type valueType = GetTypeForSignature(valueSig);
+                var keyType = GetTypeForSignature(keySig);
+                var valueType = GetTypeForSignature(valueSig);
                 return typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
             }
 
-            Type elementType = GetTypeForSignature(elementSignature);
+            var elementType = GetTypeForSignature(elementSignature);
             return typeof(List<>).MakeGenericType(elementType);
         }
         if (token == DBusSignatureToken.StructBegin)
@@ -277,8 +277,8 @@ internal static class DBusSignatureInference
         if (token == DBusSignatureToken.DictEntryBegin)
         {
             var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(signature);
-            Type keyType = GetTypeForSignature(keySig);
-            Type valueType = GetTypeForSignature(valueSig);
+            var keyType = GetTypeForSignature(keySig);
+            var valueType = GetTypeForSignature(valueSig);
             return typeof(KeyValuePair<,>).MakeGenericType(keyType, valueType);
         }
 
@@ -396,10 +396,10 @@ internal static class DBusSignatureInference
     {
         const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
 
-        FieldInfo? field = type.GetField("Signature", flags);
+        var field = type.GetField("Signature", flags);
         if (field is not null && field.FieldType == typeof(string))
         {
-            object? value = field.IsLiteral ? field.GetRawConstantValue() : field.GetValue(null);
+            var value = field.IsLiteral ? field.GetRawConstantValue() : field.GetValue(null);
             if (value is string literal)
             {
                 signature = literal;
@@ -407,7 +407,7 @@ internal static class DBusSignatureInference
             }
         }
 
-        PropertyInfo? property = type.GetProperty("Signature", flags);
+        var property = type.GetProperty("Signature", flags);
         if (property is not null && property.PropertyType == typeof(string) && property.GetMethod is not null)
         {
             if (property.GetValue(null) is string literal)

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -151,12 +150,12 @@ public partial class DBusSourceGenerator
         if (!ContainsStruct(elementType))
             return $"({GetTypeName(type)}){source}";
 
-        string rawElementType = GetRawTypeName(elementType);
-        string rawArrayType = $"List<{rawElementType}>";
-        string strongElementType = GetTypeName(elementType);
-        string strongArrayType = $"List<{strongElementType}>";
-        string itemVar = "item";
-        string convertedItem = MakeFromDbusValueExpressionString(elementType, itemVar);
+        var rawElementType = GetRawTypeName(elementType);
+        var rawArrayType = $"List<{rawElementType}>";
+        var strongElementType = GetTypeName(elementType);
+        var strongArrayType = $"List<{strongElementType}>";
+        var itemVar = "item";
+        var convertedItem = MakeFromDbusValueExpressionString(elementType, itemVar);
 
         return $"new {strongArrayType}((({rawArrayType}){source}).Select({itemVar} => {convertedItem}))";
     }
@@ -168,15 +167,15 @@ public partial class DBusSourceGenerator
         if (!ContainsStruct(keyType) && !ContainsStruct(valueType))
             return $"({GetTypeName(type)}){source}";
 
-        string rawKeyType = GetRawTypeName(keyType);
-        string rawValueType = GetRawTypeName(valueType);
-        string rawDictType = $"Dictionary<{rawKeyType}, {rawValueType}>";
-        string strongKeyType = GetTypeName(keyType);
-        string strongValueType = GetTypeName(valueType);
-        string strongDictType = $"Dictionary<{strongKeyType}, {strongValueType}>";
+        var rawKeyType = GetRawTypeName(keyType);
+        var rawValueType = GetRawTypeName(valueType);
+        var rawDictType = $"Dictionary<{rawKeyType}, {rawValueType}>";
+        var strongKeyType = GetTypeName(keyType);
+        var strongValueType = GetTypeName(valueType);
+        var strongDictType = $"Dictionary<{strongKeyType}, {strongValueType}>";
 
-        string keyExpr = MakeFromDbusValueExpressionString(keyType, "kv.Key");
-        string valueExpr = MakeFromDbusValueExpressionString(valueType, "kv.Value");
+        var keyExpr = MakeFromDbusValueExpressionString(keyType, "kv.Key");
+        var valueExpr = MakeFromDbusValueExpressionString(valueType, "kv.Value");
 
         return $"new {strongDictType}((({rawDictType}){source}).Select(kv => new KeyValuePair<{strongKeyType}, {strongValueType}>({keyExpr}, {valueExpr})))";
     }
@@ -206,10 +205,10 @@ public partial class DBusSourceGenerator
 
         foreach (var definition in definitions.OrderBy(static d => d.Signature, StringComparer.Ordinal))
         {
-            string typeName = GetStructTypeName(definition.Signature);
-            string signatureLiteral = SymbolDisplay.FormatLiteral(definition.Signature, true);
+            var typeName = GetStructTypeName(definition.Signature);
+            var signatureLiteral = SymbolDisplay.FormatLiteral(definition.Signature, true);
 
-            string parameters = string.Join(", ", definition.Fields.Select((field, index) =>
+            var parameters = string.Join(", ", definition.Fields.Select((field, index) =>
                 $"{GetTypeName(field)} Item{index + 1}"));
 
             sb.AppendLine($"    internal sealed record {typeName}({parameters})");
@@ -221,7 +220,7 @@ public partial class DBusSourceGenerator
             sb.AppendLine("            if (value is null)");
             sb.AppendLine("                throw new ArgumentNullException(nameof(value));");
 
-            string fromFields = string.Join(", ", definition.Fields.Select((field, index) =>
+            var fromFields = string.Join(", ", definition.Fields.Select((field, index) =>
                 MakeFromDbusValueExpressionString(field, $"value[{index}]") ));
 
             sb.AppendLine($"            return new {typeName}({fromFields});");
@@ -230,7 +229,7 @@ public partial class DBusSourceGenerator
             sb.AppendLine("        public DBusStruct ToDbusStruct()");
             sb.AppendLine("        {");
 
-            string toFields = string.Join(", ", definition.Fields.Select((field, index) =>
+            var toFields = string.Join(", ", definition.Fields.Select((field, index) =>
                 MakeToDbusValueExpressionString(field, $"Item{index + 1}") ));
 
             sb.AppendLine($"            return new DBusStruct({toFields});");

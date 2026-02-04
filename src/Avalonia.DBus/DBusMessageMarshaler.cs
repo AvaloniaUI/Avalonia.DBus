@@ -18,7 +18,7 @@ internal static unsafe class DBusMessageMarshaler
             throw new ArgumentNullException(nameof(message));
         }
 
-        DBusNativeMessage* native = LibDbus.dbus_message_new((int)message.Type);
+        var native = LibDbus.dbus_message_new((int)message.Type);
         if (native == null)
         {
             throw new InvalidOperationException("Failed to create D-Bus message.");
@@ -39,7 +39,7 @@ internal static unsafe class DBusMessageMarshaler
 
     public static DBusMessage FromNative(DBusNativeMessage* message)
     {
-        string signature = DbusHelpers.PtrToString(LibDbus.dbus_message_get_signature(message));
+        var signature = DbusHelpers.PtrToString(LibDbus.dbus_message_get_signature(message));
         var body = ReadBody(message, signature);
 
         var managed = new DBusMessage
@@ -111,7 +111,7 @@ internal static unsafe class DBusMessageMarshaler
 
     private static DBusMessageFlags ReadFlags(DBusNativeMessage* message)
     {
-        DBusMessageFlags flags = DBusMessageFlags.None;
+        var flags = DBusMessageFlags.None;
         if (LibDbus.dbus_message_get_no_reply(message) != 0)
         {
             flags |= DBusMessageFlags.NoReplyExpected;
@@ -130,7 +130,7 @@ internal static unsafe class DBusMessageMarshaler
 
     private static DBusObjectPath? ReadObjectPath(DBusNativeMessage* message)
     {
-        string? path = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_path(message));
+        var path = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_path(message));
         return path == null ? null : new DBusObjectPath(path);
     }
 
@@ -148,10 +148,10 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         var items = new List<object>();
-        int index = 0;
+        var index = 0;
         while (index < signature.Length)
         {
-            string typeSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+            var typeSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
             items.Add(ReadValue(typeSignature, ref iter));
         }
 
@@ -279,10 +279,10 @@ internal static unsafe class DBusMessageMarshaler
             LibDbus.dbus_message_iter_recurse(iterPtr, &child);
         }
 
-        DBusMessageIter* childPtr = &child;
+        var childPtr = &child;
         var signaturePtr = LibDbus.dbus_message_iter_get_signature(childPtr);
 
-        string signature = signaturePtr == null ? string.Empty : DbusHelpers.PtrToString(signaturePtr);
+        var signature = signaturePtr == null ? string.Empty : DbusHelpers.PtrToString(signaturePtr);
         if (signaturePtr != null)
         {
             NativeMethods.dbus_free(signaturePtr);
@@ -293,7 +293,7 @@ internal static unsafe class DBusMessageMarshaler
             signature = InferSignatureFromIter(ref child);
         }
 
-        object value = ReadValue(signature, ref child);
+        var value = ReadValue(signature, ref child);
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
@@ -333,8 +333,8 @@ internal static unsafe class DBusMessageMarshaler
 
     private static object ReadArray(string signature, ref DBusMessageIter iter)
     {
-        int index = 1;
-        string elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
+        var index = 1;
+        var elementSignature = DBusSignatureParser.ReadSingleType(signature, ref index);
         if (elementSignature.Length > 0 && elementSignature[0] == DBusSignatureToken.DictEntryBegin)
         {
             return ReadDictionaryArray(elementSignature, ref iter);
@@ -419,8 +419,8 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(signature);
-        object key = ReadValue(keySig, ref child);
-        object value = ReadValue(valueSig, ref child);
+        var key = ReadValue(keySig, ref child);
+        var value = ReadValue(valueSig, ref child);
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
@@ -432,8 +432,8 @@ internal static unsafe class DBusMessageMarshaler
 
     private static object CreateArrayInstance(string elementSignature, List<object> items)
     {
-        Type elementType = DBusSignatureInference.GetTypeForSignature(elementSignature);
-        Type listType = typeof(List<>).MakeGenericType(elementType);
+        var elementType = DBusSignatureInference.GetTypeForSignature(elementSignature);
+        var listType = typeof(List<>).MakeGenericType(elementType);
         var list = (IList)Activator.CreateInstance(listType)!;
         foreach (var item in items)
         {
@@ -446,10 +446,10 @@ internal static unsafe class DBusMessageMarshaler
     private static object CreateDictInstance(string entrySignature, List<KeyValuePair<object?, object?>> entries)
     {
         var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
-        Type keyType = DBusSignatureInference.GetTypeForSignature(keySig);
-        Type valueType = DBusSignatureInference.GetTypeForSignature(valueSig);
+        var keyType = DBusSignatureInference.GetTypeForSignature(keySig);
+        var valueType = DBusSignatureInference.GetTypeForSignature(valueSig);
 
-        Type dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+        var dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
         var dict = (IDictionary)Activator.CreateInstance(dictType)!;
 
         foreach (var entry in entries)
@@ -494,7 +494,7 @@ internal static unsafe class DBusMessageMarshaler
                 AppendBasic(ref iter, LibDbus.DBUS_TYPE_BYTE, byteValue);
                 return;
             case bool boolValue:
-                uint dbusBool = boolValue ? 1u : 0u;
+                var dbusBool = boolValue ? 1u : 0u;
                 AppendBasic(ref iter, LibDbus.DBUS_TYPE_BOOLEAN, dbusBool);
                 return;
             case short int16Value:
@@ -537,7 +537,7 @@ internal static unsafe class DBusMessageMarshaler
                 AppendStruct(ref iter, dbusStruct);
                 return;
             default:
-                if (TryConvertToDbusStruct(value, out DBusStruct convertedStruct))
+                if (TryConvertToDbusStruct(value, out var convertedStruct))
                 {
                     AppendStruct(ref iter, convertedStruct);
                     return;
@@ -579,13 +579,13 @@ internal static unsafe class DBusMessageMarshaler
 
     private static void AppendArray(ref DBusMessageIter iter, object array)
     {
-        string arraySignature = DBusSignatureInference.InferSignatureFromValue(array);
+        var arraySignature = DBusSignatureInference.InferSignatureFromValue(array);
         if (arraySignature.Length < 2 || arraySignature[0] != DBusSignatureToken.Array)
         {
             throw new InvalidOperationException("Invalid array signature.");
         }
 
-        string elementSignature = arraySignature.Substring(1);
+        var elementSignature = arraySignature.Substring(1);
         using var sig = new Utf8String(elementSignature);
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
@@ -609,7 +609,7 @@ internal static unsafe class DBusMessageMarshaler
 
     private static void AppendDict(ref DBusMessageIter iter, object dict)
     {
-        string arraySignature = DBusSignatureInference.InferSignatureFromValue(dict);
+        var arraySignature = DBusSignatureInference.InferSignatureFromValue(dict);
         if (arraySignature.Length < 3
             || arraySignature[0] != DBusSignatureToken.Array
             || arraySignature[1] != DBusSignatureToken.DictEntryBegin)
@@ -617,7 +617,7 @@ internal static unsafe class DBusMessageMarshaler
             throw new InvalidOperationException("Invalid dictionary signature.");
         }
 
-        string entrySignature = arraySignature.Substring(1);
+        var entrySignature = arraySignature.Substring(1);
         using var sig = new Utf8String(entrySignature);
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
@@ -631,7 +631,7 @@ internal static unsafe class DBusMessageMarshaler
         foreach (var entry in DBusCollectionHelpers.EnumerateDictionaryEntries(dict))
         {
             DBusMessageIter entryIter;
-            DBusMessageIter* childPtr = &child;
+            var childPtr = &child;
             if (LibDbus.dbus_message_iter_open_container(childPtr, LibDbus.DBUS_TYPE_DICT_ENTRY, null, &entryIter) == 0)
             {
                 throw new InvalidOperationException("Failed to open dictionary entry container.");
@@ -673,7 +673,7 @@ internal static unsafe class DBusMessageMarshaler
 
     private static void AppendVariant(ref DBusMessageIter iter, DBusVariant variant)
     {
-        string signature = variant.Signature.Value;
+        var signature = variant.Signature.Value;
         if (string.IsNullOrEmpty(signature))
         {
             signature = DBusSignatureInference.InferSignatureFromValue(variant.Value);
@@ -708,7 +708,7 @@ internal static unsafe class DBusMessageMarshaler
             return true;
         }
 
-        Type type = value.GetType();
+        var type = value.GetType();
         MethodInfo? method;
         lock (s_structConvertersLock)
         {

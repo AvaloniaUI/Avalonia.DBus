@@ -16,7 +16,7 @@ internal sealed unsafe class WakeupFd : IDisposable
 
     public WakeupFd()
     {
-        int* fds = stackalloc int[2];
+        var fds = stackalloc int[2];
         if (LinuxPoll.pipe2(fds, LinuxPoll.O_NONBLOCK | LinuxPoll.O_CLOEXEC) != 0)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError());
@@ -48,7 +48,7 @@ internal sealed unsafe class WakeupFd : IDisposable
                     break;
                 }
 
-                int errno = Marshal.GetLastPInvokeError();
+                var errno = Marshal.GetLastPInvokeError();
                 if (errno == LinuxPoll.EINTR)
                 {
                     continue;

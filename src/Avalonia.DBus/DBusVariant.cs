@@ -22,12 +22,7 @@ public sealed class DBusVariant
     /// </summary>
     public DBusVariant(object value)
     {
-        if (value == null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
-
-        Value = value;
+        Value = value ?? throw new ArgumentNullException(nameof(value));
         Signature = new DBusSignature(DBusSignatureInference.InferSignatureFromValue(value));
     }
 

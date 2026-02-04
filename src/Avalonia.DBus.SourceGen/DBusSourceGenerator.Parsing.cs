@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis.CSharp;
@@ -35,11 +34,11 @@ public partial class DBusSourceGenerator
 
     private static string Pascalize(ReadOnlySpan<char> name, bool camel = false)
     {
-        bool upperizeNext = !camel;
+        var upperizeNext = !camel;
         StringBuilder sb = new(name.Length);
-        foreach (char och in name)
+        foreach (var och in name)
         {
-            char ch = och;
+            var ch = och;
             if (ch is '_' or '.')
                 upperizeNext = true;
             else
@@ -71,7 +70,7 @@ public partial class DBusSourceGenerator
             return null;
 
         StringBuilder sb = new();
-        foreach (DBusValue? dBusValue in dbusValues.Where(static argument => argument.Type is not null))
+        foreach (var dBusValue in dbusValues.Where(static argument => argument.Type is not null))
             sb.Append(dBusValue.Type);
 
         return sb.ToString();
@@ -154,7 +153,7 @@ public partial class DBusSourceGenerator
 
     private static string SanitizeIdentifier(in string identifier)
     {
-        bool isAnyKeyword = SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None;
+        var isAnyKeyword = SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None;
         return isAnyKeyword ? $"@{identifier}" : identifier;
     }
 

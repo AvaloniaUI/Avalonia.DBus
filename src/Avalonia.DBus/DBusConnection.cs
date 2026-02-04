@@ -122,7 +122,7 @@ public sealed class DBusConnection : IAsyncDisposable
             throw new ArgumentNullException(nameof(handler));
         }
 
-        string matchRule = BuildMatchRule(sender, path, iface, member);
+        var matchRule = BuildMatchRule(sender, path, iface, member);
         await AddMatchAsync(matchRule);
 
         var subscription = new SignalSubscription(this, sender, path, iface, member, handler, synchronizationContext, matchRule);
@@ -159,7 +159,7 @@ public sealed class DBusConnection : IAsyncDisposable
             throw new InvalidOperationException("RequestName returned no reply.");
         }
 
-        uint value = reply.Body[0] switch
+        var value = reply.Body[0] switch
         {
             uint u => u,
             int i => unchecked((uint)i),
@@ -304,7 +304,7 @@ public sealed class DBusConnection : IAsyncDisposable
                 string errorMessage;
                 lock (_gate)
                 {
-                    bool hasPath = _handlers.Keys.Any(k => string.Equals(k.Path, path, StringComparison.Ordinal));
+                    var hasPath = _handlers.Keys.Any(k => string.Equals(k.Path, path, StringComparison.Ordinal));
                     if (hasPath)
                     {
                         errorName = "org.freedesktop.DBus.Error.UnknownInterface";
@@ -372,7 +372,7 @@ public sealed class DBusConnection : IAsyncDisposable
             return;
         }
 
-        string errorName = reply.ErrorName ?? "org.freedesktop.DBus.Error.Failed";
+        var errorName = reply.ErrorName ?? "org.freedesktop.DBus.Error.Failed";
         string? errorMessage = null;
         if (reply.Body.Count > 0 && reply.Body[0] is string message)
         {
@@ -641,9 +641,9 @@ public sealed class DBusConnection : IAsyncDisposable
                 return reply;
             }
 
-            uint replySerial = reply.ReplySerial != 0 ? reply.ReplySerial : request.Serial;
-            string? destination = reply.Destination ?? request.Sender;
-            string? errorName = reply.ErrorName;
+            var replySerial = reply.ReplySerial != 0 ? reply.ReplySerial : request.Serial;
+            var destination = reply.Destination ?? request.Sender;
+            var errorName = reply.ErrorName;
 
             if (reply.Type == DBusMessageType.Error && string.IsNullOrEmpty(errorName))
             {

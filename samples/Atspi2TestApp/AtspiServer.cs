@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia.DBus;
@@ -23,7 +22,7 @@ internal sealed class AtspiServer
     private readonly object _eventGate = new();
     private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
     private readonly object _registryGate = new();
-    private readonly System.Threading.SemaphoreSlim _registrySubscriptionGate = new(1, 1);
+    private readonly SemaphoreSlim _registrySubscriptionGate = new(1, 1);
 
     private DBusConnection? _a11yConnection;
     private string _a11yAddress = string.Empty;
@@ -38,11 +37,11 @@ internal sealed class AtspiServer
     private IDisposable? _registryRegisteredSubscription;
     private IDisposable? _registryDeregisteredSubscription;
     private IDisposable? _registryOwnerChangedSubscription;
-    private readonly System.Threading.Tasks.TaskCompletionSource<bool> _shutdownTcs = new(System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
-    private System.Threading.Timer? _toggleTimer;
+    private readonly TaskCompletionSource<bool> _shutdownTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private Timer? _toggleTimer;
     private PosixSignalRegistration? _sigintRegistration;
     private PosixSignalRegistration? _sigtermRegistration;
-    private System.Threading.Timer? _forceExitTimer;
+    private Timer? _forceExitTimer;
 
     public AtspiServer(AtspiTree tree)
     {
@@ -61,7 +60,7 @@ internal sealed class AtspiServer
     internal AtspiTree Tree => _tree;
     internal object TreeGate => _treeGate;
 
-    public async System.Threading.Tasks.Task<int> RunAsync()
+    public async Task<int> RunAsync()
     {
         _running = true;
         LogVerbose("Server starting");
@@ -93,7 +92,7 @@ internal sealed class AtspiServer
 
             var delay = ComputeRetryDelay(attempt);
             Console.Error.WriteLine($"Startup failed; retrying in {(int)delay.TotalSeconds}s.");
-            var completed = await System.Threading.Tasks.Task.WhenAny(_shutdownTcs.Task, System.Threading.Tasks.Task.Delay(delay));
+            var completed = await Task.WhenAny(_shutdownTcs.Task, Task.Delay(delay));
             if (completed == _shutdownTcs.Task)
             {
                 break;
@@ -104,7 +103,7 @@ internal sealed class AtspiServer
         return started ? 0 : 1;
     }
 
-    private async System.Threading.Tasks.Task<bool> TryStartAsync()
+    private async Task<bool> TryStartAsync()
     {
         LogVerbose("Connecting to accessibility bus");
         if (!await TryConnectAsync())
@@ -222,7 +221,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private async System.Threading.Tasks.Task<bool> TryConnectAsync()
+    private async Task<bool> TryConnectAsync()
     {
         var sw = Stopwatch.StartNew();
         LogVerbose("TryConnect start");
@@ -251,7 +250,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private async System.Threading.Tasks.Task<string> GetAccessibilityBusAddressAsync()
+    private async Task<string> GetAccessibilityBusAddressAsync()
     {
         var sw = Stopwatch.StartNew();
         LogVerbose("GetAddress start");
@@ -307,7 +306,7 @@ internal sealed class AtspiServer
         _pathTreeRegistration = _pathTree.Register(_a11yConnection);
     }
 
-    private async System.Threading.Tasks.Task<bool> EmbedApplicationAsync()
+    private async Task<bool> EmbedApplicationAsync()
     {
         if (string.IsNullOrWhiteSpace(_a11yAddress))
         {
@@ -341,7 +340,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private async System.Threading.Tasks.Task InitializeRegistryEventTrackingAsync()
+    private async Task InitializeRegistryEventTrackingAsync()
     {
         if (_a11yConnection == null)
         {
@@ -375,13 +374,13 @@ internal sealed class AtspiServer
                     var name = (string)message.Body[0];
                     if (!string.Equals(name, BusNameRegistry, StringComparison.Ordinal))
                     {
-                        return System.Threading.Tasks.Task.CompletedTask;
+                        return Task.CompletedTask;
                     }
 
                     var newOwner = (string)message.Body[2];
                     var owner = string.IsNullOrWhiteSpace(newOwner) ? null : newOwner;
                     FireAndForget(UpdateRegistrySignalSubscriptionsAsync(owner));
-                    return System.Threading.Tasks.Task.CompletedTask;
+                    return Task.CompletedTask;
                 },
                 synchronizationContext: null);
         }
@@ -415,7 +414,7 @@ internal sealed class AtspiServer
         _emitObjectEvents = _registeredEvents.Any(IsObjectEventClass);
     }
 
-    private async System.Threading.Tasks.Task<string?> ResolveRegistryUniqueNameAsync()
+    private async Task<string?> ResolveRegistryUniqueNameAsync()
     {
         if (_a11yConnection == null)
         {
@@ -444,7 +443,7 @@ internal sealed class AtspiServer
         return null;
     }
 
-    private async System.Threading.Tasks.Task UpdateRegistrySignalSubscriptionsAsync(string? registryOwner)
+    private async Task UpdateRegistrySignalSubscriptionsAsync(string? registryOwner)
     {
         if (_a11yConnection == null)
         {
@@ -473,7 +472,7 @@ internal sealed class AtspiServer
             oldRegistered?.Dispose();
             oldDeregistered?.Dispose();
 
-            string? senderFilter = string.IsNullOrWhiteSpace(registryOwner) ? null : registryOwner;
+            var senderFilter = string.IsNullOrWhiteSpace(registryOwner) ? null : registryOwner;
 
             IDisposable? registered = null;
             IDisposable? deregistered = null;
@@ -490,7 +489,7 @@ internal sealed class AtspiServer
                         var @event = (string)message.Body[1];
                         var properties = (List<string>)message.Body[2];
                         OnRegistryEventListenerRegistered(bus, @event, properties);
-                        return System.Threading.Tasks.Task.CompletedTask;
+                        return Task.CompletedTask;
                     },
                     synchronizationContext: null);
 
@@ -504,7 +503,7 @@ internal sealed class AtspiServer
                         var bus = (string)message.Body[0];
                         var @event = (string)message.Body[1];
                         OnRegistryEventListenerDeregistered(bus, @event);
-                        return System.Threading.Tasks.Task.CompletedTask;
+                        return Task.CompletedTask;
                     },
                     synchronizationContext: null);
             }
@@ -527,7 +526,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private static void FireAndForget(System.Threading.Tasks.Task task)
+    private static void FireAndForget(Task task)
     {
         if (task == null)
         {
@@ -536,9 +535,9 @@ internal sealed class AtspiServer
 
         _ = task.ContinueWith(
             t => _ = t.Exception,
-            System.Threading.CancellationToken.None,
-            System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted,
-            System.Threading.Tasks.TaskScheduler.Default);
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 
     private static bool IsObjectEventClass(string eventName)
@@ -648,7 +647,7 @@ internal sealed class AtspiServer
             states);
     }
 
-    private async System.Threading.Tasks.Task CleanupAttemptAsync()
+    private async Task CleanupAttemptAsync()
     {
         if (_toggleTimer != null)
         {
@@ -683,7 +682,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private async System.Threading.Tasks.Task CleanupAsync()
+    private async Task CleanupAsync()
     {
         await CleanupAttemptAsync();
 
@@ -714,11 +713,11 @@ internal sealed class AtspiServer
     {
         _running = false;
         _shutdownTcs.TrySetResult(true);
-        _forceExitTimer ??= new System.Threading.Timer(
+        _forceExitTimer ??= new Timer(
             _ => Environment.Exit(0),
             null,
             2000,
-            System.Threading.Timeout.Infinite);
+            Timeout.Infinite);
     }
 
     private void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -729,7 +728,7 @@ internal sealed class AtspiServer
 
     private void StartToggleLoop()
     {
-        _toggleTimer = new System.Threading.Timer(
+        _toggleTimer = new Timer(
             _ => ToggleWindow(),
             null,
             WindowToggleIntervalMs,
