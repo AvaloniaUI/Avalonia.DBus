@@ -19,8 +19,8 @@ internal sealed partial class DbusWireWorker
     internal sealed record EnqueueSendItemMessage(
         DBusMessage Message,
         TaskCompletionSource<DBusMessage> Completion,
-        CancellationToken CancellationToken,
-        bool ExpectingReply) : WireWorkerMessage;
+        bool ExpectingReply = false,
+        CancellationToken CancellationToken = default) : WireWorkerMessage;
 
     internal sealed record EnqueueHandleCallbackMessage(DBusNativeMessagePtr MsgPtr) : WireWorkerMessage;
 

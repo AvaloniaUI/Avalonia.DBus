@@ -8,7 +8,7 @@ using Avalonia.DBus.AutoGen;
 namespace Avalonia.DBus.Wire;
 
 /// <summary>
-/// Low-level connection handling raw message transport. This is the only IDisposable type in the API.
+/// Low-level connection handling raw DBus message transport.
 /// </summary>
 public sealed class DBusWireConnection : IAsyncDisposable
 {
@@ -87,8 +87,8 @@ public sealed class DBusWireConnection : IAsyncDisposable
         _worker.TryEnqueue(new DbusWireWorker.EnqueueSendItemMessage(
             message,
             tcs,
-            cancellationToken,
-            ExpectingReply: false));
+            false,
+            cancellationToken));
 
         await tcs.Task;
     }
@@ -104,11 +104,13 @@ public sealed class DBusWireConnection : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
 
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
         _worker.TryEnqueue(new DbusWireWorker.EnqueueSendItemMessage(
             message,
-            tcs,
-            cancellationToken,
-            ExpectingReply: true));
+            tcs, 
+            true, 
+            cancellationToken
+            ));
 
         return await tcs.Task;
     }
