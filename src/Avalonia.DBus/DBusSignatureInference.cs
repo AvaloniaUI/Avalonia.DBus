@@ -272,64 +272,97 @@ internal static class DBusSignatureInference
             return array.ElementSignature!;
         }
 
+        if (RequiresValueBasedInference(array.ElementType))
+        {
+            return InferArrayElementSignatureFromItems(array);
+        }
+
         try
         {
             return InferSignatureFromType(array.ElementType);
         }
         catch (NotSupportedException)
         {
-            foreach (var item in array.Items)
-            {
-                if (item == null)
-                {
-                    throw new InvalidOperationException("Array contains null values; cannot infer element signature.");
-                }
-                return InferSignatureFromValue(item);
-            }
-
-            throw new InvalidOperationException("Array is empty; cannot infer element signature for this type.");
+            return InferArrayElementSignatureFromItems(array);
         }
     }
 
     private static string InferDictKeySignature(IDBusDict dict)
     {
+        if (RequiresValueBasedInference(dict.KeyType))
+        {
+            return InferDictKeySignatureFromEntries(dict);
+        }
+
         try
         {
             return InferSignatureFromType(dict.KeyType);
         }
         catch (NotSupportedException)
         {
-            foreach (var entry in dict.Entries)
-            {
-                if (entry.Key == null)
-                {
-                    throw new InvalidOperationException("Dictionary contains null keys; cannot infer signature.");
-                }
-                return InferSignatureFromValue(entry.Key);
-            }
-
-            throw new InvalidOperationException("Dictionary is empty; cannot infer key signature for this type.");
+            return InferDictKeySignatureFromEntries(dict);
         }
     }
 
     private static string InferDictValueSignature(IDBusDict dict)
     {
+        if (RequiresValueBasedInference(dict.ValueType))
+        {
+            return InferDictValueSignatureFromEntries(dict);
+        }
+
         try
         {
             return InferSignatureFromType(dict.ValueType);
         }
         catch (NotSupportedException)
         {
-            foreach (var entry in dict.Entries)
-            {
-                if (entry.Value == null)
-                {
-                    throw new InvalidOperationException("Dictionary contains null values; cannot infer signature.");
-                }
-                return InferSignatureFromValue(entry.Value);
-            }
-
-            throw new InvalidOperationException("Dictionary is empty; cannot infer value signature for this type.");
+            return InferDictValueSignatureFromEntries(dict);
         }
+    }
+
+    private static bool RequiresValueBasedInference(Type type)
+        => type == typeof(DBusStruct);
+
+    private static string InferArrayElementSignatureFromItems(IDBusArray array)
+    {
+        foreach (var item in array.Items)
+        {
+            if (item == null)
+            {
+                throw new InvalidOperationException("Array contains null values; cannot infer element signature.");
+            }
+            return InferSignatureFromValue(item);
+        }
+
+        throw new InvalidOperationException("Array is empty; cannot infer element signature for this type.");
+    }
+
+    private static string InferDictKeySignatureFromEntries(IDBusDict dict)
+    {
+        foreach (var entry in dict.Entries)
+        {
+            if (entry.Key == null)
+            {
+                throw new InvalidOperationException("Dictionary contains null keys; cannot infer signature.");
+            }
+            return InferSignatureFromValue(entry.Key);
+        }
+
+        throw new InvalidOperationException("Dictionary is empty; cannot infer key signature for this type.");
+    }
+
+    private static string InferDictValueSignatureFromEntries(IDBusDict dict)
+    {
+        foreach (var entry in dict.Entries)
+        {
+            if (entry.Value == null)
+            {
+                throw new InvalidOperationException("Dictionary contains null values; cannot infer signature.");
+            }
+            return InferSignatureFromValue(entry.Value);
+        }
+
+        throw new InvalidOperationException("Dictionary is empty; cannot infer value signature for this type.");
     }
 }
