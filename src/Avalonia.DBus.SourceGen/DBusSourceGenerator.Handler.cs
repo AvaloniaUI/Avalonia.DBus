@@ -112,7 +112,7 @@ public partial class DBusSourceGenerator
                                     VariableDeclarator(identifier)
                                         .WithInitializer(
                                             EqualsValueClause(
-                                                MakeBodyCastExpression(inArgs[i].DBusDotnetType.ToTypeSyntax(), "request", i))))));
+                                                MakeBodyCastExpression(inArgs[i].DBusDotnetType, "request", i))))));
                 }
             }
 
@@ -163,7 +163,9 @@ public partial class DBusSourceGenerator
                                     MakeMemberAccessExpression("request", "CreateReply"))
                                 .AddArgumentListArguments(
                                     Argument(
-                                        IdentifierName("ret")))));
+                                        MakeToDbusValueExpression(
+                                            outArgs[0].DBusDotnetType,
+                                            IdentifierName("ret"))))));
                 }
                 else
                 {
@@ -174,8 +176,10 @@ public partial class DBusSourceGenerator
                                 .WithArgumentList(
                                     ArgumentList(
                                         SeparatedList(
-                                            outArgs.Select((_, index) => Argument(
-                                                    MakeMemberAccessExpression("ret", $"Item{index + 1}")))
+                                            outArgs.Select((argument, index) => Argument(
+                                                    MakeToDbusValueExpression(
+                                                        argument.DBusDotnetType,
+                                                        MakeMemberAccessExpression("ret", $"Item{index + 1}"))))
                                                 .ToArray())))));
                 }
             }
@@ -249,12 +253,15 @@ public partial class DBusSourceGenerator
                 .AddLabels(CaseSwitchLabel(MakeLiteralExpression(property.Name!)))
                 .AddStatements(
                     ExpressionStatement(
-                        AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
+                        AssignmentExpression(
+                            SyntaxKind.SimpleAssignmentExpression,
                             IdentifierName("value"),
                             ObjectCreationExpression(IdentifierName("DBusVariant"))
                                 .AddArgumentListArguments(
                                     Argument(
-                                        IdentifierName(Pascalize(property.Name.AsSpan())))))),
+                                        MakeToDbusValueExpression(
+                                            property.DBusDotnetType,
+                                            IdentifierName(Pascalize(property.Name.AsSpan()))))))),
                     ReturnStatement(LiteralExpression(SyntaxKind.TrueLiteralExpression))));
 
         var defaultSection = SwitchSection()
@@ -292,8 +299,8 @@ public partial class DBusSourceGenerator
                     ExpressionStatement(
                         AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
                             IdentifierName(Pascalize(property.Name.AsSpan())),
-                            CastExpression(
-                                property.DBusDotnetType.ToTypeSyntax(),
+                            MakeFromDbusValueExpression(
+                                property.DBusDotnetType,
                                 MakeMemberAccessExpression("value", "Value")))),
                     ReturnStatement(LiteralExpression(SyntaxKind.TrueLiteralExpression))));
 
@@ -335,7 +342,9 @@ public partial class DBusSourceGenerator
                                         ObjectCreationExpression(IdentifierName("DBusVariant"))
                                             .AddArgumentListArguments(
                                                 Argument(
-                                                    IdentifierName(Pascalize(property.Name.AsSpan()))))))))));
+                                                    MakeToDbusValueExpression(
+                                                        property.DBusDotnetType,
+                                                        IdentifierName(Pascalize(property.Name.AsSpan())))))))))));
 
         return MethodDeclaration(
                 GenericName("DBusDict")
@@ -444,12 +453,14 @@ public partial class DBusSourceGenerator
             if (signal.Arguments?.Length > 0)
             {
                 args = args.AddArguments(
-                    signal.Arguments.Select(static (argument, i) =>
+                    signal.Arguments.Select((argument, i) =>
                             Argument(
-                                IdentifierName(argument.Name is not null
-                                    ? SanitizeIdentifier(
-                                        Camelize(argument.Name.AsSpan()))
-                                    : $"arg{i}")))
+                                MakeToDbusValueExpression(
+                                    argument.DBusDotnetType,
+                                    IdentifierName(argument.Name is not null
+                                        ? SanitizeIdentifier(
+                                            Camelize(argument.Name.AsSpan()))
+                                        : $"arg{i}"))))
                         .ToArray());
             }
 

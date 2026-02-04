@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.CodeAnalysis;
@@ -47,6 +48,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
         {
             if (provider.IsEmpty)
                 return;
+
+            var structDefinitions = CollectStructDefinitions(provider.Select(static value => value.Item1).SelectMany(static node => node.Interfaces!));
+            if (structDefinitions.Count > 0)
+            {
+                productionContext.AddSource(
+                    "Avalonia.DBus.SourceGen.DBusStructs.g.cs",
+                    BuildStructsSource(structDefinitions.Values));
+            }
 
             foreach ((DBusNode Node, string GeneratorMode) value in provider)
             {

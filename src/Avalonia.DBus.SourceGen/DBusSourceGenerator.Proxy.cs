@@ -76,9 +76,11 @@ public partial class DBusSourceGenerator
                             ParseParameterList(inArgs))));
             }
 
-            var extraArgs = inArgs?.Select((arg, i) => (ExpressionSyntax)IdentifierName(arg.Name is not null
-                    ? SanitizeIdentifier(Camelize(arg.Name.AsSpan()))
-                    : $"arg{i}"))
+            var extraArgs = inArgs?.Select((arg, i) => MakeToDbusValueExpression(
+                    arg.DBusDotnetType,
+                    IdentifierName(arg.Name is not null
+                        ? SanitizeIdentifier(Camelize(arg.Name.AsSpan()))
+                        : $"arg{i}")))
                 ?? [];
 
             InvocationExpressionSyntax call = InvocationExpression(
@@ -106,7 +108,7 @@ public partial class DBusSourceGenerator
                 {
                     body = body.AddStatements(
                         ReturnStatement(
-                            MakeBodyCastExpression(outArgs[0].DBusDotnetType.ToTypeSyntax(), "reply", 0)));
+                            MakeBodyCastExpression(outArgs[0].DBusDotnetType, "reply", 0)));
                 }
                 else
                 {
@@ -115,7 +117,7 @@ public partial class DBusSourceGenerator
                             TupleExpression(
                                 SeparatedList(
                                     outArgs.Select((argument, index) => Argument(
-                                            MakeBodyCastExpression(argument.DBusDotnetType.ToTypeSyntax(), "reply", index)))
+                                            MakeBodyCastExpression(argument.DBusDotnetType, "reply", index)))
                                         .ToArray()))));
                 }
             }
@@ -303,8 +305,8 @@ public partial class DBusSourceGenerator
                                                         Argument(
                                                             LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(0))))))))))),
             ReturnStatement(
-                CastExpression(
-                    dBusProperty.DBusDotnetType.ToTypeSyntax(),
+                MakeFromDbusValueExpression(
+                    dBusProperty.DBusDotnetType,
                     MakeMemberAccessExpression("variant", "Value"))));
 
         return MethodDeclaration(
@@ -325,7 +327,11 @@ public partial class DBusSourceGenerator
                         IdentifierName("Interface"),
                         MakeLiteralExpression(dBusProperty.Name!),
                         ObjectCreationExpression(IdentifierName("DBusVariant"))
-                            .AddArgumentListArguments(Argument(IdentifierName("value")))
+                            .AddArgumentListArguments(
+                                Argument(
+                                    MakeToDbusValueExpression(
+                                        dBusProperty.DBusDotnetType,
+                                        IdentifierName("value"))))
                     ]));
 
         BlockSyntax body = Block(
@@ -424,8 +430,8 @@ public partial class DBusSourceGenerator
                 ExpressionStatement(
                     AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
                         MakeMemberAccessExpression("props", Pascalize(property.Name.AsSpan())),
-                        CastExpression(
-                            property.DBusDotnetType.ToTypeSyntax(),
+                        MakeFromDbusValueExpression(
+                            property.DBusDotnetType,
                             MakeMemberAccessExpression("entry", "Value", "Value")))),
                 ExpressionStatement(
                     ConditionalAccessExpression(
@@ -529,17 +535,17 @@ public partial class DBusSourceGenerator
         return args;
     }
 
-    private static ExpressionSyntax MakeBodyCastExpression(TypeSyntax type, string messageIdentifier, int index)
+    private static ExpressionSyntax MakeBodyCastExpression(DBusDotnetType type, string messageIdentifier, int index)
     {
-        return CastExpression(
-            type,
-            ElementAccessExpression(
-                    MakeMemberAccessExpression(messageIdentifier, "Body"))
-                .WithArgumentList(
-                    BracketedArgumentList(
-                        SingletonSeparatedList(
-                            Argument(
-                                LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(index)))))));
+        ExpressionSyntax bodyAccess = ElementAccessExpression(
+                MakeMemberAccessExpression(messageIdentifier, "Body"))
+            .WithArgumentList(
+                BracketedArgumentList(
+                    SingletonSeparatedList(
+                        Argument(
+                            LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(index))))));
+
+        return MakeFromDbusValueExpression(type, bodyAccess);
     }
 
     private static ParenthesizedLambdaExpressionSyntax MakeSignalHandlerLambda(DBusArgument[]? args)
@@ -564,7 +570,7 @@ public partial class DBusSourceGenerator
                                 VariableDeclarator(argName)
                                     .WithInitializer(
                                         EqualsValueClause(
-                                            MakeBodyCastExpression(args[i].DBusDotnetType.ToTypeSyntax(), "message", i))))));
+                                            MakeBodyCastExpression(args[i].DBusDotnetType, "message", i))))));
             }
         }
 

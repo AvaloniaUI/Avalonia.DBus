@@ -30,26 +30,26 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         HelpText = _node.HelpText;
     }
 
-    protected override ValueTask<DBusStruct> OnGetChildAtIndexAsync(DBusMessage request, int index)
+    protected override ValueTask<DbusStruct_Rsoz> OnGetChildAtIndexAsync(DBusMessage request, int index)
     {
         var child = index >= 0 && index < _node.Children.Count ? _node.Children[index] : null;
         return ValueTask.FromResult(_server.GetReference(child));
     }
 
-    protected override ValueTask<DBusArray<DBusStruct>> OnGetChildrenAsync(DBusMessage request)
+    protected override ValueTask<DBusArray<DbusStruct_Rsoz>> OnGetChildrenAsync(DBusMessage request)
     {
         if (_node.Children.Count == 0)
         {
-            return ValueTask.FromResult(new DBusArray<DBusStruct>("(so)"));
+            return ValueTask.FromResult(new DBusArray<DbusStruct_Rsoz>(DbusStruct_Rsoz.Signature));
         }
 
-        var children = new DBusStruct[_node.Children.Count];
+        var children = new DbusStruct_Rsoz[_node.Children.Count];
         for (var i = 0; i < _node.Children.Count; i++)
         {
             children[i] = _server.GetReference(_node.Children[i]);
         }
 
-        return ValueTask.FromResult(new DBusArray<DBusStruct>(children));
+        return ValueTask.FromResult(new DBusArray<DbusStruct_Rsoz>(DbusStruct_Rsoz.Signature, children));
     }
 
     protected override ValueTask<int> OnGetIndexInParentAsync(DBusMessage request)
@@ -58,7 +58,7 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(index);
     }
 
-    protected override ValueTask<DBusArray<DBusStruct>> OnGetRelationSetAsync(DBusMessage request)
+    protected override ValueTask<DBusArray<DbusStruct_Ruarsozz>> OnGetRelationSetAsync(DBusMessage request)
     {
         return ValueTask.FromResult(AtspiServer.s_emptyRelations);
     }
@@ -88,7 +88,7 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(new DBusDict<string, string>());
     }
 
-    protected override ValueTask<DBusStruct> OnGetApplicationAsync(DBusMessage request)
+    protected override ValueTask<DbusStruct_Rsoz> OnGetApplicationAsync(DBusMessage request)
     {
         return ValueTask.FromResult(_server.GetReference(_server.Tree.Root));
     }

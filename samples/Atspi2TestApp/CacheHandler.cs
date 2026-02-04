@@ -16,7 +16,7 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
 
     public override DBusConnection Connection => _server.A11yConnection;
 
-    protected override ValueTask<DBusArray<DBusStruct>> OnGetItemsAsync(DBusMessage request)
+    protected override ValueTask<DBusArray<DbusStruct_Rrsozrsozrsoziiassusauz>> OnGetItemsAsync(DBusMessage request)
     {
         AccessibleNode[] snapshot;
         lock (_server.TreeGate)
@@ -26,7 +26,7 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
                 .ToArray();
         }
 
-        var items = new DBusStruct[snapshot.Length];
+        var items = new DbusStruct_Rrsozrsozrsoziiassusauz[snapshot.Length];
         for (var i = 0; i < snapshot.Length; i++)
         {
             items[i] = _server.BuildCacheItem(snapshot[i]);
@@ -34,16 +34,16 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
 
         return ValueTask.FromResult(
             items.Length == 0
-                ? new DBusArray<DBusStruct>("((so)(so)(so)iiassusau)")
-                : new DBusArray<DBusStruct>(items));
+                ? new DBusArray<DbusStruct_Rrsozrsozrsoziiassusauz>(DbusStruct_Rrsozrsozrsoziiassusauz.Signature)
+                : new DBusArray<DbusStruct_Rrsozrsozrsoziiassusauz>(DbusStruct_Rrsozrsozrsoziiassusauz.Signature, items));
     }
 
-    public void EmitAddAccessibleSignal(DBusStruct item)
+    public void EmitAddAccessibleSignal(DbusStruct_Rrsozrsozrsoziiassusauz item)
     {
         EmitAddAccessible(item);
     }
 
-    public void EmitRemoveAccessibleSignal(DBusStruct node)
+    public void EmitRemoveAccessibleSignal(DbusStruct_Rsoz node)
     {
         EmitRemoveAccessible(node);
     }

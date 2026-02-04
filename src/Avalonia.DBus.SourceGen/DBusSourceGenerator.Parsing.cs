@@ -194,7 +194,12 @@ public partial class DBusSourceGenerator
 
         public DBusDotnetType[] InnerTypes { get; }
 
-        public TypeSyntax ToTypeSyntax(bool nullable = false) => ToTypeSyntax(DotnetType, InnerTypes, nullable);
+        public TypeSyntax ToTypeSyntax(bool nullable = false)
+        {
+            if (DotnetType != DotnetType.Struct) return ToTypeSyntax(DotnetType, InnerTypes, nullable);
+            TypeSyntax structType = IdentifierName(GetStructTypeName(DBusTypeSignature));
+            return nullable ? NullableType(structType) : structType;
+        }
 
         public static DBusDotnetType FromDBusValue(DBusValue dbusValue)
         {

@@ -25,17 +25,17 @@ internal sealed class ComponentHandler : OrgA11yAtspiComponentHandler
         return ValueTask.FromResult(contains);
     }
 
-    protected override ValueTask<DBusStruct> OnGetAccessibleAtPointAsync(DBusMessage request, int x, int y, uint coordType)
+    protected override ValueTask<DbusStruct_Rsoz> OnGetAccessibleAtPointAsync(DBusMessage request, int x, int y, uint coordType)
     {
         var screenPoint = _server.TranslatePoint(_node, x, y, coordType);
         var target = _server.FindAtPoint(_node, screenPoint.x, screenPoint.y);
         return ValueTask.FromResult(_server.GetReference(target));
     }
 
-    protected override ValueTask<DBusStruct> OnGetExtentsAsync(DBusMessage request, uint coordType)
+    protected override ValueTask<DbusStruct_Riiiiz> OnGetExtentsAsync(DBusMessage request, uint coordType)
     {
         var rect = _server.TranslateRect(_node, coordType);
-        return ValueTask.FromResult(new DBusStruct(rect.X, rect.Y, rect.Width, rect.Height));
+        return ValueTask.FromResult(new DbusStruct_Riiiiz(rect.X, rect.Y, rect.Width, rect.Height));
     }
 
     protected override ValueTask<(int X, int Y)> OnGetPositionAsync(DBusMessage request, uint coordType)
