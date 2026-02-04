@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.DBus.AutoGen;
 
-namespace Avalonia.DBus.Wire;
+using Avalonia.DBus.Native;
+
+namespace Avalonia.DBus;
 
 /// <summary>
 /// Low-level connection handling raw DBus message transport.

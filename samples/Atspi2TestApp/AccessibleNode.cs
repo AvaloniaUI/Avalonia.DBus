@@ -18,9 +18,9 @@ internal sealed class AccessibleNode
     public int Role { get; }
     public int? ApplicationId { get; set; }
     public AccessibleNode? Parent { get; set; }
-    public List<AccessibleNode> Children { get; } = new();
-    public HashSet<uint> States { get; } = new();
-    public HashSet<string> Interfaces { get; } = new();
+    public List<AccessibleNode> Children { get; } = [];
+    public HashSet<uint> States { get; } = [];
+    public HashSet<string> Interfaces { get; } = [];
     public Rect Extents { get; set; } = new Rect(0, 0, 0, 0);
     public ActionInfo? Action { get; set; }
     public ValueInfo? Value { get; set; }

@@ -1,11 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-
 using DBusNativeMessagePtr = System.IntPtr;
 using DBusWatchPtr = System.IntPtr;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal sealed partial class DbusWireWorker
 {

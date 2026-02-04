@@ -1,10 +1,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal sealed class AsyncMessageQueue
 {

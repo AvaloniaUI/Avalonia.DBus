@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
@@ -63,39 +61,38 @@ internal sealed class AtspiTree
         root.AccessibleId = "app-root";
         root.HelpText = "Root object for the AT-SPI2 test application";
         root.Extents = new Rect(0, 0, 0, 0);
-        root.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceApplication });
-        root.States.UnionWith(new[] { StateEnabled, StateSensitive, StateVisible, StateShowing });
+        root.Interfaces.UnionWith([IfaceAccessible, IfaceApplication]);
+        root.States.UnionWith([StateEnabled, StateSensitive, StateVisible, StateShowing]);
 
         var staticWindow = CreateNode("Test Window", RoleFrame);
         staticWindow.Description = "Main window";
         staticWindow.AccessibleId = "main-window";
         staticWindow.Extents = new Rect(100, 100, 480, 320);
         StaticWindow = staticWindow;
-        staticWindow.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
-        staticWindow.States.UnionWith(new[] { StateActive, StateEnabled, StateSensitive, StateVisible, StateShowing });
+        staticWindow.Interfaces.UnionWith([IfaceAccessible, IfaceComponent]);
+        staticWindow.States.UnionWith([StateActive, StateEnabled, StateSensitive, StateVisible, StateShowing]);
 
         var toggleWindow = CreateNode("Recurring Window", RoleFrame);
         toggleWindow.Description = "Recurring window (cycle 0)";
         toggleWindow.AccessibleId = "recurring-window";
         toggleWindow.Extents = new Rect(640, 120, 360, 220);
         ToggleWindow = toggleWindow;
-        toggleWindow.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
-        toggleWindow.States.UnionWith(new[] { StateEnabled, StateSensitive, StateVisible, StateShowing });
+        toggleWindow.Interfaces.UnionWith([IfaceAccessible, IfaceComponent]);
+        toggleWindow.States.UnionWith([StateEnabled, StateSensitive, StateVisible, StateShowing]);
 
         var label = CreateNode("Name:", RoleLabel);
         label.Description = "Label for the name entry";
         label.AccessibleId = "name-label";
         label.Extents = new Rect(120, 140, 80, 24);
-        label.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
-        label.States.UnionWith(new[] { StateEnabled, StateSensitive, StateVisible, StateShowing });
+        label.Interfaces.UnionWith([IfaceAccessible, IfaceComponent]);
+        label.States.UnionWith([StateEnabled, StateSensitive, StateVisible, StateShowing]);
 
         var entry = CreateNode("Name Entry", RoleEntry);
         entry.Description = "Editable text entry";
         entry.AccessibleId = "name-entry";
         entry.Extents = new Rect(210, 136, 240, 32);
-        entry.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent });
-        entry.States.UnionWith(new[]
-        {
+        entry.Interfaces.UnionWith([IfaceAccessible, IfaceComponent]);
+        entry.States.UnionWith([
             StateEnabled,
             StateSensitive,
             StateVisible,
@@ -103,15 +100,14 @@ internal sealed class AtspiTree
             StateFocusable,
             StateFocused,
             StateEditable
-        });
+        ]);
 
         var checkBox = CreateNode("Enable Feature", RoleCheckBox);
         checkBox.Description = "Toggles the feature";
         checkBox.AccessibleId = "feature-checkbox";
         checkBox.Extents = new Rect(120, 190, 200, 28);
-        checkBox.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent, IfaceAction });
-        checkBox.States.UnionWith(new[]
-        {
+        checkBox.Interfaces.UnionWith([IfaceAccessible, IfaceComponent, IfaceAction]);
+        checkBox.States.UnionWith([
             StateEnabled,
             StateSensitive,
             StateVisible,
@@ -119,37 +115,35 @@ internal sealed class AtspiTree
             StateFocusable,
             StateCheckable,
             StateChecked
-        });
+        ]);
         checkBox.Action = new ActionInfo("toggle", "Toggle", "Toggles the checkbox state");
 
         var button = CreateNode("Submit", RoleButton);
         button.Description = "Submit button";
         button.AccessibleId = "submit-button";
         button.Extents = new Rect(120, 230, 120, 36);
-        button.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent, IfaceAction });
-        button.States.UnionWith(new[]
-        {
+        button.Interfaces.UnionWith([IfaceAccessible, IfaceComponent, IfaceAction]);
+        button.States.UnionWith([
             StateEnabled,
             StateSensitive,
             StateVisible,
             StateShowing,
             StateFocusable
-        });
+        ]);
         button.Action = new ActionInfo("click", "Click", "Clicks the submit button");
 
         var slider = CreateNode("Volume", RoleSlider);
         slider.Description = "Volume slider";
         slider.AccessibleId = "volume-slider";
         slider.Extents = new Rect(120, 280, 240, 28);
-        slider.Interfaces.UnionWith(new[] { IfaceAccessible, IfaceComponent, IfaceValue });
-        slider.States.UnionWith(new[]
-        {
+        slider.Interfaces.UnionWith([IfaceAccessible, IfaceComponent, IfaceValue]);
+        slider.States.UnionWith([
             StateEnabled,
             StateSensitive,
             StateVisible,
             StateShowing,
             StateFocusable
-        });
+        ]);
         slider.Value = new ValueInfo(0, 100, 65, 1, "65 percent");
 
         root.Children.Add(staticWindow);

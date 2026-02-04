@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal sealed unsafe class Utf8String : IDisposable
 {
@@ -13,7 +13,7 @@ internal sealed unsafe class Utf8String : IDisposable
     {
         if (value == null)
         {
-            _buffer = Array.Empty<byte>();
+            _buffer = [];
             Pointer = null;
             return;
         }

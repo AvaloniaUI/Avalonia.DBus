@@ -1,6 +1,5 @@
-using System.Linq;
+using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
-using Avalonia.DBus.Wire;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;

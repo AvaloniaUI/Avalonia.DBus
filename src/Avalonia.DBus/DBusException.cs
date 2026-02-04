@@ -1,6 +1,6 @@
 using System;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 /// <summary>
 /// Exception thrown when a D-Bus method call returns an ERROR message.

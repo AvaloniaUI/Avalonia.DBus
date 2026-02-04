@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Avalonia.DBus.AutoGen;
-using DBusNativeMessage = Avalonia.DBus.AutoGen.DBusMessage;
 
-namespace Avalonia.DBus.Wire;
+using Avalonia.DBus.Native;
+using DBusNativeMessage = Avalonia.DBus.Native.DBusMessage;
+using LibDbus = Avalonia.DBus.Native.LibDbus;
+
+namespace Avalonia.DBus;
 
 internal static unsafe class DBusMessageMarshaler
 {
@@ -135,13 +137,13 @@ internal static unsafe class DBusMessageMarshaler
     {
         if (string.IsNullOrEmpty(signature))
         {
-            return Array.Empty<object>();
+            return [];
         }
 
         DBusMessageIter iter;
         if (LibDbus.dbus_message_iter_init(message, &iter) == 0)
         {
-            return Array.Empty<object>();
+            return [];
         }
 
         var items = new List<object>();
@@ -439,10 +441,10 @@ internal static unsafe class DBusMessageMarshaler
 
         Type arrayType = typeof(DBusArray<>).MakeGenericType(elementType);
         Type enumerableType = typeof(IEnumerable<>).MakeGenericType(elementType);
-        var ctor = arrayType.GetConstructor(new[] { typeof(string), enumerableType });
+        var ctor = arrayType.GetConstructor([typeof(string), enumerableType]);
         if (ctor != null)
         {
-            return ctor.Invoke(new object?[] { elementSignature, list });
+            return ctor.Invoke([elementSignature, list]);
         }
 
         return Activator.CreateInstance(arrayType, list)!;

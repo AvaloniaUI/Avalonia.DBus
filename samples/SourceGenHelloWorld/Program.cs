@@ -1,5 +1,4 @@
 ﻿using Avalonia.DBus;
-using Avalonia.DBus.Wire;
 
 namespace SourceGenHelloWorld;
 

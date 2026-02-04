@@ -79,7 +79,7 @@ public partial class DBusSourceGenerator
             var extraArgs = inArgs?.Select((arg, i) => (ExpressionSyntax)IdentifierName(arg.Name is not null
                     ? SanitizeIdentifier(Camelize(arg.Name.AsSpan()))
                     : $"arg{i}"))
-                ?? Array.Empty<ExpressionSyntax>();
+                ?? [];
 
             InvocationExpressionSyntax call = InvocationExpression(
                     MakeMemberAccessExpression("_connection", "CallMethodAsync"))
@@ -275,11 +275,10 @@ public partial class DBusSourceGenerator
                 MakeCallArguments(
                     MakeLiteralExpression("org.freedesktop.DBus.Properties"),
                     "Get",
-                    new ExpressionSyntax[]
-                    {
+                    [
                         IdentifierName("Interface"),
                         MakeLiteralExpression(dBusProperty.Name!)
-                    }));
+                    ]));
 
         BlockSyntax body = Block(
             LocalDeclarationStatement(
@@ -322,13 +321,12 @@ public partial class DBusSourceGenerator
                 MakeCallArguments(
                     MakeLiteralExpression("org.freedesktop.DBus.Properties"),
                     "Set",
-                    new ExpressionSyntax[]
-                    {
+                    [
                         IdentifierName("Interface"),
                         MakeLiteralExpression(dBusProperty.Name!),
                         ObjectCreationExpression(IdentifierName("DBusVariant"))
                             .AddArgumentListArguments(Argument(IdentifierName("value")))
-                    }));
+                    ]));
 
         BlockSyntax body = Block(
             ExpressionStatement(AwaitExpression(call)));
@@ -355,7 +353,7 @@ public partial class DBusSourceGenerator
                 MakeCallArguments(
                     MakeLiteralExpression("org.freedesktop.DBus.Properties"),
                     "GetAll",
-                    new ExpressionSyntax[] { IdentifierName("Interface") }));
+                    [IdentifierName("Interface")]));
 
         BlockSyntax body = Block(
             LocalDeclarationStatement(

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal static unsafe class NativeMethods
 {

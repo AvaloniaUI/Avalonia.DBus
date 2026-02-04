@@ -1,9 +1,10 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
-using Avalonia.DBus.AutoGen;
 
-namespace Avalonia.DBus.Wire;
+using LibDbus = Avalonia.DBus.Native.LibDbus;
+
+namespace Avalonia.DBus;
 
 internal static unsafe class DbusHelpers
 {

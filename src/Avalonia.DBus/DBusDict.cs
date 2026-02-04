@@ -3,16 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Avalonia.DBus.Wire;
-
-internal interface IDBusDict
-{
-    Type KeyType { get; }
-
-    Type ValueType { get; }
-
-    IEnumerable<KeyValuePair<object?, object?>> Entries { get; }
-}
+namespace Avalonia.DBus;
 
 /// <summary>
 /// Represents a D-Bus dictionary (array of dict entries).

@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 /// <summary>
 /// A pure managed class representing a D-Bus message.
 /// </summary>
 public sealed class DBusMessage
 {
-    private IReadOnlyList<object> _body = Array.Empty<object>();
+    private IReadOnlyList<object> _body = [];
     private DBusSignature _signature = new(string.Empty);
 
     /// <summary>
@@ -74,14 +74,14 @@ public sealed class DBusMessage
         get => _body;
         init
         {
-            _body = value ?? Array.Empty<object>();
+            _body = value ?? [];
             _signature = new DBusSignature(DBusSignatureInference.InferBodySignature(_body));
         }
     }
 
     internal void SetBodyWithSignature(IReadOnlyList<object> body, string signature)
     {
-        _body = body ?? Array.Empty<object>();
+        _body = body ?? [];
         _signature = new DBusSignature(signature ?? string.Empty);
     }
 
@@ -115,7 +115,7 @@ public sealed class DBusMessage
             Path = path,
             Interface = iface,
             Member = member,
-            Body = body ?? Array.Empty<object>()
+            Body = body ?? []
         };
     }
 
@@ -143,7 +143,7 @@ public sealed class DBusMessage
             Path = path,
             Interface = iface,
             Member = member,
-            Body = body ?? Array.Empty<object>()
+            Body = body ?? []
         };
     }
 
@@ -157,7 +157,7 @@ public sealed class DBusMessage
             Type = DBusMessageType.MethodReturn,
             ReplySerial = Serial,
             Destination = Sender,
-            Body = body ?? Array.Empty<object>()
+            Body = body ?? []
         };
     }
 
@@ -179,7 +179,7 @@ public sealed class DBusMessage
                 ReplySerial = Serial,
                 Destination = Sender,
                 ErrorName = errorName,
-                Body = Array.Empty<object>()
+                Body = []
             };
         }
 
@@ -189,7 +189,7 @@ public sealed class DBusMessage
             ReplySerial = Serial,
             Destination = Sender,
             ErrorName = errorName,
-            Body = new object[] { errorMessage }
+            Body = [errorMessage]
         };
     }
 

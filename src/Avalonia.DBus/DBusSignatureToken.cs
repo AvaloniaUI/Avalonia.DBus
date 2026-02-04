@@ -1,6 +1,6 @@
 using System;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal readonly struct DBusSignatureToken : IEquatable<DBusSignatureToken>
 {

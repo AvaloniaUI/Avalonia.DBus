@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 /// <summary>
 /// Represents a D-Bus struct (sequence of typed fields).
@@ -12,13 +12,13 @@ public sealed class DBusStruct : IReadOnlyList<object>
     private readonly List<object> _fields;
 
     public DBusStruct(params object[] fields)
-        : this((IEnumerable<object>)fields ?? Array.Empty<object>())
+        : this((IEnumerable<object>)fields ?? [])
     {
     }
 
     public DBusStruct(IEnumerable<object> fields)
     {
-        _fields = fields == null ? new List<object>() : new List<object>(fields);
+        _fields = fields == null ? [] : [..fields];
     }
 
     public int Count => _fields.Count;

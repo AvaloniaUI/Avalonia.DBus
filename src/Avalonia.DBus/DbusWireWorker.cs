@@ -8,14 +8,15 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Avalonia.DBus.AutoGen;
-using static Avalonia.DBus.AutoGen.LibDbus;
-using DBusNativeConnection = Avalonia.DBus.AutoGen.DBusConnection;
-using DBusNativeMessage = Avalonia.DBus.AutoGen.DBusMessage;
+
+using Avalonia.DBus.Native;
+using static Avalonia.DBus.Native.LibDbus;
+using DBusNativeConnection = Avalonia.DBus.Native.DBusConnection;
+using DBusNativeMessage = Avalonia.DBus.Native.DBusMessage;
 using DBusNativeMessagePtr = System.IntPtr;
 using DBusWatchPtr = System.IntPtr;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal sealed partial class DbusWireWorker
 {

@@ -1,6 +1,6 @@
 using System;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 /// <summary>
 /// Represents a D-Bus variant (dynamically typed value).

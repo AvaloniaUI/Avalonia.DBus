@@ -104,7 +104,7 @@ public partial class DBusSourceGenerator
             0 or null => IdentifierName("Task"),
             _ => GenericName("Task")
                 .AddTypeArgumentListArguments(
-                    ParseReturnType(dbusValues))
+                    ParseReturnType(dbusValues)?? throw new InvalidOperationException("ParseTaskReturnType: ParseReturnType(dbusValues) returned null."))
         };
     }
 
@@ -115,7 +115,7 @@ public partial class DBusSourceGenerator
             0 or null => IdentifierName("ValueTask"),
             _ => GenericName("ValueTask")
                 .AddTypeArgumentListArguments(
-                    ParseReturnType(dbusValues))
+                    ParseReturnType(dbusValues) ?? throw new InvalidOperationException("ParseValueTaskReturnType: ParseReturnType(dbusValues) returned null.")) 
         };
     }
 
@@ -129,7 +129,7 @@ public partial class DBusSourceGenerator
                         Token(SyntaxKind.BoolKeyword))),
             _ => GenericName("TaskCompletionSource")
                 .AddTypeArgumentListArguments(
-                    ParseReturnType(dbusValues))
+                    ParseReturnType(dbusValues) ?? throw new InvalidOperationException("ParseTaskCompletionSourceType: ParseReturnType(dbusValues) returned null."))
         };
     }
 

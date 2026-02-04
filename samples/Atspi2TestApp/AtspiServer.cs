@@ -1,10 +1,7 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
+using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
-using Avalonia.DBus.Wire;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;

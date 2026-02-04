@@ -14,10 +14,10 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <Version>0.0.23</Version>
+        <Version>1.0.0</Version>
         <PackageId>Avalonia.DBus.SourceGen</PackageId>
-        <Authors>affederaffe</Authors>
-        <Copyright>affederaffe</Copyright>
+        <Authors>affederaffe, The AvaloniaUI Team</Authors>
+        <Copyright>affederaffe, The AvaloniaUI Team</Copyright>
         <Description>A roslyn source generator for creating proxies and abstract handlers targeting the Avalonia.DBus API</Description>
         <PackageTags>DBus;SourceGenerator</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

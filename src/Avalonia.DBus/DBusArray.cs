@@ -2,16 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Avalonia.DBus.Wire;
-
-internal interface IDBusArray
-{
-    Type ElementType { get; }
-
-    string? ElementSignature { get; }
-
-    IEnumerable<object?> Items { get; }
-}
+namespace Avalonia.DBus;
 
 /// <summary>
 /// Represents a D-Bus array. Generic type parameter enables signature inference.
@@ -23,35 +14,35 @@ public sealed class DBusArray<T> : IReadOnlyList<T>, IDBusArray
 
     public DBusArray()
     {
-        _items = new List<T>();
+        _items = [];
     }
 
     public DBusArray(string elementSignature)
     {
         _elementSignature = string.IsNullOrEmpty(elementSignature) ? null : elementSignature;
-        _items = new List<T>();
+        _items = [];
     }
 
     public DBusArray(IEnumerable<T> items)
     {
-        _items = items == null ? new List<T>() : new List<T>(items);
+        _items = items == null ? [] : [..items];
     }
 
     public DBusArray(string elementSignature, IEnumerable<T> items)
     {
         _elementSignature = string.IsNullOrEmpty(elementSignature) ? null : elementSignature;
-        _items = items == null ? new List<T>() : new List<T>(items);
+        _items = items == null ? [] : [..items];
     }
 
     public DBusArray(params T[] items)
     {
-        _items = items == null ? new List<T>() : new List<T>(items);
+        _items = items == null ? [] : [..items];
     }
 
     public DBusArray(string elementSignature, params T[] items)
     {
         _elementSignature = string.IsNullOrEmpty(elementSignature) ? null : elementSignature;
-        _items = items == null ? new List<T>() : new List<T>(items);
+        _items = items == null ? [] : [..items];
     }
 
     public int Count => _items.Count;

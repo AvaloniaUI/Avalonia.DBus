@@ -1,6 +1,6 @@
 using System;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 [Flags]
 public enum DBusMessageFlags

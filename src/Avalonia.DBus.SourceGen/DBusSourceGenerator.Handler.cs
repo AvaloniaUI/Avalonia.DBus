@@ -278,7 +278,7 @@ public partial class DBusSourceGenerator
             .WithBody(
                 Block(
                     SwitchStatement(IdentifierName("name"))
-                        .WithSections(List(sections.Concat(new[] { defaultSection })))));
+                        .WithSections(List(sections.Concat([defaultSection])))));
     }
 
     private MethodDeclarationSyntax MakeTrySetPropertyMethod(DBusInterface dBusInterface)
@@ -311,7 +311,7 @@ public partial class DBusSourceGenerator
             .WithBody(
                 Block(
                     SwitchStatement(IdentifierName("name"))
-                        .WithSections(List(sections.Concat(new[] { defaultSection })))));
+                        .WithSections(List(sections.Concat([defaultSection])))));
     }
 
     private MethodDeclarationSyntax MakeGetAllPropertiesMethod(DBusInterface dBusInterface)

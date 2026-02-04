@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal static class DBusSignatureParser
 {
@@ -57,7 +57,7 @@ internal static class DBusSignatureParser
         }
 
         int index = 1;
-        List<string> parts = new();
+        List<string> parts = [];
         while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd)
         {
             parts.Add(ReadSingleType(signature, ref index));

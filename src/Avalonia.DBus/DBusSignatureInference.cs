@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 internal static class DBusSignatureInference
 {

@@ -1,4 +1,4 @@
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 public enum DBusRequestNameReply
 {

@@ -3,15 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
 
-namespace Avalonia.DBus.Wire;
+namespace Avalonia.DBus;
 
 public sealed class DBusConnection : IAsyncDisposable
 {
     private readonly object _gate = new();
     private readonly Dictionary<ObjectHandlerKey, ObjectHandlerRegistration> _handlers = new();
-    private readonly List<SignalSubscription> _subscriptions = new();
+    private readonly List<SignalSubscription> _subscriptions = [];
     private readonly CancellationTokenSource _dispatchCts = new();
     private readonly Task _dispatchLoop;
     private static readonly bool s_verbose = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE"));
@@ -82,7 +81,7 @@ public sealed class DBusConnection : IAsyncDisposable
         params object[] args)
     {
         LogVerbose($"CallMethod start: dest='{destination}' path='{path}' iface='{iface}' member='{member}' args={(args?.Length ?? 0)}");
-        var message = DBusMessage.CreateMethodCall(destination, path, iface, member, args ?? Array.Empty<object>());
+        var message = DBusMessage.CreateMethodCall(destination, path, iface, member, args ?? []);
         var reply = await Wire.SendWithReplyAsync(message, cancellationToken);
         LogVerbose($"CallMethod reply: type={reply.Type} replySerial={reply.ReplySerial} error='{reply.ErrorName}' body={reply.Body.Count}");
         ThrowIfError(reply);
