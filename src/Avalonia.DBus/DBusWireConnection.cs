@@ -14,6 +14,7 @@ using static Avalonia.DBus.AutoGen.LibDbus;
 using DBusNativeConnection = Avalonia.DBus.AutoGen.DBusConnection;
 using DBusNativeMessage = Avalonia.DBus.AutoGen.DBusMessage;
 using DBusWatchPtr = System.IntPtr;
+using DBusNativeMessagePtr = System.IntPtr;
 using OtherPtr = System.IntPtr;
 
 namespace Avalonia.DBus.Wire;
@@ -747,4 +748,27 @@ public sealed partial class DBusWireConnection : IAsyncDisposable
 
         throw new InvalidOperationException($"{name}: {message}");
     }
+
+
+    record WireWorkerMessage;
+    record OpenConnectionWorkerMessage(OpenConnectionWorkerMessage.BusType Bus, string CustomAddress = "") 
+        : WireWorkerMessage
+    {
+        public enum BusType
+        {
+            Custom,
+            Session,
+            System,
+        }
+    }
+    record DisposeMessage() : WireWorkerMessage;
+    record FetchUniqueNameMessage(TaskCompletionSource<string> ReturnTcs) : WireWorkerMessage;
+    record ConfigureCallbacksMessage() : WireWorkerMessage;
+    record EnqueueSendItemMessage(SendWorkItem WorkItem) : WireWorkerMessage;
+    record EnqueueHandleCallbackMessage(DBusNativeMessagePtr MsgPtr) : WireWorkerMessage;
+    record AddWatchMessage(DBusWatchPtr WatchPtr) : WireWorkerMessage;
+    record ToggleWatchMessage(DBusWatchPtr WatchPtr) : WireWorkerMessage;
+    record RemoveWatchMessage(DBusWatchPtr WatchPtr) : WireWorkerMessage;
+
 }
+
