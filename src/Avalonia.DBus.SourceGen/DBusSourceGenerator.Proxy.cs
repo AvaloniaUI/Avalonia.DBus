@@ -136,46 +136,55 @@ public partial class DBusSourceGenerator
             var outArgs = dBusSignal.Arguments?.Where(static x => x.Direction is null or "out").ToArray();
             var returnType = ParseReturnType(outArgs);
 
-            var parameters = ParameterList();
-
+            ParameterSyntax handlerParameter;
             if (returnType is not null)
             {
-                parameters = parameters.AddParameters(
-                    Parameter(
-                            Identifier("handler"))
-                        .WithType(
-                            GenericName("Action")
-                                .AddTypeArgumentListArguments(
-                                    outArgs!.Select(static argument => argument.DBusDotnetType.ToTypeSyntax())
-                                        .ToArray())));
+                handlerParameter = Parameter(
+                        Identifier("handler"))
+                    .WithType(
+                        GenericName("Action")
+                            .AddTypeArgumentListArguments(
+                                outArgs!.Select(static argument => argument.DBusDotnetType.ToTypeSyntax())
+                                    .ToArray()));
             }
             else
             {
-                parameters = parameters.AddParameters(
-                    Parameter(
-                            Identifier("handler"))
-                        .WithType(
-                            IdentifierName("Action")));
+                handlerParameter = Parameter(
+                        Identifier("handler"))
+                    .WithType(
+                        IdentifierName("Action"));
             }
 
-            parameters = parameters.AddParameters(
-                Parameter(
-                        Identifier("emitOnCapturedContext"))
-                    .WithType(
-                        PredefinedType(
-                            Token(SyntaxKind.BoolKeyword)))
-                    .WithDefault(
-                        EqualsValueClause(
-                            LiteralExpression(SyntaxKind.TrueLiteralExpression))));
+            var emitOnCapturedContextParameter = Parameter(
+                    Identifier("emitOnCapturedContext"))
+                .WithType(
+                    PredefinedType(
+                        Token(SyntaxKind.BoolKeyword)))
+                .WithDefault(
+                    EqualsValueClause(
+                        LiteralExpression(SyntaxKind.TrueLiteralExpression)));
 
-            var watchSignalMethod = MethodDeclaration(
+            var senderParameter = Parameter(
+                    Identifier("sender"))
+                .WithType(
+                    NullableType(
+                        PredefinedType(
+                            Token(SyntaxKind.StringKeyword))));
+
+            var parameters = ParameterList()
+                .AddParameters(handlerParameter, emitOnCapturedContextParameter);
+
+            var parametersWithSender = ParameterList()
+                .AddParameters(handlerParameter, senderParameter, emitOnCapturedContextParameter);
+
+            var watchSignalMethodWithSender = MethodDeclaration(
                     GenericName("Task")
                         .AddTypeArgumentListArguments(
                             IdentifierName("IDisposable")),
                     $"Watch{Pascalize(dBusSignal.Name.AsSpan())}Async")
                 .AddModifiers(
                     Token(SyntaxKind.PublicKeyword))
-                .WithParameterList(parameters)
+                .WithParameterList(parametersWithSender)
                 .WithBody(
                     Block(
                         ReturnStatement(
@@ -183,7 +192,7 @@ public partial class DBusSourceGenerator
                                     MakeMemberAccessExpression("_connection", "SubscribeAsync"))
                                 .AddArgumentListArguments(
                                     Argument(
-                                        IdentifierName("_destination")),
+                                        IdentifierName("sender")),
                                     Argument(
                                         IdentifierName("_path")),
                                     Argument(
@@ -197,57 +206,114 @@ public partial class DBusSourceGenerator
                                             MakeMemberAccessExpression("SynchronizationContext", "Current"),
                                             LiteralExpression(SyntaxKind.NullLiteralExpression)))))));
 
-            cl = cl.AddMembers(watchSignalMethod);
+            var watchSignalMethod = MethodDeclaration(
+                    GenericName("Task")
+                        .AddTypeArgumentListArguments(
+                            IdentifierName("IDisposable")),
+                    $"Watch{Pascalize(dBusSignal.Name.AsSpan())}Async")
+                .AddModifiers(
+                    Token(SyntaxKind.PublicKeyword))
+                .WithParameterList(parameters)
+                .WithBody(
+                    Block(
+                        ReturnStatement(
+                            InvocationExpression(
+                                    IdentifierName($"Watch{Pascalize(dBusSignal.Name.AsSpan())}Async"))
+                                .AddArgumentListArguments(
+                                    Argument(
+                                        IdentifierName("handler")),
+                                    Argument(
+                                        IdentifierName("_destination")),
+                                    Argument(
+                                        IdentifierName("emitOnCapturedContext"))))));
+
+            cl = cl.AddMembers(watchSignalMethodWithSender, watchSignalMethod);
         }
     }
 
     private void AddWatchPropertiesChanged(ref ClassDeclarationSyntax cl, DBusInterface dBusInterface)
     {
-        cl = cl.AddMembers(
-            MethodDeclaration(
-                    GenericName("Task")
-                        .AddTypeArgumentListArguments(
-                            IdentifierName("IDisposable")),
-                    "WatchPropertiesChangedAsync")
-                .AddModifiers(
-                    Token(SyntaxKind.PublicKeyword))
-                .AddParameterListParameters(
-                    Parameter(Identifier("handler"))
-                        .WithType(
-                            GenericName("Action")
-                                .AddTypeArgumentListArguments(
-                                    GenericName("PropertyChanges")
-                                        .AddTypeArgumentListArguments(
-                                            IdentifierName(
-                                                GetPropertiesClassIdentifier(dBusInterface))))),
-                    Parameter(
-                            Identifier("emitOnCapturedContext"))
-                        .WithType(
-                            PredefinedType(
-                                Token(SyntaxKind.BoolKeyword)))
-                        .WithDefault(
-                            EqualsValueClause(
-                                LiteralExpression(SyntaxKind.TrueLiteralExpression))))
-                .WithBody(
-                    Block(
-                        ReturnStatement(
-                            InvocationExpression(
-                                    MakeMemberAccessExpression("_connection", "SubscribeAsync"))
-                                .AddArgumentListArguments(
-                                    Argument(
-                                        IdentifierName("_destination")),
-                                    Argument(
-                                        IdentifierName("_path")),
-                                    Argument(
-                                        MakeLiteralExpression("org.freedesktop.DBus.Properties")),
-                                    Argument(
-                                        MakeLiteralExpression("PropertiesChanged")),
-                                    Argument(MakePropertiesChangedLambda(dBusInterface)),
-                                    Argument(
-                                        ConditionalExpression(
-                                            IdentifierName("emitOnCapturedContext"),
-                                            MakeMemberAccessExpression("SynchronizationContext", "Current"),
-                                            LiteralExpression(SyntaxKind.NullLiteralExpression))))))));
+        var handlerParameter = Parameter(Identifier("handler"))
+            .WithType(
+                GenericName("Action")
+                    .AddTypeArgumentListArguments(
+                        GenericName("PropertyChanges")
+                            .AddTypeArgumentListArguments(
+                                IdentifierName(
+                                    GetPropertiesClassIdentifier(dBusInterface)))));
+
+        var emitOnCapturedContextParameter = Parameter(
+                Identifier("emitOnCapturedContext"))
+            .WithType(
+                PredefinedType(
+                    Token(SyntaxKind.BoolKeyword)))
+            .WithDefault(
+                EqualsValueClause(
+                    LiteralExpression(SyntaxKind.TrueLiteralExpression)));
+
+        var senderParameter = Parameter(
+                Identifier("sender"))
+            .WithType(
+                NullableType(
+                    PredefinedType(
+                        Token(SyntaxKind.StringKeyword))));
+
+        var watchPropertiesChangedWithSender = MethodDeclaration(
+                GenericName("Task")
+                    .AddTypeArgumentListArguments(
+                        IdentifierName("IDisposable")),
+                "WatchPropertiesChangedAsync")
+            .AddModifiers(
+                Token(SyntaxKind.PublicKeyword))
+            .AddParameterListParameters(
+                handlerParameter,
+                senderParameter,
+                emitOnCapturedContextParameter)
+            .WithBody(
+                Block(
+                    ReturnStatement(
+                        InvocationExpression(
+                                MakeMemberAccessExpression("_connection", "SubscribeAsync"))
+                            .AddArgumentListArguments(
+                                Argument(
+                                    IdentifierName("sender")),
+                                Argument(
+                                    IdentifierName("_path")),
+                                Argument(
+                                    MakeLiteralExpression("org.freedesktop.DBus.Properties")),
+                                Argument(
+                                    MakeLiteralExpression("PropertiesChanged")),
+                                Argument(MakePropertiesChangedLambda(dBusInterface)),
+                                Argument(
+                                    ConditionalExpression(
+                                        IdentifierName("emitOnCapturedContext"),
+                                        MakeMemberAccessExpression("SynchronizationContext", "Current"),
+                                        LiteralExpression(SyntaxKind.NullLiteralExpression)))))));
+
+        var watchPropertiesChanged = MethodDeclaration(
+                GenericName("Task")
+                    .AddTypeArgumentListArguments(
+                        IdentifierName("IDisposable")),
+                "WatchPropertiesChangedAsync")
+            .AddModifiers(
+                Token(SyntaxKind.PublicKeyword))
+            .AddParameterListParameters(
+                handlerParameter,
+                emitOnCapturedContextParameter)
+            .WithBody(
+                Block(
+                    ReturnStatement(
+                        InvocationExpression(
+                                IdentifierName("WatchPropertiesChangedAsync"))
+                            .AddArgumentListArguments(
+                                Argument(
+                                    IdentifierName("handler")),
+                                Argument(
+                                    IdentifierName("_destination")),
+                                Argument(
+                                    IdentifierName("emitOnCapturedContext"))))));
+
+        cl = cl.AddMembers(watchPropertiesChangedWithSender, watchPropertiesChanged);
     }
 
     private void AddProperties(ref ClassDeclarationSyntax cl, DBusInterface dBusInterface)

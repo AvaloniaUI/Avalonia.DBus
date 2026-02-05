@@ -129,6 +129,63 @@ public sealed class DBusConnection : IAsyncDisposable
     }
 
     /// <summary>
+    /// Subscribes to the org.freedesktop.DBus NameOwnerChanged signal.
+    /// </summary>
+    /// <param name="handler">Invoked with (name, oldOwner, newOwner).</param>
+    /// <param name="emitOnCapturedContext">Whether to invoke the handler on the captured context.</param>
+    /// <param name="sender">Filter by sender (null for any).</param>
+    public Task<IDisposable> WatchNameOwnerChangedAsync(
+        Action<string, string?, string?> handler,
+        bool emitOnCapturedContext = true,
+        string? sender = null)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+
+        return SubscribeAsync(
+            sender,
+            (DBusObjectPath)"/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "NameOwnerChanged",
+            message =>
+            {
+                var name = (string)message.Body[0];
+                var oldOwner = NormalizeNameOwner((string)message.Body[1]);
+                var newOwner = NormalizeNameOwner((string)message.Body[2]);
+                handler(name, oldOwner, newOwner);
+                return Task.CompletedTask;
+            },
+            emitOnCapturedContext ? SynchronizationContext.Current : null);
+    }
+
+    /// <summary>
+    /// Subscribes to the org.freedesktop.DBus NameOwnerChanged signal.
+    /// </summary>
+    /// <param name="handler">Invoked with (name, oldOwner, newOwner).</param>
+    /// <param name="emitOnCapturedContext">Whether to invoke the handler on the captured context.</param>
+    /// <param name="sender">Filter by sender (null for any).</param>
+    public Task<IDisposable> WatchNameOwnerChangedAsync(
+        Func<string, string?, string?, Task> handler,
+        bool emitOnCapturedContext = true,
+        string? sender = null)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+
+        return SubscribeAsync(
+            sender,
+            (DBusObjectPath)"/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "NameOwnerChanged",
+            message =>
+            {
+                var name = (string)message.Body[0];
+                var oldOwner = NormalizeNameOwner((string)message.Body[1]);
+                var newOwner = NormalizeNameOwner((string)message.Body[2]);
+                return handler(name, oldOwner, newOwner);
+            },
+            emitOnCapturedContext ? SynchronizationContext.Current : null);
+    }
+
+    /// <summary>
     /// Requests ownership of a bus name.
     /// </summary>
     public async Task<DBusRequestNameReply> RequestNameAsync(
@@ -504,6 +561,11 @@ public sealed class DBusConnection : IAsyncDisposable
 
         return value.Replace("\\", @"\\", StringComparison.Ordinal)
             .Replace("'", "\\'", StringComparison.Ordinal);
+    }
+
+    private static string? NormalizeNameOwner(string owner)
+    {
+        return string.IsNullOrWhiteSpace(owner) ? null : owner;
     }
 
     private static void FireAndForget(Task task)

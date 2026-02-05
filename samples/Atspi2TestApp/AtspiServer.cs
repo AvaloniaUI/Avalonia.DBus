@@ -365,25 +365,17 @@ internal sealed class AtspiServer
             var registryOwner = await ResolveRegistryUniqueNameAsync();
             await UpdateRegistrySignalSubscriptionsAsync(registryOwner);
 
-            _registryOwnerChangedSubscription ??= await _a11yConnection.SubscribeAsync(
-                sender: null,
-                path: new DBusObjectPath("/org/freedesktop/DBus"),
-                iface: "org.freedesktop.DBus",
-                member: "NameOwnerChanged",
-                handler: message =>
+            _registryOwnerChangedSubscription ??= await _a11yConnection.WatchNameOwnerChangedAsync(
+                (name, oldOwner, newOwner) =>
                 {
-                    var name = (string)message.Body[0];
                     if (!string.Equals(name, BusNameRegistry, StringComparison.Ordinal))
                     {
-                        return Task.CompletedTask;
+                        return;
                     }
 
-                    var newOwner = (string)message.Body[2];
-                    var owner = string.IsNullOrWhiteSpace(newOwner) ? null : newOwner;
-                    FireAndForget(UpdateRegistrySignalSubscriptionsAsync(owner));
-                    return Task.CompletedTask;
+                    FireAndForget(UpdateRegistrySignalSubscriptionsAsync(newOwner));
                 },
-                synchronizationContext: null);
+                emitOnCapturedContext: false);
         }
         catch (Exception ex)
         {
@@ -465,38 +457,24 @@ internal sealed class AtspiServer
 
             var senderFilter = string.IsNullOrWhiteSpace(registryOwner) ? null : registryOwner;
 
+            _registryProxy ??= new OrgA11yAtspiRegistryProxy(
+                _a11yConnection,
+                BusNameRegistry,
+                new DBusObjectPath(RegistryPath));
+
             IDisposable? registered = null;
             IDisposable? deregistered = null;
             try
             {
-                registered = await _a11yConnection.SubscribeAsync(
-                    sender: senderFilter,
-                    path: new DBusObjectPath(RegistryPath),
-                    iface: "org.a11y.atspi.Registry",
-                    member: "EventListenerRegistered",
-                    handler: message =>
-                    {
-                        var bus = (string)message.Body[0];
-                        var @event = (string)message.Body[1];
-                        var properties = (List<string>)message.Body[2];
-                        OnRegistryEventListenerRegistered(bus, @event, properties);
-                        return Task.CompletedTask;
-                    },
-                    synchronizationContext: null);
+                registered = await _registryProxy.WatchEventListenerRegisteredAsync(
+                    OnRegistryEventListenerRegistered,
+                    senderFilter,
+                    emitOnCapturedContext: false);
 
-                deregistered = await _a11yConnection.SubscribeAsync(
-                    sender: senderFilter,
-                    path: new DBusObjectPath(RegistryPath),
-                    iface: "org.a11y.atspi.Registry",
-                    member: "EventListenerDeregistered",
-                    handler: message =>
-                    {
-                        var bus = (string)message.Body[0];
-                        var @event = (string)message.Body[1];
-                        OnRegistryEventListenerDeregistered(bus, @event);
-                        return Task.CompletedTask;
-                    },
-                    synchronizationContext: null);
+                deregistered = await _registryProxy.WatchEventListenerDeregisteredAsync(
+                    OnRegistryEventListenerDeregistered,
+                    senderFilter,
+                    emitOnCapturedContext: false);
             }
             catch
             {
