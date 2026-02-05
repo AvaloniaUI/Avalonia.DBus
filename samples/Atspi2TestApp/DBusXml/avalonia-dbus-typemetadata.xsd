@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:av="http://avaloniaui.net/dbus/1.0"
+           targetNamespace="http://avaloniaui.net/dbus/1.0"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+  <!-- Import reference to shared type catalogs -->
+  <xs:element name="ImportTypes" type="xs:string"/>
+
+  <!-- Attached metadata wrapper used in DBus XML -->
+  <xs:element name="TypeDefinition">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element ref="av:Struct"/>
+        <xs:element ref="av:List"/>
+        <xs:element ref="av:Dictionary"/>
+        <xs:element ref="av:BitFlags"/>
+      </xs:choice>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Shared type catalog -->
+  <xs:element name="Types">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="av:Struct"/>
+          <xs:element ref="av:Dictionary"/>
+          <xs:element ref="av:BitFlags"/>
+          <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:choice>
+      </xs:sequence>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Struct">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="av:Property" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="Name" type="xs:string" use="optional"/>
+      <xs:attribute name="Type" type="xs:string" use="optional"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Property">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="av:List"/>
+          <xs:element ref="av:Struct"/>
+          <xs:element ref="av:Dictionary"/>
+          <xs:element ref="av:BitFlags"/>
+        </xs:choice>
+      </xs:sequence>
+      <xs:attribute name="Name" type="xs:string" use="required"/>
+      <xs:attribute name="Type" type="xs:string" use="optional"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="List">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="av:Struct"/>
+          <xs:element ref="av:Dictionary"/>
+          <xs:element ref="av:BitFlags"/>
+        </xs:choice>
+      </xs:sequence>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Dictionary">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="av:Key" minOccurs="0"/>
+        <xs:element ref="av:Value" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="Name" type="xs:string" use="optional"/>
+      <xs:attribute name="Type" type="xs:string" use="optional"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Key">
+    <xs:complexType>
+      <xs:attribute name="Name" type="xs:string" use="optional"/>
+      <xs:attribute name="Type" type="xs:string" use="optional"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Value">
+    <xs:complexType>
+      <xs:attribute name="Name" type="xs:string" use="optional"/>
+      <xs:attribute name="Type" type="xs:string" use="optional"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="BitFlags">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="av:Flag" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="Name" type="xs:string" use="optional"/>
+      <xs:attribute name="Type" type="xs:string" use="optional"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Flag">
+    <xs:complexType>
+      <xs:attribute name="Name" type="xs:string" use="required"/>
+      <xs:attribute name="Value" type="xs:string" use="optional"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>
