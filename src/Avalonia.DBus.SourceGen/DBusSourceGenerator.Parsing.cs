@@ -177,12 +177,14 @@ public partial class DBusSourceGenerator
 
         internal static readonly DBusDotnetType StringArrayType = new(DotnetType.Array, DBusType.Array, "as", [StringType]);
 
-        private DBusDotnetType(DotnetType dotnetType, DBusType dBusType, string dBusTypeSignature, DBusDotnetType[] innerTypes)
+        private DBusDotnetType(DotnetType dotnetType, DBusType dBusType, string dBusTypeSignature, DBusDotnetType[] innerTypes, string? aliasName = null, bool isBitFlags = false)
         {
             DotnetType = dotnetType;
             InnerTypes = innerTypes;
             DBusTypeSignature = dBusTypeSignature;
             DBusType = dBusType;
+            AliasName = aliasName;
+            IsBitFlags = isBitFlags;
         }
 
         public DotnetType DotnetType { get; }
@@ -193,8 +195,18 @@ public partial class DBusSourceGenerator
 
         public DBusDotnetType[] InnerTypes { get; }
 
+        public string? AliasName { get; }
+
+        public bool IsBitFlags { get; }
+
         public TypeSyntax ToTypeSyntax(bool nullable = false)
         {
+            if (!string.IsNullOrWhiteSpace(AliasName))
+            {
+                var aliasType = IdentifierName(SanitizeIdentifier(AliasName!));
+                return nullable ? NullableType(aliasType) : aliasType;
+            }
+
             if (DotnetType != DotnetType.Struct) return ToTypeSyntax(DotnetType, InnerTypes, nullable);
             TypeSyntax structType = IdentifierName(GetStructTypeName(DBusTypeSignature));
             return nullable ? NullableType(structType) : structType;
@@ -203,7 +215,114 @@ public partial class DBusSourceGenerator
         public static DBusDotnetType FromDBusValue(DBusValue dbusValue)
         {
             ReadOnlySpan<byte> signature = Encoding.ASCII.GetBytes(dbusValue.Type!).AsSpan();
-            return SignatureReader.Transform<DBusDotnetType>(signature, Map);
+            var type = SignatureReader.Transform<DBusDotnetType>(signature, Map);
+            return dbusValue.TypeDefinition is null ? type : ApplyTypeDefinition(type, dbusValue.TypeDefinition);
+        }
+
+        internal DBusDotnetType WithAlias(string aliasName, bool isBitFlags = false)
+        {
+            return new DBusDotnetType(DotnetType, DBusType, DBusTypeSignature, InnerTypes, aliasName, isBitFlags);
+        }
+
+        internal DBusDotnetType WithInnerTypes(DBusDotnetType[] innerTypes)
+        {
+            return new DBusDotnetType(DotnetType, DBusType, DBusTypeSignature, innerTypes, AliasName, IsBitFlags);
+        }
+
+        internal DBusDotnetType ApplyStructAliases(IReadOnlyDictionary<string, string> aliasBySignature)
+        {
+            var updated = this;
+
+            if (DotnetType == DotnetType.Struct
+                && string.IsNullOrWhiteSpace(AliasName)
+                && aliasBySignature.TryGetValue(DBusTypeSignature, out var aliasName))
+            {
+                updated = updated.WithAlias(aliasName);
+            }
+
+            if (InnerTypes.Length == 0)
+                return updated;
+
+            DBusDotnetType[]? updatedInner = null;
+            for (var i = 0; i < InnerTypes.Length; i++)
+            {
+                var applied = InnerTypes[i].ApplyStructAliases(aliasBySignature);
+                if (!ReferenceEquals(applied, InnerTypes[i]))
+                {
+                    updatedInner ??= (DBusDotnetType[])InnerTypes.Clone();
+                    updatedInner[i] = applied;
+                }
+            }
+
+            if (updatedInner is not null)
+                updated = updated.WithInnerTypes(updatedInner);
+
+            return updated;
+        }
+
+        private static DBusDotnetType ApplyTypeDefinition(DBusDotnetType type, AvTypeContainer? definition)
+        {
+            if (definition is null)
+                return type;
+
+            if (definition.Struct is not null)
+                return ApplyStructDefinition(type, definition.Struct);
+
+            if (definition.List is not null)
+                return ApplyListDefinition(type, definition.List);
+
+            if (definition.Dictionary is not null)
+                return ApplyDictionaryDefinition(type, definition.Dictionary);
+
+            if (definition.BitFlags is not null)
+                return ApplyBitFlagsDefinition(type, definition.BitFlags);
+
+            return type;
+        }
+
+        private static DBusDotnetType ApplyStructDefinition(DBusDotnetType type, AvStructType definition)
+        {
+            if (type.DotnetType != DotnetType.Struct)
+                return type;
+
+            if (string.IsNullOrWhiteSpace(definition.Type))
+                return type;
+
+            return type.WithAlias(definition.Type!);
+        }
+
+        private static DBusDotnetType ApplyListDefinition(DBusDotnetType type, AvListType definition)
+        {
+            if (type.DotnetType != DotnetType.Array || type.InnerTypes.Length != 1)
+                return type;
+
+            var elementType = ApplyTypeDefinition(type.InnerTypes[0], definition);
+            return ReferenceEquals(elementType, type.InnerTypes[0]) ? type : type.WithInnerTypes([elementType]);
+        }
+
+        private static DBusDotnetType ApplyDictionaryDefinition(DBusDotnetType type, AvDictionaryType definition)
+        {
+            if (type.DotnetType != DotnetType.Dictionary || type.InnerTypes.Length != 2)
+                return type;
+
+            var updated = type;
+            if (!string.IsNullOrWhiteSpace(definition.Type))
+                updated = updated.WithAlias(definition.Type!);
+
+            var keyType = ApplyTypeDefinition(type.InnerTypes[0], definition.Key);
+            var valueType = ApplyTypeDefinition(type.InnerTypes[1], definition.Value);
+            if (ReferenceEquals(keyType, type.InnerTypes[0]) && ReferenceEquals(valueType, type.InnerTypes[1]))
+                return updated;
+
+            return updated.WithInnerTypes([keyType, valueType]);
+        }
+
+        private static DBusDotnetType ApplyBitFlagsDefinition(DBusDotnetType type, AvBitFlagsType definition)
+        {
+            if (string.IsNullOrWhiteSpace(definition.Type))
+                return type;
+
+            return type.WithAlias(definition.Type!, isBitFlags: true);
         }
 
         private static DBusDotnetType Map(DBusType dbusType, string? signature, DBusDotnetType[] innerTypes)

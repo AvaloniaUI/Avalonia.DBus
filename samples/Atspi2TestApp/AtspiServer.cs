@@ -12,7 +12,7 @@ internal sealed class AtspiServer
     private const int StartupRetryDelayMs = 2000;
     private const int StartupRetryMaxDelayMs = 15000;
 
-    internal static readonly List<DbusStruct_Ruarsozz> s_emptyRelations = [];
+    internal static readonly List<AtSpiRelationEntry> s_emptyRelations = [];
 
     private readonly AtspiTree _tree;
     private readonly Dictionary<int, string> _roleNames = new();
@@ -325,7 +325,7 @@ internal sealed class AtspiServer
         {
             var proxy = new OrgA11yAtspiSocketProxy(_a11yConnection, BusNameRegistry, new DBusObjectPath(RootPath));
             LogVerbose("Calling org.a11y.atspi.Socket.Embed");
-            var reply = await proxy.EmbedAsync(new DbusStruct_Rsoz(_uniqueName, new DBusObjectPath(RootPath)));
+            var reply = await proxy.EmbedAsync(new AtSpiObjectReference(_uniqueName, new DBusObjectPath(RootPath)));
             var registryBus = reply.Item1;
             var registryPath = reply.Item2;
             Console.WriteLine($"Registry root: {registryBus} {registryPath}");
@@ -617,13 +617,13 @@ internal sealed class AtspiServer
         EmitCacheRemove(node);
     }
 
-    internal DbusStruct_Rrsozrsozrsoziiassusauz BuildCacheItem(AccessibleNode node)
+    internal AtSpiAccessibleCacheItem BuildCacheItem(AccessibleNode node)
     {
-        var self = new DbusStruct_Rsoz(_uniqueName, new DBusObjectPath(node.Path));
-        var app = new DbusStruct_Rsoz(_uniqueName, new DBusObjectPath(RootPath));
+        var self = new AtSpiObjectReference(_uniqueName, new DBusObjectPath(node.Path));
+        var app = new AtSpiObjectReference(_uniqueName, new DBusObjectPath(RootPath));
         var parent = node.Parent == null
-            ? new DbusStruct_Rsoz(string.Empty, new DBusObjectPath(NullPath))
-            : new DbusStruct_Rsoz(_uniqueName, new DBusObjectPath(node.Parent.Path));
+            ? new AtSpiObjectReference(string.Empty, new DBusObjectPath(NullPath))
+            : new AtSpiObjectReference(_uniqueName, new DBusObjectPath(node.Parent.Path));
         var indexInParent = node.Parent == null ? -1 : node.Parent.Children.IndexOf(node);
         var childCount = node.Children.Count;
         var interfaces = node.Interfaces.Count == 0
@@ -634,7 +634,7 @@ internal sealed class AtspiServer
         var description = node.Description;
         var states = BuildStateSet(node.States);
 
-        return new DbusStruct_Rrsozrsozrsoziiassusauz(
+        return new AtSpiAccessibleCacheItem(
             self,
             app,
             parent,
@@ -772,14 +772,14 @@ internal sealed class AtspiServer
         }
     }
 
-    internal DbusStruct_Rsoz GetReference(AccessibleNode? node)
+    internal AtSpiObjectReference GetReference(AccessibleNode? node)
     {
         if (node == null)
         {
-            return new DbusStruct_Rsoz(string.Empty, new DBusObjectPath(NullPath));
+            return new AtSpiObjectReference(string.Empty, new DBusObjectPath(NullPath));
         }
 
-        return new DbusStruct_Rsoz(_uniqueName, new DBusObjectPath(node.Path));
+        return new AtSpiObjectReference(_uniqueName, new DBusObjectPath(node.Path));
     }
 
     private void EmitChildrenChanged(AccessibleNode parent, string operation, int index, AccessibleNode child)

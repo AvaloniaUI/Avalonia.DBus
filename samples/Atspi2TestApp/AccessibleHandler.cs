@@ -30,20 +30,20 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         HelpText = _node.HelpText;
     }
 
-    protected override ValueTask<DbusStruct_Rsoz> OnGetChildAtIndexAsync(DBusMessage request, int index)
+    protected override ValueTask<AtSpiObjectReference> OnGetChildAtIndexAsync(DBusMessage request, int index)
     {
         var child = index >= 0 && index < _node.Children.Count ? _node.Children[index] : null;
         return ValueTask.FromResult(_server.GetReference(child));
     }
 
-    protected override ValueTask<List<DbusStruct_Rsoz>> OnGetChildrenAsync(DBusMessage request)
+    protected override ValueTask<List<AtSpiObjectReference>> OnGetChildrenAsync(DBusMessage request)
     {
         if (_node.Children.Count == 0)
         {
-            return ValueTask.FromResult(new List<DbusStruct_Rsoz>());
+            return ValueTask.FromResult(new List<AtSpiObjectReference>());
         }
 
-        var children = new List<DbusStruct_Rsoz>(_node.Children.Count);
+        var children = new List<AtSpiObjectReference>(_node.Children.Count);
         for (var i = 0; i < _node.Children.Count; i++)
         {
             children.Add(_server.GetReference(_node.Children[i]));
@@ -58,7 +58,7 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(index);
     }
 
-    protected override ValueTask<List<DbusStruct_Ruarsozz>> OnGetRelationSetAsync(DBusMessage request)
+    protected override ValueTask<List<AtSpiRelationEntry>> OnGetRelationSetAsync(DBusMessage request)
     {
         return ValueTask.FromResult(AtspiServer.s_emptyRelations);
     }
@@ -83,12 +83,12 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
         return ValueTask.FromResult(BuildStateSet(_node.States));
     }
 
-    protected override ValueTask<Dictionary<string, string>> OnGetAttributesAsync(DBusMessage request)
+    protected override ValueTask<AtSpiAttributeSet> OnGetAttributesAsync(DBusMessage request)
     {
-        return ValueTask.FromResult(new Dictionary<string, string>());
+        return ValueTask.FromResult(new AtSpiAttributeSet());
     }
 
-    protected override ValueTask<DbusStruct_Rsoz> OnGetApplicationAsync(DBusMessage request)
+    protected override ValueTask<AtSpiObjectReference> OnGetApplicationAsync(DBusMessage request)
     {
         return ValueTask.FromResult(_server.GetReference(_server.Tree.Root));
     }

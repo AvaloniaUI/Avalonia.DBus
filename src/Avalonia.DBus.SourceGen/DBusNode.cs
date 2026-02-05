@@ -10,6 +10,9 @@ namespace Avalonia.DBus.SourceGen;
 [XmlRoot(Namespace = "", IsNullable = false, ElementName = "node")]
 public class DBusNode
 {
+    [XmlElement("ImportTypes", Namespace = AvDbusXml.Namespace)]
+    public string[]? ImportTypes { get; set; }
+
     [XmlElement("interface")]
     public DBusInterface[]? Interfaces { get; set; }
 }

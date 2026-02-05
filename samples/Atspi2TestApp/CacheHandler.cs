@@ -16,7 +16,7 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
 
     public override DBusConnection Connection => _server.A11yConnection;
 
-    protected override ValueTask<List<DbusStruct_Rrsozrsozrsoziiassusauz>> OnGetItemsAsync(DBusMessage request)
+    protected override ValueTask<List<AtSpiAccessibleCacheItem>> OnGetItemsAsync(DBusMessage request)
     {
         AccessibleNode[] snapshot;
         lock (_server.TreeGate)
@@ -26,18 +26,18 @@ internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
                 .ToArray();
         }
 
-        var items = new List<DbusStruct_Rrsozrsozrsoziiassusauz>(snapshot.Length);
+        var items = new List<AtSpiAccessibleCacheItem>(snapshot.Length);
         items.AddRange(snapshot.Select(t => _server.BuildCacheItem(t)));
 
         return ValueTask.FromResult(items);
     }
 
-    public void EmitAddAccessibleSignal(DbusStruct_Rrsozrsozrsoziiassusauz item)
+    public void EmitAddAccessibleSignal(AtSpiAccessibleCacheItem item)
     {
         EmitAddAccessible(item);
     }
 
-    public void EmitRemoveAccessibleSignal(DbusStruct_Rsoz node)
+    public void EmitRemoveAccessibleSignal(AtSpiObjectReference node)
     {
         EmitRemoveAccessible(node);
     }

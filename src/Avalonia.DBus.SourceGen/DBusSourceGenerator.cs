@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using System.Xml;
@@ -17,6 +18,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         XmlSerializer xmlSerializer = new(typeof(DBusNode));
+        XmlSerializer typesSerializer = new(typeof(AvTypesDocument));
         XmlReaderSettings xmlReaderSettings = new()
         {
             DtdProcessing = DtdProcessing.Ignore,
@@ -31,25 +33,52 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             initializationContext.AddSource("Avalonia.DBus.SourceGen.IDBusInterfaceHandler.cs", DBusInterfaceHandlerInterface);
         });
 
-        IncrementalValuesProvider<(DBusNode, string)> generatorProvider = context.AdditionalTextsProvider
+        IncrementalValuesProvider<(DBusNode, string, string)> generatorProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select((x, _) =>
             {
                 if (!x.Right.GetOptions(x.Left).TryGetValue("build_metadata.AdditionalFiles.DBusGeneratorMode", out var generatorMode))
                     return default;
-                if (xmlSerializer.Deserialize(XmlReader.Create(new StringReader(x.Left.GetText()!.ToString()), xmlReaderSettings)) is not DBusNode dBusNode)
-                    return default;
-                return dBusNode.Interfaces is null ? default : ValueTuple.Create(dBusNode, generatorMode);
-            })
-            .Where(static x => x is { Item1: not null, Item2: not null });
+                try
+                {
+                    if (xmlSerializer.Deserialize(XmlReader.Create(new StringReader(x.Left.GetText()!.ToString()), xmlReaderSettings)) is not DBusNode dBusNode)
+                        return default;
 
-        context.RegisterSourceOutput(generatorProvider.Collect(), (productionContext, provider) =>
+                    return dBusNode.Interfaces is null ? default : ValueTuple.Create(dBusNode, generatorMode, x.Left.Path);
+                }
+                catch
+                {
+                    return default;
+                }
+            })
+            .Where(static x => x is { Item1: not null, Item2: not null, Item3: not null });
+
+        var xmlTextProvider = context.AdditionalTextsProvider
+            .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
+            .Select((text, _) => (text.Path, Text: text.GetText()?.ToString()))
+            .Where(static x => x.Text is not null);
+
+        var combinedProvider = generatorProvider.Collect().Combine(xmlTextProvider.Collect());
+
+        context.RegisterSourceOutput(combinedProvider, (productionContext, data) =>
         {
+            var provider = data.Left;
             if (provider.IsEmpty)
                 return;
 
-            var structDefinitions = CollectStructDefinitions(provider.Select(static value => value.Item1).SelectMany(static node => node.Interfaces!));
+            var xmlByPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in data.Right)
+            {
+                if (!string.IsNullOrWhiteSpace(entry.Text))
+                    xmlByPath[entry.Path] = entry.Text!;
+            }
+
+            var interfaces = provider.Select(static value => value.Item1).SelectMany(static node => node.Interfaces!);
+            var structAliases = CollectStructAliases(interfaces);
+            ApplyStructAliases(interfaces, structAliases);
+
+            var structDefinitions = CollectStructDefinitions(interfaces);
             if (structDefinitions.Count > 0)
             {
                 productionContext.AddSource(
@@ -57,7 +86,37 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     BuildStructsSource(structDefinitions.Values));
             }
 
-            foreach ((DBusNode Node, string GeneratorMode) value in provider)
+            var (dictionaryAliases, bitFlagsAliases) = CollectTypeAliases(interfaces);
+
+            if (dictionaryAliases.Count > 0 || bitFlagsAliases.Count > 0)
+            {
+                var importPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var value in provider)
+                {
+                    var node = value.Item1;
+                    if (node.ImportTypes is null || node.ImportTypes.Length == 0)
+                        continue;
+
+                    var baseDirectory = Path.GetDirectoryName(value.Item3) ?? string.Empty;
+                    foreach (var import in node.ImportTypes)
+                    {
+                        if (string.IsNullOrWhiteSpace(import))
+                            continue;
+
+                        var resolvedPath = Path.GetFullPath(Path.Combine(baseDirectory, import));
+                        importPaths.Add(resolvedPath);
+                    }
+                }
+
+                var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
+                var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions);
+                if (!string.IsNullOrWhiteSpace(aliasesSource))
+                {
+                    productionContext.AddSource("Avalonia.DBus.SourceGen.DBusTypeAliases.g.cs", aliasesSource);
+                }
+            }
+
+            foreach ((DBusNode Node, string GeneratorMode, string Path) value in provider)
             {
                 switch (value.GeneratorMode)
                 {

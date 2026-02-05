@@ -12,11 +12,14 @@ public partial class DBusSourceGenerator
 {
     private sealed class StructDefinition
     {
-        public StructDefinition(string signature, DBusDotnetType[] fields)
+        public StructDefinition(string name, string signature, DBusDotnetType[] fields)
         {
+            Name = name;
             Signature = signature;
             Fields = fields;
         }
+
+        public string Name { get; }
 
         public string Signature { get; }
 
@@ -82,9 +85,13 @@ public partial class DBusSourceGenerator
     {
         if (type.DotnetType == DotnetType.Struct && !string.IsNullOrEmpty(type.DBusTypeSignature))
         {
-            if (!definitions.ContainsKey(type.DBusTypeSignature))
+            var typeName = string.IsNullOrWhiteSpace(type.AliasName)
+                ? GetStructTypeName(type.DBusTypeSignature)
+                : type.AliasName!;
+
+            if (!definitions.ContainsKey(typeName))
             {
-                definitions[type.DBusTypeSignature] = new StructDefinition(type.DBusTypeSignature, type.InnerTypes);
+                definitions[typeName] = new StructDefinition(typeName, type.DBusTypeSignature, type.InnerTypes);
             }
         }
  
@@ -97,17 +104,31 @@ public partial class DBusSourceGenerator
     private static string GetStructTypeName(string signature)
         => $"DbusStruct_{Pascalize(SanitizeSignature(signature).AsSpan())}";
 
-    private static bool ContainsStruct(DBusDotnetType type)
+    private static bool RequiresFromDbusConversion(DBusDotnetType type)
     {
-        if (type.DotnetType == DotnetType.Struct)
+        if (type.DotnetType == DotnetType.Struct || type.IsBitFlags)
             return true;
-
-        if (type.InnerTypes is null)
-            return false;
 
         foreach (var inner in type.InnerTypes)
         {
-            if (ContainsStruct(inner))
+            if (RequiresFromDbusConversion(inner))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool RequiresToDbusConversion(DBusDotnetType type)
+    {
+        if (type.DotnetType == DotnetType.Struct)
+            return false;
+
+        if (type.IsBitFlags)
+            return true;
+
+        foreach (var inner in type.InnerTypes)
+        {
+            if (RequiresToDbusConversion(inner))
                 return true;
         }
 
@@ -116,14 +137,51 @@ public partial class DBusSourceGenerator
 
     private static string GetTypeName(DBusDotnetType type) => type.ToTypeSyntax().ToString();
 
+    private static string GetUnderlyingTypeName(DBusDotnetType type)
+    {
+        return type.DotnetType switch
+        {
+            DotnetType.Byte => "byte",
+            DotnetType.Bool => "bool",
+            DotnetType.Int16 => "short",
+            DotnetType.UInt16 => "ushort",
+            DotnetType.Int32 => "int",
+            DotnetType.UInt32 => "uint",
+            DotnetType.Int64 => "long",
+            DotnetType.UInt64 => "ulong",
+            DotnetType.Double => "double",
+            DotnetType.String => "string",
+            DotnetType.ObjectPath => "DBusObjectPath",
+            DotnetType.Signature => "DBusSignature",
+            DotnetType.Variant => "DBusVariant",
+            DotnetType.UnixFd => "DBusUnixFd",
+            DotnetType.Struct => "DBusStruct",
+            DotnetType.Array => $"List<{GetUnderlyingTypeName(type.InnerTypes[0])}>",
+            DotnetType.Dictionary => $"Dictionary<{GetUnderlyingTypeName(type.InnerTypes[0])}, {GetUnderlyingTypeName(type.InnerTypes[1])}>",
+            _ => type.ToTypeSyntax().ToString()
+        };
+    }
+
     private static string GetRawTypeName(DBusDotnetType type)
     {
         return type.DotnetType switch
         {
-            DotnetType.Struct => "DBusStruct",
             DotnetType.Array => $"List<{GetRawTypeName(type.InnerTypes[0])}>",
             DotnetType.Dictionary => $"Dictionary<{GetRawTypeName(type.InnerTypes[0])}, {GetRawTypeName(type.InnerTypes[1])}>",
-            _ => type.ToTypeSyntax().ToString()
+            _ => GetUnderlyingTypeName(type)
+        };
+    }
+
+    private static string GetToDbusTypeName(DBusDotnetType type)
+    {
+        if (type.IsBitFlags)
+            return GetUnderlyingTypeName(type);
+
+        return type.DotnetType switch
+        {
+            DotnetType.Array => $"List<{GetToDbusTypeName(type.InnerTypes[0])}>",
+            DotnetType.Dictionary => $"Dictionary<{GetToDbusTypeName(type.InnerTypes[0])}, {GetToDbusTypeName(type.InnerTypes[1])}>",
+            _ => GetTypeName(type)
         };
     }
 
@@ -137,7 +195,7 @@ public partial class DBusSourceGenerator
     {
         return type.DotnetType switch
         {
-            DotnetType.Struct => $"{GetStructTypeName(type.DBusTypeSignature)}.FromDbusStruct((DBusStruct){source})",
+            DotnetType.Struct => $"{GetTypeName(type)}.FromDbusStruct((DBusStruct){source})",
             DotnetType.Array => MakeFromDbusArrayExpressionString(type, source),
             DotnetType.Dictionary => MakeFromDbusDictExpressionString(type, source),
             _ => $"({GetTypeName(type)}){source}"
@@ -147,7 +205,7 @@ public partial class DBusSourceGenerator
     private static string MakeFromDbusArrayExpressionString(DBusDotnetType type, string source)
     {
         var elementType = type.InnerTypes[0];
-        if (!ContainsStruct(elementType))
+        if (!RequiresFromDbusConversion(elementType))
             return $"({GetTypeName(type)}){source}";
 
         var rawElementType = GetRawTypeName(elementType);
@@ -164,12 +222,18 @@ public partial class DBusSourceGenerator
     {
         var keyType = type.InnerTypes[0];
         var valueType = type.InnerTypes[1];
-        if (!ContainsStruct(keyType) && !ContainsStruct(valueType))
-            return $"({GetTypeName(type)}){source}";
-
         var rawKeyType = GetRawTypeName(keyType);
         var rawValueType = GetRawTypeName(valueType);
         var rawDictType = $"Dictionary<{rawKeyType}, {rawValueType}>";
+
+        if (!RequiresFromDbusConversion(keyType) && !RequiresFromDbusConversion(valueType))
+        {
+            if (string.IsNullOrWhiteSpace(type.AliasName))
+                return $"({GetTypeName(type)}){source}";
+
+            return $"new {GetTypeName(type)}(({rawDictType}){source})";
+        }
+
         var strongKeyType = GetTypeName(keyType);
         var strongValueType = GetTypeName(valueType);
         var strongDictType = $"Dictionary<{strongKeyType}, {strongValueType}>";
@@ -177,7 +241,12 @@ public partial class DBusSourceGenerator
         var keyExpr = MakeFromDbusValueExpressionString(keyType, "kv.Key");
         var valueExpr = MakeFromDbusValueExpressionString(valueType, "kv.Value");
 
-        return $"new {strongDictType}((({rawDictType}){source}).Select(kv => new KeyValuePair<{strongKeyType}, {strongValueType}>({keyExpr}, {valueExpr})))";
+        var dictExpression = $"new {strongDictType}((({rawDictType}){source}).Select(kv => new KeyValuePair<{strongKeyType}, {strongValueType}>({keyExpr}, {valueExpr})))";
+
+        if (string.IsNullOrWhiteSpace(type.AliasName))
+            return dictExpression;
+
+        return $"new {GetTypeName(type)}({dictExpression})";
     }
 
     private static string MakeToDbusValueExpressionString(DBusDotnetType type, string source)
@@ -185,8 +254,41 @@ public partial class DBusSourceGenerator
         return type.DotnetType switch
         {
             DotnetType.Struct => $"{source}.ToDbusStruct()",
+            DotnetType.Array => MakeToDbusArrayExpressionString(type, source),
+            DotnetType.Dictionary => MakeToDbusDictExpressionString(type, source),
+            _ when type.IsBitFlags => $"({GetUnderlyingTypeName(type)}){source}",
             _ => source
         };
+    }
+
+    private static string MakeToDbusArrayExpressionString(DBusDotnetType type, string source)
+    {
+        var elementType = type.InnerTypes[0];
+        if (!RequiresToDbusConversion(elementType))
+            return source;
+
+        var rawElementType = GetToDbusTypeName(elementType);
+        var rawArrayType = $"List<{rawElementType}>";
+        var convertedItem = MakeToDbusValueExpressionString(elementType, "item");
+
+        return $"new {rawArrayType}(({source}).Select(item => {convertedItem}))";
+    }
+
+    private static string MakeToDbusDictExpressionString(DBusDotnetType type, string source)
+    {
+        var keyType = type.InnerTypes[0];
+        var valueType = type.InnerTypes[1];
+        if (!RequiresToDbusConversion(keyType) && !RequiresToDbusConversion(valueType))
+            return source;
+
+        var rawKeyType = GetToDbusTypeName(keyType);
+        var rawValueType = GetToDbusTypeName(valueType);
+        var rawDictType = $"Dictionary<{rawKeyType}, {rawValueType}>";
+
+        var keyExpr = MakeToDbusValueExpressionString(keyType, "kv.Key");
+        var valueExpr = MakeToDbusValueExpressionString(valueType, "kv.Value");
+
+        return $"new {rawDictType}(({source}).Select(kv => new KeyValuePair<{rawKeyType}, {rawValueType}>({keyExpr}, {valueExpr})))";
     }
 
     private static string BuildStructsSource(IEnumerable<StructDefinition> definitions)
@@ -203,9 +305,9 @@ public partial class DBusSourceGenerator
         sb.AppendLine("namespace Avalonia.DBus.SourceGen");
         sb.AppendLine("{");
 
-        foreach (var definition in definitions.OrderBy(static d => d.Signature, StringComparer.Ordinal))
+        foreach (var definition in definitions.OrderBy(static d => d.Name, StringComparer.Ordinal))
         {
-            var typeName = GetStructTypeName(definition.Signature);
+            var typeName = SanitizeIdentifier(definition.Name);
             var signatureLiteral = SymbolDisplay.FormatLiteral(definition.Signature, true);
 
             var parameters = string.Join(", ", definition.Fields.Select((field, index) =>
