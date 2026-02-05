@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.Document:
       @short_description: Allows querying of information pertaining to documents.
@@ -55,7 +56,11 @@
         org.a11y.Atspi.Text.GetAttributeRun instead.
     -->
     <method name="GetAttributes">
-      <arg direction="out" type="a{ss}"/>
+      <arg direction="out" type="a{ss}">
+        <av:TypeDefinition>
+          <av:Dictionary Type="AtSpiAttributeSet"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiAttributeSet"/>
     </method>
 
@@ -81,7 +86,13 @@
           active point.
     -->
     <method name="GetTextSelections">
-      <arg direction="out" name="selections" type="a((so)i(so)ib)"/>
+      <arg direction="out" name="selections" type="a((so)i(so)ib)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiTextSelection"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
     </method>
 
     <!--
@@ -97,7 +108,13 @@
         Returns: true if successful, false otherwise.
     -->
     <method name="SetTextSelections">
-      <arg direction="in" name="selections" type="a((so)i(so)ib)"/>
+      <arg direction="in" name="selections" type="a((so)i(so)ib)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiTextSelection"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <arg direction="out" type="b"/>
     </method>
 

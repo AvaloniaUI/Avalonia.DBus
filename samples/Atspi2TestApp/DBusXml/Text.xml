@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.Text:
       @short_description: An interface implemented by objects which place
@@ -321,7 +322,11 @@
     -->
     <method name="GetAttributes">
       <arg direction="in" name="offset" type="i"/>
-      <arg direction="out" type="a{ss}"/>
+      <arg direction="out" type="a{ss}">
+        <av:TypeDefinition>
+          <av:Dictionary Type="AtSpiAttributeSet"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiAttributeSet"/>
       <arg direction="out" name="startOffset" type="i"/>
       <arg direction="out" name="endOffset" type="i"/>
@@ -341,7 +346,11 @@
         attributes), encoded as UTF-8.
     -->
     <method name="GetDefaultAttributes">
-      <arg direction="out" type="a{ss}"/>
+      <arg direction="out" type="a{ss}">
+        <av:TypeDefinition>
+          <av:Dictionary Type="AtSpiAttributeSet"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiAttributeSet"/>
     </method>
 
@@ -556,7 +565,13 @@
       <arg direction="in" name="coordType" type="u"/>
       <arg direction="in" name="xClipType" type="u"/>
       <arg direction="in" name="yClipType" type="u"/>
-      <arg direction="out" type="a(iisv)"/>
+      <arg direction="out" type="a(iisv)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiTextRange"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiRangeList"/>
     </method>
 
@@ -580,7 +595,11 @@
     <method name="GetAttributeRun">
       <arg direction="in" name="offset" type="i"/>
       <arg direction="in" name="includeDefaults" type="b"/>
-      <arg direction="out" type="a{ss}"/>
+      <arg direction="out" type="a{ss}">
+        <av:TypeDefinition>
+          <av:Dictionary Type="AtSpiAttributeSet"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiAttributeSet"/>
       <arg direction="out" name="startOffset" type="i"/>
       <arg direction="out" name="endOffset" type="i"/>
@@ -592,7 +611,11 @@
         Returns the default attributes for the text object.
     -->
     <method name="GetDefaultAttributeSet">
-      <arg direction="out" type="a{ss}"/>
+      <arg direction="out" type="a{ss}">
+        <av:TypeDefinition>
+          <av:Dictionary Type="AtSpiAttributeSet"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiAttributeSet"/>
     </method>
 

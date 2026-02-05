@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<av:Types xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:Struct Name="AtSpiObjectReference">
+    <av:Property Name="Service"/>
+    <av:Property Name="Path"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiAction">
+    <av:Property Name="LocalizedName"/>
+    <av:Property Name="LocalizedDescription"/>
+    <av:Property Name="KeyBinding"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiAccessibleCacheItem">
+    <av:Property Name="Path" Type="AtSpiObjectReference"/>
+    <av:Property Name="Application" Type="AtSpiObjectReference"/>
+    <av:Property Name="Parent" Type="AtSpiObjectReference"/>
+    <av:Property Name="IndexInParent"/>
+    <av:Property Name="ChildCount"/>
+    <av:Property Name="SupportedInterfaces">
+      <av:List/>
+    </av:Property>
+    <av:Property Name="Name"/>
+    <av:Property Name="Role"/>
+    <av:Property Name="Description"/>
+    <av:Property Name="State">
+      <av:List/>
+    </av:Property>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiEventListener">
+    <av:Property Name="ListenerAddress"/>
+    <av:Property Name="EventName"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiRelationEntry">
+    <av:Property Name="RelationType"/>
+    <av:Property Name="Targets">
+      <av:List>
+        <av:Struct Type="AtSpiObjectReference"/>
+      </av:List>
+    </av:Property>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiTextRange">
+    <av:Property Name="StartOffset"/>
+    <av:Property Name="EndOffset"/>
+    <av:Property Name="Contents"/>
+    <av:Property Name="Value"/>
+  </av:Struct>
+
+  <av:Dictionary Name="AtSpiAttributeSet">
+    <av:Key Name="Key"/>
+    <av:Value Name="Value"/>
+  </av:Dictionary>
+
+  <av:Dictionary Name="AtSpiEventProperties">
+    <av:Key Name="Key"/>
+    <av:Value Name="Value"/>
+  </av:Dictionary>
+
+  <av:Struct Name="AtSpiDeviceEvent">
+    <av:Property Name="Type"/>
+    <av:Property Name="Id"/>
+    <av:Property Name="HardwareCode"/>
+    <av:Property Name="Modifiers">
+      <av:BitFlags Type="AtSpiModifierMask"/>
+    </av:Property>
+    <av:Property Name="Timestamp"/>
+    <av:Property Name="Text"/>
+    <av:Property Name="IsText"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiMatchRule">
+    <av:Property Name="States">
+      <av:List/>
+    </av:Property>
+    <av:Property Name="StateMatchType"/>
+    <av:Property Name="Attributes" Type="AtSpiAttributeSet"/>
+    <av:Property Name="AttributeMatchType"/>
+    <av:Property Name="Roles">
+      <av:List/>
+    </av:Property>
+    <av:Property Name="RoleMatchType"/>
+    <av:Property Name="Interfaces">
+      <av:List/>
+    </av:Property>
+    <av:Property Name="InterfaceMatchType"/>
+    <av:Property Name="Invert"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiKeyDefinition">
+    <av:Property Name="KeyCode"/>
+    <av:Property Name="KeySym"/>
+    <av:Property Name="KeyString"/>
+    <av:Property Name="Unused"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiEventMode">
+    <av:Property Name="Synchronous"/>
+    <av:Property Name="Preemptive"/>
+    <av:Property Name="Global"/>
+  </av:Struct>
+
+  <av:BitFlags Name="AtSpiEventTypeMask">
+    <av:BitFlag Name="KeyPress" Value="1"/>
+    <av:BitFlag Name="KeyRelease" Value="2"/>
+  </av:BitFlags>
+
+  <av:BitFlags Name="AtSpiModifierMask">
+    <av:BitFlag Name="Shift" Value="1"/>
+    <av:BitFlag Name="Lock" Value="2"/>
+    <av:BitFlag Name="Control" Value="4"/>
+    <av:BitFlag Name="Mod1" Value="8"/>
+    <av:BitFlag Name="Mod2" Value="16"/>
+    <av:BitFlag Name="Mod3" Value="32"/>
+    <av:BitFlag Name="Mod4" Value="64"/>
+    <av:BitFlag Name="Mod5" Value="128"/>
+  </av:BitFlags>
+
+  <av:Struct Name="AtSpiKeystrokeListener">
+    <av:Property Name="BusName"/>
+    <av:Property Name="Path"/>
+    <av:Property Name="Type"/>
+    <av:Property Name="Types">
+      <av:BitFlags Type="AtSpiEventTypeMask"/>
+    </av:Property>
+    <av:Property Name="Keys">
+      <av:List>
+        <av:Struct Type="AtSpiKeyDefinition"/>
+      </av:List>
+    </av:Property>
+    <av:Property Name="Mask">
+      <av:BitFlags Type="AtSpiModifierMask"/>
+    </av:Property>
+    <av:Property Name="Mode" Type="AtSpiEventMode"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiTextSelection">
+    <av:Property Name="StartObject" Type="AtSpiObjectReference"/>
+    <av:Property Name="StartOffset"/>
+    <av:Property Name="EndObject" Type="AtSpiObjectReference"/>
+    <av:Property Name="EndOffset"/>
+    <av:Property Name="IsStartActive"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiRect">
+    <av:Property Name="X"/>
+    <av:Property Name="Y"/>
+    <av:Property Name="Width"/>
+    <av:Property Name="Height"/>
+  </av:Struct>
+
+  <av:Struct Name="AtSpiPoint">
+    <av:Property Name="X"/>
+    <av:Property Name="Y"/>
+  </av:Struct>
+</av:Types>

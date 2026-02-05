@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.Registry:
       @short_description: Interface implemented by the AT-SPI registry daemon.
@@ -76,7 +77,13 @@
         for a description of the format of this string.
     -->
     <method name="GetRegisteredEvents">
-      <arg direction="out" name="events" type="a(ss)"/>
+      <arg direction="out" name="events" type="a(ss)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiEventListener"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiEventListenerArray"/>
     </method>
 

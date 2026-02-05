@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.Accessible:
       @short_description: Base interface which is implemented by all accessible objects.
@@ -52,6 +53,9 @@
         their highest-level ancestor.
     -->
     <property name="Parent" type="(so)" access="read">
+      <av:TypeDefinition>
+        <av:Struct Type="AtSpiObjectReference"/>
+      </av:TypeDefinition>
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QSpiObjectReference"/>
     </property>
 
@@ -107,7 +111,11 @@
     -->
     <method name="GetChildAtIndex">
       <arg direction="in" name="index" type="i"/>
-      <arg direction="out" type="(so)"/>
+      <arg direction="out" type="(so)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiObjectReference"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiObjectReference"/>
     </method>
 
@@ -122,7 +130,13 @@
         number of children such that returning a list would be prohibitive.
     -->
     <method name="GetChildren">
-      <arg direction="out" type="a(so)"/>
+      <arg direction="out" type="a(so)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiObjectReference"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiObjectReferenceArray"/>
     </method>
 
@@ -261,7 +275,13 @@
              condition in the target object(s). Since: 2.26.
     -->
     <method name="GetRelationSet">
-      <arg direction="out" type="a(ua(so))"/>
+      <arg direction="out" type="a(ua(so))">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiRelationEntry"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiRelationArray"/>
     </method>
 
@@ -809,7 +829,11 @@
           user. Since: 2.16
     -->
     <method name="GetState">
-      <arg direction="out" type="au"/>
+      <arg direction="out" type="au">
+        <av:TypeDefinition>
+          <av:List/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiIntList"/>
     </method>
 
@@ -823,7 +847,11 @@
         FIXME: is there a list of well-known attributes?
     -->
     <method name="GetAttributes">
-      <arg direction="out" type="a{ss}"/>
+      <arg direction="out" type="a{ss}">
+        <av:TypeDefinition>
+          <av:Dictionary Type="AtSpiAttributeSet"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiAttributeSet"/>
     </method>
 
@@ -834,7 +862,11 @@
         application object.
     -->
     <method name="GetApplication">
-      <arg direction="out" type="(so)"/>
+      <arg direction="out" type="(so)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiObjectReference"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiObjectReference"/>
     </method>
 

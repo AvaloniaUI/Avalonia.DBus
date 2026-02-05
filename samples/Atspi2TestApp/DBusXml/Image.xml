@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.Image:
       @short_description: Interface for accessible objects that represent
@@ -42,7 +43,11 @@
     -->
     <method name="GetImageExtents">
       <arg direction="in" name="coordType" type="u"/>
-      <arg direction="out" type="(iiii)"/>
+      <arg direction="out" type="(iiii)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiRect"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiRect"/>
     </method>
 

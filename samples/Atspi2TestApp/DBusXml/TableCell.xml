@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.TableCell:
       @short_description: Interface implemented by accessible objects that
@@ -28,6 +29,9 @@
         Returns a struct with the cell's tabular row followed by the column.
     -->
     <property access="read" name="Position" type="(ii)">
+      <av:TypeDefinition>
+        <av:Struct Type="AtSpiPoint"/>
+      </av:TypeDefinition>
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QPoint"/>
     </property>
 
@@ -44,6 +48,9 @@
         Returns a reference (bus name + object path) for the table.
     -->
     <property access="read" name="Table" type="(so)" >
+      <av:TypeDefinition>
+        <av:Struct Type="AtSpiObjectReference"/>
+      </av:TypeDefinition>
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QSpiObjectReference"/>
     </property>
 
@@ -76,7 +83,13 @@
         Returns a list of the table cell's column header cells.
     -->
     <method name="GetColumnHeaderCells">
-      <arg direction="out" type="a(so)"/>
+      <arg direction="out" type="a(so)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiObjectReference"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiObjectReferenceArray"/>
     </method>
 
@@ -86,7 +99,13 @@
         Returns a list of the table cell's row header cells.
     -->
     <method name="GetRowHeaderCells">
-      <arg direction="out" type="a(so)"/>
+      <arg direction="out" type="a(so)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiObjectReference"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiObjectReferenceArray"/>
     </method>
   </interface>

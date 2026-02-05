@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.Action:
       @short_description: Allows exploring and invoking the actions of a user-actionable UI component.
@@ -115,8 +116,16 @@
         considered the "default" action of the object.
     -->
     <method name="GetActions">
-      <arg direction="out" type="a(sss)"/>
+      <arg direction="out" type="a(sss)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiAction"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiActionArray"/>
+      
+
     </method>
 
     <!--

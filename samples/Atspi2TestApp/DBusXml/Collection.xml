@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.Collection:
       @short_description: An interface designed to allow accessibles which satisfy a set of
@@ -63,12 +64,22 @@
         (if #TRUE) or only direct children (if #FALSE).
     -->
     <method name="GetMatches">
-      <arg direction="in" name="rule" type="(aiia{ss}iaiiasib)"/>
+      <arg direction="in" name="rule" type="(aiia{ss}iaiiasib)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiMatchRule"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QSpiMatchRule"/>
       <arg direction="in" name="sortby" type="u"/>
       <arg direction="in" name="count" type="i"/>
       <arg direction="in" name="traverse" type="b"/>
-      <arg direction="out" type="a(so)"/>
+      <arg direction="out" type="a(so)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiObjectReference"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiReferenceSet"/>
     </method>
 
@@ -104,16 +115,30 @@
         @currentObject.
     -->
     <method name="GetMatchesTo">
-      <arg direction="in" name="currentObject" type="o"/>
+      <arg direction="in" name="currentObject" type="o">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiObjectReference"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QSpiObjectReference"/>
-      <arg direction="in" name="rule" type="(aiia{ss}iaiiasib)"/>
+      <arg direction="in" name="rule" type="(aiia{ss}iaiiasib)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiMatchRule"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QSpiMatchRule"/>
       <arg direction="in" name="sortby" type="u"/>
       <arg direction="in" name="tree" type="u"/>
       <arg direction="in" name="limit_scope" type="b"/>
       <arg direction="in" name="count" type="i"/>
       <arg direction="in" name="traverse" type="b"/>
-      <arg direction="out" type="a(so)"/>
+      <arg direction="out" type="a(so)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiObjectReference"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiReferenceSet"/>
     </method>
 
@@ -141,15 +166,29 @@
         @currentObject.
     -->
     <method name="GetMatchesFrom">
-      <arg direction="in" name="currentObject" type="o"/>
+      <arg direction="in" name="currentObject" type="o">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiObjectReference"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QSpiObjectReference"/>
-      <arg direction="in" name="rule" type="(aiia{ss}iaiiasib)"/>
+      <arg direction="in" name="rule" type="(aiia{ss}iaiiasib)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiMatchRule"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QSpiMatchRule"/>
       <arg direction="in" name="sortby" type="u"/>
       <arg direction="in" name="tree" type="u"/>
       <arg direction="in" name="count" type="i"/>
       <arg direction="in" name="traverse" type="b"/>
-      <arg direction="out" type="a(so)"/>
+      <arg direction="out" type="a(so)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiObjectReference"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiReferenceSet"/>
     </method>
 
@@ -160,7 +199,11 @@
         implemented in libatspi.
     -->
     <method name="GetActiveDescendant">
-      <arg direction="out" type="(so)"/>
+      <arg direction="out" type="(so)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiObjectReference"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSpiReferenceSet"/>
     </method>
 

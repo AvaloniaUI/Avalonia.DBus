@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.DeviceEventController:
       @short_description: Legacy interface for keystroke listeners and generation of keyboard/mouse events
@@ -52,26 +53,64 @@
     -->
     <method name="RegisterKeystrokeListener">
       <arg direction="in" name="listener" type="o"/>
-      <arg direction="in" name="keys" type="a(iisi)"/>
+      <arg direction="in" name="keys" type="a(iisi)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiKeyDefinition"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QSpiKeyTypeArray"/>
-      <arg direction="in" name="mask" type="u"/>
-      <arg direction="in" name="types" type="u"/>
+      <arg direction="in" name="mask" type="u">
+        <av:TypeDefinition>
+          <av:BitFlags Type="AtSpiModifierMask"/>
+        </av:TypeDefinition>
+      </arg>
+      <arg direction="in" name="types" type="u">
+        <av:TypeDefinition>
+          <av:BitFlags Type="AtSpiEventTypeMask"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In3" value="QSpiEventTypeArray"/>
-      <arg direction="in" name="mode" type="(bbb)"/>
+      <arg direction="in" name="mode" type="(bbb)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiEventMode"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In4" value="QSpiEventMode"/>
       <arg direction="out" type="b"/>
     </method>
 
     <method name="DeregisterKeystrokeListener">
       <arg direction="in" name="listener" type="o"/>
-      <arg direction="in" name="keys" type="a(iisi)"/>
+      <arg direction="in" name="keys" type="a(iisi)">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiKeyDefinition"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QSpiKeyTypeArray"/>
-      <arg direction="in" name="mask" type="u"/>
-      <arg direction="in" name="type" type="u"/>
+      <arg direction="in" name="mask" type="u">
+        <av:TypeDefinition>
+          <av:BitFlags Type="AtSpiModifierMask"/>
+        </av:TypeDefinition>
+      </arg>
+      <arg direction="in" name="type" type="u">
+        <av:TypeDefinition>
+          <av:BitFlags Type="AtSpiEventTypeMask"/>
+        </av:TypeDefinition>
+      </arg>
     </method>
 
     <method name="GetKeystrokeListeners">
-      <arg direction="out" type="a(souua(iisi)u(bbb))"/>
+      <arg direction="out" type="a(souua(iisi)u(bbb))">
+        <av:TypeDefinition>
+          <av:List>
+            <av:Struct Type="AtSpiKeystrokeListener"/>
+          </av:List>
+        </av:TypeDefinition>
+      </arg>
     </method>
 
     <method name="GenerateKeyboardEvent">
@@ -87,13 +126,21 @@
     </method>
 
     <method name="NotifyListenersSync">
-      <arg direction="in" name="event" type="(uiuuisb)"/>
+      <arg direction="in" name="event" type="(uiuuisb)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiDeviceEvent"/>
+        </av:TypeDefinition>
+      </arg>
       <arg direction="out" type="b"/>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QSpiDeviceEvent"/>
     </method>
 
     <method name="NotifyListenersAsync">
-      <arg direction="in" name="event" type="(uiuuisb)"/>
+      <arg direction="in" name="event" type="(uiuuisb)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiDeviceEvent"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QSpiDeviceEvent"/>
     </method>
 

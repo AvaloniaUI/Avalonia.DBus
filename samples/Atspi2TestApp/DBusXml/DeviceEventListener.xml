@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+<node xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd" xmlns:av="http://avaloniaui.net/dbus/1.0">
+  <av:ImportTypes>Types.xml</av:ImportTypes>
   <!--
       org.a11y.atspi.DeviceEventListener:
       @short_description: Legacy interface for keystroke listeners and generation of keyboard/mouse events
@@ -42,7 +43,11 @@
         Returns: TRUE if the listener wants to consume the event, FALSE otherwise.
     -->
     <method name="NotifyEvent">
-      <arg direction="in" name="event" type="(uiuuisb)"/>
+      <arg direction="in" name="event" type="(uiuuisb)">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiDeviceEvent"/>
+        </av:TypeDefinition>
+      </arg>
       <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QSpiDeviceEvent"/>
       <arg direction="out" type="b"/>
     </method>
@@ -78,7 +83,11 @@
         registered.
     -->
     <signal name="KeystrokeListenerRegistered">
-      <arg name="listener" type="(souua(iisi)u(bbb))"/>
+      <arg name="listener" type="(souua(iisi)u(bbb))">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiKeystrokeListener"/>
+        </av:TypeDefinition>
+      </arg>
     </signal>
 
     <!--
@@ -91,7 +100,11 @@
         deregistered.
     -->
     <signal name="KeystrokeListenerDeregistered">
-      <arg name="listener" type="(souua(iisi)u(bbb))"/>
+      <arg name="listener" type="(souua(iisi)u(bbb))">
+        <av:TypeDefinition>
+          <av:Struct Type="AtSpiKeystrokeListener"/>
+        </av:TypeDefinition>
+      </arg>
     </signal>
 
   </interface>
