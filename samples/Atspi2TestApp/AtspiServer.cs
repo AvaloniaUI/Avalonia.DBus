@@ -64,6 +64,7 @@ internal sealed class AtspiServer
     {
         _running = true;
         LogVerbose("Server starting");
+        LogSampleFlags();
 
         Console.CancelKeyPress += OnCancelKeyPress;
         LogVerbose("Registering signal handlers");
@@ -679,6 +680,17 @@ internal sealed class AtspiServer
         {
             _registeredEvents.Clear();
             _emitObjectEvents = false;
+        }
+    }
+
+    private static void LogSampleFlags()
+    {
+        var modifiers = AtSpiModifierMask.Shift | AtSpiModifierMask.Control;
+        var eventTypes = AtSpiEventTypeMask.KeyPress | AtSpiEventTypeMask.KeyRelease;
+
+        if (modifiers.HasFlag(AtSpiModifierMask.Shift))
+        {
+            LogVerbose($"Sample flags: modifiers={modifiers}, eventTypes={eventTypes}");
         }
     }
 
