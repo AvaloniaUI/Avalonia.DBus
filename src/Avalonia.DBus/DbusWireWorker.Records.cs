@@ -8,7 +8,7 @@ namespace Avalonia.DBus;
 
 internal sealed partial class DbusWireWorker
 {
-    
+
     internal abstract record WireWorkerMessage;
 
     internal sealed record DisposeMessage : WireWorkerMessage;
@@ -30,7 +30,7 @@ internal sealed partial class DbusWireWorker
     internal sealed record RemoveWatchMessage(DBusWatchPtr WatchPtr) : WireWorkerMessage;
 
     private sealed record CancelSendItemMessage(SendWorkItem WorkItem) : WireWorkerMessage;
-    
+
     private record WatchState(int Fd, PollEvents Events, bool Enabled);
     private record CancelRegistrationState(DbusWireWorker Worker, SendWorkItem WorkItem);
 

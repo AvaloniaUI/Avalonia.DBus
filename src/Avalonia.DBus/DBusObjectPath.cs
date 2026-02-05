@@ -5,14 +5,9 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Represents a D-Bus object path.
 /// </summary>
-public readonly struct DBusObjectPath : IEquatable<DBusObjectPath>
+public readonly struct DBusObjectPath(string value) : IEquatable<DBusObjectPath>
 {
-    public DBusObjectPath(string value)
-    {
-        Value = value ?? string.Empty;
-    }
-
-    public string Value { get; }
+    public string Value { get; } = value;
 
     public static implicit operator string(DBusObjectPath path) => path.Value;
 

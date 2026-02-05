@@ -6,18 +6,13 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Represents a D-Bus struct (sequence of typed fields).
 /// </summary>
-public sealed class DBusStruct : IReadOnlyList<object>
+public sealed class DBusStruct(IEnumerable<object> fields) : IReadOnlyList<object>
 {
-    private readonly List<object> _fields;
+    private readonly List<object> _fields = fields == null ? [] : [.. fields];
 
     public DBusStruct(params object[] fields)
         : this((IEnumerable<object>)fields ?? [])
     {
-    }
-
-    public DBusStruct(IEnumerable<object> fields)
-    {
-        _fields = fields == null ? [] : [..fields];
     }
 
     public int Count => _fields.Count;

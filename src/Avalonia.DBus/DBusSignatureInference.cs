@@ -1,34 +1,27 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace Avalonia.DBus;
 
 internal static class DBusSignatureInference
 {
-    internal static string InferBodySignature(IReadOnlyList<object> body)
+    internal static string InferBodySignature(IReadOnlyList<object>? body)
     {
         if (body == null || body.Count == 0)
-        {
             return string.Empty;
-        }
 
         var parts = new List<string>(body.Count);
-        foreach (var item in body)
-        {
-            parts.Add(InferSignatureFromValue(item));
-        }
+        parts.AddRange(body.Select(InferSignatureFromValue));
 
         return string.Concat(parts);
     }
 
     internal static string InferSignatureFromValue(object value)
     {
-        if (value == null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        ArgumentNullException.ThrowIfNull(value);
 
         switch (value)
         {
@@ -194,9 +187,7 @@ internal static class DBusSignatureInference
     internal static Type GetTypeForSignature(string signature)
     {
         if (string.IsNullOrEmpty(signature))
-        {
             throw new ArgumentException("Signature is required.", nameof(signature));
-        }
 
         DBusSignatureToken token = signature[0];
         if (token == DBusSignatureToken.Byte)
@@ -288,10 +279,7 @@ internal static class DBusSignatureInference
     private static string InferStructSignature(DBusStruct dbusStruct)
     {
         var parts = new List<string>(dbusStruct.Count);
-        foreach (var field in dbusStruct)
-        {
-            parts.Add(InferSignatureFromValue(field));
-        }
+        parts.AddRange(dbusStruct.Select(InferSignatureFromValue));
 
         return string.Concat(DBusSignatureToken.StructBegin, string.Concat(parts), DBusSignatureToken.StructEnd);
     }

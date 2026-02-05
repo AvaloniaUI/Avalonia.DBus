@@ -5,14 +5,9 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Represents a D-Bus type signature.
 /// </summary>
-public readonly struct DBusSignature : IEquatable<DBusSignature>
+public readonly struct DBusSignature(string value) : IEquatable<DBusSignature>
 {
-    public DBusSignature(string value)
-    {
-        Value = value ?? string.Empty;
-    }
-
-    public string Value { get; }
+    public string Value { get; } = value ?? string.Empty;
 
     public static implicit operator string(DBusSignature signature) => signature.Value;
 

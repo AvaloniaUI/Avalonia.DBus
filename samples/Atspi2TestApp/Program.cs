@@ -115,6 +115,6 @@ internal static class Program
             return;
         }
 
-        Console.Error.WriteLine($"[{s_uptime.Elapsed:hh\\:mm\\:ss\\.fff}] {message}");
+        Console.Error.WriteLine($@"[{s_uptime.Elapsed:hh\:mm\:ss\.fff}] {message}");
     }
 }

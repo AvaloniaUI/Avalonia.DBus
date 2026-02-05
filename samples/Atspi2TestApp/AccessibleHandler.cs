@@ -60,7 +60,7 @@ internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
 
     protected override ValueTask<List<AtSpiRelationEntry>> OnGetRelationSetAsync(DBusMessage request)
     {
-        return ValueTask.FromResult(AtspiServer.s_emptyRelations);
+        return ValueTask.FromResult(AtspiServer.EmptyRelations);
     }
 
     protected override ValueTask<uint> OnGetRoleAsync(DBusMessage request)

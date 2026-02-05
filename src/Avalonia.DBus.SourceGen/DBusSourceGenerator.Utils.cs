@@ -90,12 +90,4 @@ public partial class DBusSourceGenerator
         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, MakeMemberAccessExpression(left, middle), IdentifierName(right));
 
     private static LiteralExpressionSyntax MakeLiteralExpression(string literal) => LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(literal));
-
-    private static SyntaxToken Utf8Literal(string value) =>
-        Token(
-            TriviaList(ElasticMarker),
-            SyntaxKind.Utf8StringLiteralToken,
-            SymbolDisplay.FormatLiteral(value, true) + "u8",
-            value,
-            TriviaList(ElasticMarker));
 }

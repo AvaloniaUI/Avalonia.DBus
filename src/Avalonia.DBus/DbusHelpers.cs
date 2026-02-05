@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
-
 using LibDbus = Avalonia.DBus.Native.LibDbus;
 
 namespace Avalonia.DBus;

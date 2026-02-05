@@ -2,10 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-
 using Avalonia.DBus.Native;
+using static Avalonia.DBus.DbusHelpers;
+using static Avalonia.DBus.Native.LibDbus;
 using DBusNativeMessage = Avalonia.DBus.Native.DBusMessage;
-using LibDbus = Avalonia.DBus.Native.LibDbus;
 
 namespace Avalonia.DBus;
 
@@ -13,12 +13,9 @@ internal static unsafe class DBusMessageMarshaler
 {
     public static DBusNativeMessage* ToNative(DBusMessage message)
     {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
+        ArgumentNullException.ThrowIfNull(message);
 
-        var native = LibDbus.dbus_message_new((int)message.Type);
+        var native = dbus_message_new((int)message.Type);
         if (native == null)
         {
             throw new InvalidOperationException("Failed to create D-Bus message.");
@@ -32,28 +29,28 @@ internal static unsafe class DBusMessageMarshaler
         }
         catch
         {
-            LibDbus.dbus_message_unref(native);
+            dbus_message_unref(native);
             throw;
         }
     }
 
     public static DBusMessage FromNative(DBusNativeMessage* message)
     {
-        var signature = DbusHelpers.PtrToString(LibDbus.dbus_message_get_signature(message));
+        var signature = PtrToString(dbus_message_get_signature(message));
         var body = ReadBody(message, signature);
 
         var managed = new DBusMessage
         {
-            Type = (DBusMessageType)LibDbus.dbus_message_get_type(message),
+            Type = (DBusMessageType)dbus_message_get_type(message),
             Flags = ReadFlags(message),
-            Serial = LibDbus.dbus_message_get_serial(message),
-            ReplySerial = LibDbus.dbus_message_get_reply_serial(message),
+            Serial = dbus_message_get_serial(message),
+            ReplySerial = dbus_message_get_reply_serial(message),
             Path = ReadObjectPath(message),
-            Interface = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_interface(message)),
-            Member = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_member(message)),
-            ErrorName = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_error_name(message)),
-            Destination = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_destination(message)),
-            Sender = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_sender(message))
+            Interface = PtrToStringNullable(dbus_message_get_interface(message)),
+            Member = PtrToStringNullable(dbus_message_get_member(message)),
+            ErrorName = PtrToStringNullable(dbus_message_get_error_name(message)),
+            Destination = PtrToStringNullable(dbus_message_get_destination(message)),
+            Sender = PtrToStringNullable(dbus_message_get_sender(message))
         };
 
         managed.SetBodyWithSignature(body, signature);
@@ -65,36 +62,36 @@ internal static unsafe class DBusMessageMarshaler
         if (message.Path.HasValue)
         {
             using var path = new Utf8String(message.Path.Value.Value);
-            LibDbus.dbus_message_set_path(native, path.Pointer);
+            dbus_message_set_path(native, path.Pointer);
         }
 
         if (!string.IsNullOrEmpty(message.Interface))
         {
             using var iface = new Utf8String(message.Interface);
-            LibDbus.dbus_message_set_interface(native, iface.Pointer);
+            dbus_message_set_interface(native, iface.Pointer);
         }
 
         if (!string.IsNullOrEmpty(message.Member))
         {
             using var member = new Utf8String(message.Member);
-            LibDbus.dbus_message_set_member(native, member.Pointer);
+            dbus_message_set_member(native, member.Pointer);
         }
 
         if (!string.IsNullOrEmpty(message.ErrorName))
         {
             using var error = new Utf8String(message.ErrorName);
-            LibDbus.dbus_message_set_error_name(native, error.Pointer);
+            dbus_message_set_error_name(native, error.Pointer);
         }
 
         if (!string.IsNullOrEmpty(message.Destination))
         {
             using var destination = new Utf8String(message.Destination);
-            LibDbus.dbus_message_set_destination(native, destination.Pointer);
+            dbus_message_set_destination(native, destination.Pointer);
         }
 
         if (message.ReplySerial != 0)
         {
-            LibDbus.dbus_message_set_reply_serial(native, message.ReplySerial);
+            dbus_message_set_reply_serial(native, message.ReplySerial);
         }
 
         ApplyFlags(message.Flags, native);
@@ -102,9 +99,9 @@ internal static unsafe class DBusMessageMarshaler
 
     private static void ApplyFlags(DBusMessageFlags flags, DBusNativeMessage* native)
     {
-        LibDbus.dbus_message_set_no_reply(native, flags.HasFlag(DBusMessageFlags.NoReplyExpected) ? 1u : 0u);
-        LibDbus.dbus_message_set_auto_start(native, flags.HasFlag(DBusMessageFlags.NoAutoStart) ? 0u : 1u);
-        LibDbus.dbus_message_set_allow_interactive_authorization(
+        dbus_message_set_no_reply(native, flags.HasFlag(DBusMessageFlags.NoReplyExpected) ? 1u : 0u);
+        dbus_message_set_auto_start(native, flags.HasFlag(DBusMessageFlags.NoAutoStart) ? 0u : 1u);
+        dbus_message_set_allow_interactive_authorization(
             native,
             flags.HasFlag(DBusMessageFlags.AllowInteractiveAuthorization) ? 1u : 0u);
     }
@@ -112,15 +109,15 @@ internal static unsafe class DBusMessageMarshaler
     private static DBusMessageFlags ReadFlags(DBusNativeMessage* message)
     {
         var flags = DBusMessageFlags.None;
-        if (LibDbus.dbus_message_get_no_reply(message) != 0)
+        if (dbus_message_get_no_reply(message) != 0)
         {
             flags |= DBusMessageFlags.NoReplyExpected;
         }
-        if (LibDbus.dbus_message_get_auto_start(message) == 0)
+        if (dbus_message_get_auto_start(message) == 0)
         {
             flags |= DBusMessageFlags.NoAutoStart;
         }
-        if (LibDbus.dbus_message_get_allow_interactive_authorization(message) != 0)
+        if (dbus_message_get_allow_interactive_authorization(message) != 0)
         {
             flags |= DBusMessageFlags.AllowInteractiveAuthorization;
         }
@@ -130,7 +127,7 @@ internal static unsafe class DBusMessageMarshaler
 
     private static DBusObjectPath? ReadObjectPath(DBusNativeMessage* message)
     {
-        var path = DbusHelpers.PtrToStringNullable(LibDbus.dbus_message_get_path(message));
+        var path = PtrToStringNullable(dbus_message_get_path(message));
         return path == null ? null : new DBusObjectPath(path);
     }
 
@@ -142,7 +139,7 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         DBusMessageIter iter;
-        if (LibDbus.dbus_message_iter_init(message, &iter) == 0)
+        if (dbus_message_iter_init(message, &iter) == 0)
         {
             return [];
         }
@@ -243,8 +240,8 @@ internal static unsafe class DBusMessageMarshaler
         T value;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_get_basic(iterPtr, &value);
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_get_basic(iterPtr, &value);
+            dbus_message_iter_next(iterPtr);
         }
         return value;
     }
@@ -254,8 +251,8 @@ internal static unsafe class DBusMessageMarshaler
         uint value;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_get_basic(iterPtr, &value);
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_get_basic(iterPtr, &value);
+            dbus_message_iter_next(iterPtr);
         }
         return value != 0;
     }
@@ -265,10 +262,10 @@ internal static unsafe class DBusMessageMarshaler
         byte* value;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_get_basic(iterPtr, &value);
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_get_basic(iterPtr, &value);
+            dbus_message_iter_next(iterPtr);
         }
-        return DbusHelpers.PtrToString(value);
+        return PtrToString(value);
     }
 
     private static object ReadVariant(ref DBusMessageIter iter)
@@ -276,13 +273,13 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_recurse(iterPtr, &child);
+            dbus_message_iter_recurse(iterPtr, &child);
         }
 
         var childPtr = &child;
-        var signaturePtr = LibDbus.dbus_message_iter_get_signature(childPtr);
+        var signaturePtr = dbus_message_iter_get_signature(childPtr);
 
-        var signature = signaturePtr == null ? string.Empty : DbusHelpers.PtrToString(signaturePtr);
+        var signature = signaturePtr == null ? string.Empty : PtrToString(signaturePtr);
         if (signaturePtr != null)
         {
             NativeMethods.dbus_free(signaturePtr);
@@ -297,7 +294,7 @@ internal static unsafe class DBusMessageMarshaler
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_next(iterPtr);
         }
 
         return new DBusVariant(new DBusSignature(signature), value);
@@ -308,25 +305,25 @@ internal static unsafe class DBusMessageMarshaler
         int argType;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            argType = LibDbus.dbus_message_iter_get_arg_type(iterPtr);
+            argType = dbus_message_iter_get_arg_type(iterPtr);
         }
 
         return argType switch
         {
-            LibDbus.DBUS_TYPE_BYTE => DBusSignatureToken.Byte,
-            LibDbus.DBUS_TYPE_BOOLEAN => DBusSignatureToken.Boolean,
-            LibDbus.DBUS_TYPE_INT16 => DBusSignatureToken.Int16,
-            LibDbus.DBUS_TYPE_UINT16 => DBusSignatureToken.UInt16,
-            LibDbus.DBUS_TYPE_INT32 => DBusSignatureToken.Int32,
-            LibDbus.DBUS_TYPE_UINT32 => DBusSignatureToken.UInt32,
-            LibDbus.DBUS_TYPE_INT64 => DBusSignatureToken.Int64,
-            LibDbus.DBUS_TYPE_UINT64 => DBusSignatureToken.UInt64,
-            LibDbus.DBUS_TYPE_DOUBLE => DBusSignatureToken.Double,
-            LibDbus.DBUS_TYPE_STRING => DBusSignatureToken.String,
-            LibDbus.DBUS_TYPE_OBJECT_PATH => DBusSignatureToken.ObjectPath,
-            LibDbus.DBUS_TYPE_SIGNATURE => DBusSignatureToken.Signature,
-            LibDbus.DBUS_TYPE_UNIX_FD => DBusSignatureToken.UnixFd,
-            LibDbus.DBUS_TYPE_VARIANT => DBusSignatureToken.Variant,
+            DBUS_TYPE_BYTE => DBusSignatureToken.Byte,
+            DBUS_TYPE_BOOLEAN => DBusSignatureToken.Boolean,
+            DBUS_TYPE_INT16 => DBusSignatureToken.Int16,
+            DBUS_TYPE_UINT16 => DBusSignatureToken.UInt16,
+            DBUS_TYPE_INT32 => DBusSignatureToken.Int32,
+            DBUS_TYPE_UINT32 => DBusSignatureToken.UInt32,
+            DBUS_TYPE_INT64 => DBusSignatureToken.Int64,
+            DBUS_TYPE_UINT64 => DBusSignatureToken.UInt64,
+            DBUS_TYPE_DOUBLE => DBusSignatureToken.Double,
+            DBUS_TYPE_STRING => DBusSignatureToken.String,
+            DBUS_TYPE_OBJECT_PATH => DBusSignatureToken.ObjectPath,
+            DBUS_TYPE_SIGNATURE => DBusSignatureToken.Signature,
+            DBUS_TYPE_UNIX_FD => DBusSignatureToken.UnixFd,
+            DBUS_TYPE_VARIANT => DBusSignatureToken.Variant,
             _ => string.Empty
         };
     }
@@ -348,18 +345,18 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_recurse(iterPtr, &child);
+            dbus_message_iter_recurse(iterPtr, &child);
         }
 
         var items = new List<object>();
-        while (LibDbus.dbus_message_iter_get_arg_type(&child) != LibDbus.DBUS_TYPE_INVALID)
+        while (dbus_message_iter_get_arg_type(&child) != DBUS_TYPE_INVALID)
         {
             items.Add(ReadValue(elementSignature, ref child));
         }
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_next(iterPtr);
         }
 
         return CreateArrayInstance(elementSignature, items);
@@ -370,18 +367,18 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_recurse(iterPtr, &child);
+            dbus_message_iter_recurse(iterPtr, &child);
         }
 
         var entries = new List<KeyValuePair<object?, object?>>();
-        while (LibDbus.dbus_message_iter_get_arg_type(&child) != LibDbus.DBUS_TYPE_INVALID)
+        while (dbus_message_iter_get_arg_type(&child) != DBUS_TYPE_INVALID)
         {
             entries.Add(ReadDictEntry(entrySignature, ref child));
         }
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_next(iterPtr);
         }
 
         return CreateDictInstance(entrySignature, entries);
@@ -392,7 +389,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_recurse(iterPtr, &child);
+            dbus_message_iter_recurse(iterPtr, &child);
         }
 
         var partSignatures = DBusSignatureParser.ParseStructSignatures(signature);
@@ -404,7 +401,7 @@ internal static unsafe class DBusMessageMarshaler
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_next(iterPtr);
         }
 
         return new DBusStruct(values);
@@ -415,7 +412,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_recurse(iterPtr, &child);
+            dbus_message_iter_recurse(iterPtr, &child);
         }
 
         var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(signature);
@@ -424,7 +421,7 @@ internal static unsafe class DBusMessageMarshaler
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_next(iterPtr);
+            dbus_message_iter_next(iterPtr);
         }
 
         return new KeyValuePair<object?, object?>(key, value);
@@ -473,7 +470,7 @@ internal static unsafe class DBusMessageMarshaler
         }
 
         DBusMessageIter iter;
-        LibDbus.dbus_message_iter_init_append(native, &iter);
+        dbus_message_iter_init_append(native, &iter);
 
         foreach (var item in message.Body)
         {
@@ -483,52 +480,49 @@ internal static unsafe class DBusMessageMarshaler
 
     private static void AppendValue(ref DBusMessageIter iter, object value)
     {
-        if (value == null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        ArgumentNullException.ThrowIfNull(value);
 
         switch (value)
         {
             case byte byteValue:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_BYTE, byteValue);
+                AppendBasic(ref iter, DBUS_TYPE_BYTE, byteValue);
                 return;
             case bool boolValue:
                 var dbusBool = boolValue ? 1u : 0u;
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_BOOLEAN, dbusBool);
+                AppendBasic(ref iter, DBUS_TYPE_BOOLEAN, dbusBool);
                 return;
             case short int16Value:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_INT16, int16Value);
+                AppendBasic(ref iter, DBUS_TYPE_INT16, int16Value);
                 return;
             case ushort uint16Value:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_UINT16, uint16Value);
+                AppendBasic(ref iter, DBUS_TYPE_UINT16, uint16Value);
                 return;
             case int int32Value:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_INT32, int32Value);
+                AppendBasic(ref iter, DBUS_TYPE_INT32, int32Value);
                 return;
             case uint uint32Value:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_UINT32, uint32Value);
+                AppendBasic(ref iter, DBUS_TYPE_UINT32, uint32Value);
                 return;
             case long int64Value:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_INT64, int64Value);
+                AppendBasic(ref iter, DBUS_TYPE_INT64, int64Value);
                 return;
             case ulong uint64Value:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_UINT64, uint64Value);
+                AppendBasic(ref iter, DBUS_TYPE_UINT64, uint64Value);
                 return;
             case double doubleValue:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_DOUBLE, doubleValue);
+                AppendBasic(ref iter, DBUS_TYPE_DOUBLE, doubleValue);
                 return;
             case string stringValue:
-                AppendString(ref iter, LibDbus.DBUS_TYPE_STRING, stringValue);
+                AppendString(ref iter, DBUS_TYPE_STRING, stringValue);
                 return;
             case DBusObjectPath objectPath:
-                AppendString(ref iter, LibDbus.DBUS_TYPE_OBJECT_PATH, objectPath.Value);
+                AppendString(ref iter, DBUS_TYPE_OBJECT_PATH, objectPath.Value);
                 return;
             case DBusSignature signature:
-                AppendString(ref iter, LibDbus.DBUS_TYPE_SIGNATURE, signature.Value);
+                AppendString(ref iter, DBUS_TYPE_SIGNATURE, signature.Value);
                 return;
             case DBusUnixFd unixFd:
-                AppendBasic(ref iter, LibDbus.DBUS_TYPE_UNIX_FD, unixFd.Fd);
+                AppendBasic(ref iter, DBUS_TYPE_UNIX_FD, unixFd.Fd);
                 return;
             case DBusVariant variant:
                 AppendVariant(ref iter, variant);
@@ -563,7 +557,7 @@ internal static unsafe class DBusMessageMarshaler
     {
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_append_basic(iterPtr, dbusType, &value);
+            dbus_message_iter_append_basic(iterPtr, dbusType, &value);
         }
     }
 
@@ -573,7 +567,7 @@ internal static unsafe class DBusMessageMarshaler
         fixed (DBusMessageIter* iterPtr = &iter)
         {
             var ptr = utf8.Pointer;
-            LibDbus.dbus_message_iter_append_basic(iterPtr, dbusType, &ptr);
+            dbus_message_iter_append_basic(iterPtr, dbusType, &ptr);
         }
     }
 
@@ -590,7 +584,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            if (LibDbus.dbus_message_iter_open_container(iterPtr, LibDbus.DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
+            if (dbus_message_iter_open_container(iterPtr, DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
             {
                 throw new InvalidOperationException("Failed to open array container.");
             }
@@ -603,7 +597,7 @@ internal static unsafe class DBusMessageMarshaler
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_close_container(iterPtr, &child);
+            dbus_message_iter_close_container(iterPtr, &child);
         }
     }
 
@@ -622,7 +616,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            if (LibDbus.dbus_message_iter_open_container(iterPtr, LibDbus.DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
+            if (dbus_message_iter_open_container(iterPtr, DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
             {
                 throw new InvalidOperationException("Failed to open dictionary container.");
             }
@@ -632,7 +626,7 @@ internal static unsafe class DBusMessageMarshaler
         {
             DBusMessageIter entryIter;
             var childPtr = &child;
-            if (LibDbus.dbus_message_iter_open_container(childPtr, LibDbus.DBUS_TYPE_DICT_ENTRY, null, &entryIter) == 0)
+            if (dbus_message_iter_open_container(childPtr, DBUS_TYPE_DICT_ENTRY, null, &entryIter) == 0)
             {
                 throw new InvalidOperationException("Failed to open dictionary entry container.");
             }
@@ -640,12 +634,12 @@ internal static unsafe class DBusMessageMarshaler
             AppendValue(ref entryIter, entry.Key ?? throw new InvalidOperationException("Dictionary contains null keys."));
             AppendValue(ref entryIter, entry.Value ?? throw new InvalidOperationException("Dictionary contains null values."));
 
-            LibDbus.dbus_message_iter_close_container(childPtr, &entryIter);
+            dbus_message_iter_close_container(childPtr, &entryIter);
         }
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_close_container(iterPtr, &child);
+            dbus_message_iter_close_container(iterPtr, &child);
         }
     }
 
@@ -654,7 +648,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            if (LibDbus.dbus_message_iter_open_container(iterPtr, LibDbus.DBUS_TYPE_STRUCT, null, &child) == 0)
+            if (dbus_message_iter_open_container(iterPtr, DBUS_TYPE_STRUCT, null, &child) == 0)
             {
                 throw new InvalidOperationException("Failed to open struct container.");
             }
@@ -667,7 +661,7 @@ internal static unsafe class DBusMessageMarshaler
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_close_container(iterPtr, &child);
+            dbus_message_iter_close_container(iterPtr, &child);
         }
     }
 
@@ -683,7 +677,7 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter child;
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            if (LibDbus.dbus_message_iter_open_container(iterPtr, LibDbus.DBUS_TYPE_VARIANT, sig.Pointer, &child) == 0)
+            if (dbus_message_iter_open_container(iterPtr, DBUS_TYPE_VARIANT, sig.Pointer, &child) == 0)
             {
                 throw new InvalidOperationException("Failed to open variant container.");
             }
@@ -693,7 +687,7 @@ internal static unsafe class DBusMessageMarshaler
 
         fixed (DBusMessageIter* iterPtr = &iter)
         {
-            LibDbus.dbus_message_iter_close_container(iterPtr, &child);
+            dbus_message_iter_close_container(iterPtr, &child);
         }
     }
 

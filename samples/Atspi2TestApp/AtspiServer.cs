@@ -12,13 +12,13 @@ internal sealed class AtspiServer
     private const int StartupRetryDelayMs = 2000;
     private const int StartupRetryMaxDelayMs = 15000;
 
-    internal static readonly List<AtSpiRelationEntry> s_emptyRelations = [];
+    internal static readonly List<AtSpiRelationEntry> EmptyRelations = [];
 
     private readonly AtspiTree _tree;
     private readonly Dictionary<int, string> _roleNames = new();
     private readonly object _treeGate = new();
     private readonly Dictionary<string, NodeHandlers> _handlersByPath = new(StringComparer.Ordinal);
-    private readonly PathTree _pathTree;
+    private readonly DBusObjectTree _pathTree;
     private readonly object _eventGate = new();
     private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
     private readonly object _registryGate = new();
@@ -46,7 +46,7 @@ internal sealed class AtspiServer
     public AtspiServer(AtspiTree tree)
     {
         _tree = tree;
-        _pathTree = new PathTree("/");
+        _pathTree = new DBusObjectTree("/");
         _roleNames[RoleApplication] = "application";
         _roleNames[RoleFrame] = "frame";
         _roleNames[RoleLabel] = "label";
@@ -92,7 +92,7 @@ internal sealed class AtspiServer
             }
 
             var delay = ComputeRetryDelay(attempt);
-            Console.Error.WriteLine($"Startup failed; retrying in {(int)delay.TotalSeconds}s.");
+            await Console.Error.WriteLineAsync($"Startup failed; retrying in {(int)delay.TotalSeconds}s.");
             var completed = await Task.WhenAny(_shutdownTcs.Task, Task.Delay(delay));
             if (completed == _shutdownTcs.Task)
             {
@@ -229,7 +229,7 @@ internal sealed class AtspiServer
         var address = await GetAccessibilityBusAddressAsync();
         if (string.IsNullOrWhiteSpace(address))
         {
-            Console.Error.WriteLine("Failed to resolve the accessibility bus address.");
+            await Console.Error.WriteLineAsync("Failed to resolve the accessibility bus address.");
             return false;
         }
         _a11yAddress = address;
@@ -244,7 +244,7 @@ internal sealed class AtspiServer
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to open accessibility bus: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Failed to open accessibility bus: {ex.Message}");
             LogVerbose($"TryConnect failed after {sw.ElapsedMilliseconds} ms");
             _a11yConnection = null;
             return false;
@@ -265,7 +265,7 @@ internal sealed class AtspiServer
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"GetAddress call failed: {ex.Message}");
+            await Console.Error.WriteLineAsync($"GetAddress call failed: {ex.Message}");
             return string.Empty;
         }
         finally
@@ -311,12 +311,12 @@ internal sealed class AtspiServer
     {
         if (string.IsNullOrWhiteSpace(_a11yAddress))
         {
-            Console.Error.WriteLine("Missing accessibility bus address.");
+            await Console.Error.WriteLineAsync("Missing accessibility bus address.");
             return false;
         }
         if (_a11yConnection == null)
         {
-            Console.Error.WriteLine("Missing accessibility bus connection.");
+            await Console.Error.WriteLineAsync("Missing accessibility bus connection.");
             return false;
         }
 
@@ -327,15 +327,15 @@ internal sealed class AtspiServer
             var proxy = new OrgA11yAtspiSocketProxy(_a11yConnection, BusNameRegistry, new DBusObjectPath(RootPath));
             LogVerbose("Calling org.a11y.atspi.Socket.Embed");
             var reply = await proxy.EmbedAsync(new AtSpiObjectReference(_uniqueName, new DBusObjectPath(RootPath)));
-            var registryBus = reply.Item1;
-            var registryPath = reply.Item2;
+            var registryBus = reply.Service;
+            var registryPath = reply.Path;
             Console.WriteLine($"Registry root: {registryBus} {registryPath}");
             LogVerbose($"EmbedApplication end ({sw.ElapsedMilliseconds} ms)");
             return true;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Embed call failed: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Embed call failed: {ex.Message}");
             LogVerbose($"EmbedApplication failed after {sw.ElapsedMilliseconds} ms");
             return false;
         }
@@ -357,7 +357,7 @@ internal sealed class AtspiServer
                 _registeredEvents.Clear();
                 foreach (var registered in events)
                 {
-                    _registeredEvents.Add(registered.Item2);
+                    _registeredEvents.Add(registered.EventName);
                 }
                 UpdateEventMaskLocked();
             }
@@ -424,17 +424,7 @@ internal sealed class AtspiServer
 
         try
         {
-            var reply = await _a11yConnection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                new DBusObjectPath("/org/freedesktop/DBus"),
-                "org.freedesktop.DBus",
-                "GetNameOwner",
-                BusNameRegistry);
-
-            if (reply.Body.Count > 0 && reply.Body[0] is string owner && !string.IsNullOrWhiteSpace(owner))
-            {
-                return owner;
-            }
+            return await _a11yConnection.GetNameOwnerAsync(BusNameRegistry);
         }
         catch (Exception ex)
         {
@@ -529,11 +519,6 @@ internal sealed class AtspiServer
 
     private static void FireAndForget(Task task)
     {
-        if (task == null)
-        {
-            return;
-        }
-
         _ = task.ContinueWith(
             t => _ = t.Exception,
             CancellationToken.None,
@@ -652,7 +637,7 @@ internal sealed class AtspiServer
     {
         if (_toggleTimer != null)
         {
-            _toggleTimer.Dispose();
+            await _toggleTimer.DisposeAsync();
             _toggleTimer = null;
         }
 
@@ -703,7 +688,8 @@ internal sealed class AtspiServer
         _sigintRegistration = null;
         _sigtermRegistration?.Dispose();
         _sigtermRegistration = null;
-        _forceExitTimer?.Dispose();
+        if (_forceExitTimer is not null)
+            await _forceExitTimer.DisposeAsync();
         _forceExitTimer = null;
     }
 
@@ -924,6 +910,6 @@ internal sealed class AtspiServer
 
     internal string GetRoleName(int role)
     {
-        return _roleNames.TryGetValue(role, out var name) ? name : "unknown";
+        return _roleNames.GetValueOrDefault(role, "unknown");
     }
 }

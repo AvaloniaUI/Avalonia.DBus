@@ -1,28 +1,28 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using static Avalonia.DBus.LinuxPoll;
 
 namespace Avalonia.DBus;
 
 internal sealed unsafe class WakeupFd : IDisposable
 {
-    private readonly int _read;
     private readonly int _write;
     private readonly object _lock = new();
     private bool _signaled;
     private static readonly void* s_readBuf = (void*)Marshal.AllocHGlobal(8);
 
-    public int PollFd => _read;
+    public int PollFd { get; }
 
     public WakeupFd()
     {
         var fds = stackalloc int[2];
-        if (LinuxPoll.pipe2(fds, LinuxPoll.O_NONBLOCK | LinuxPoll.O_CLOEXEC) != 0)
+        if (pipe2(fds, O_NONBLOCK | O_CLOEXEC) != 0)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         }
 
-        _read = fds[0];
+        PollFd = fds[0];
         _write = fds[1];
     }
 
@@ -37,7 +37,7 @@ internal sealed unsafe class WakeupFd : IDisposable
 
             while (true)
             {
-                var readNow = LinuxPoll.read(_read, s_readBuf, (IntPtr)1);
+                var readNow = read(PollFd, s_readBuf, 1);
                 if (readNow > 0)
                 {
                     continue;
@@ -49,14 +49,13 @@ internal sealed unsafe class WakeupFd : IDisposable
                 }
 
                 var errno = Marshal.GetLastPInvokeError();
-                if (errno == LinuxPoll.EINTR)
+                if (errno == EINTR)
                 {
                     continue;
                 }
 
-                if (errno == LinuxPoll.EAGAIN)
+                if (errno == EAGAIN)
                 {
-                    break;
                 }
 
                 break;
@@ -76,14 +75,14 @@ internal sealed unsafe class WakeupFd : IDisposable
             }
 
             byte b = 0;
-            LinuxPoll.write(_write, &b, (IntPtr)1);
+            write(_write, &b, 1);
             _signaled = true;
         }
     }
 
     public void Dispose()
     {
-        LinuxPoll.close(_read);
-        LinuxPoll.close(_write);
+        close(PollFd);
+        close(_write);
     }
 }

@@ -42,43 +42,40 @@ internal static class DBusCollectionHelpers
 
     internal static IEnumerable<object?> EnumerateListItems(object list)
     {
-        if (list is IEnumerable enumerable)
-        {
-            foreach (var item in enumerable)
-            {
-                yield return item;
-            }
-        }
+        if (list is not IEnumerable enumerable) yield break;
+        foreach (var item in enumerable)
+            yield return item;
     }
 
     internal static IEnumerable<KeyValuePair<object?, object?>> EnumerateDictionaryEntries(object dictionary)
     {
-        if (dictionary is IDictionary nonGeneric)
+        switch (dictionary)
         {
-            foreach (DictionaryEntry entry in nonGeneric)
+            case IDictionary nonGeneric:
             {
-                yield return new KeyValuePair<object?, object?>(entry.Key, entry.Value);
+                foreach (DictionaryEntry entry in nonGeneric)
+                    yield return new KeyValuePair<object?, object?>(entry.Key, entry.Value);
+                yield break;
             }
-
-            yield break;
-        }
-
-        if (dictionary is IEnumerable enumerable)
-        {
-            foreach (var entry in enumerable)
+            case IEnumerable enumerable:
             {
-                if (entry is null)
+                foreach (var entry in enumerable)
                 {
-                    continue;
+                    if (entry is null)
+                    {
+                        continue;
+                    }
+
+                    var entryType = entry.GetType();
+                    if (entryType.IsGenericType && entryType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
+                    {
+                        var key = entryType.GetProperty("Key")?.GetValue(entry);
+                        var value = entryType.GetProperty("Value")?.GetValue(entry);
+                        yield return new KeyValuePair<object?, object?>(key, value);
+                    }
                 }
 
-                var entryType = entry.GetType();
-                if (entryType.IsGenericType && entryType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
-                {
-                    var key = entryType.GetProperty("Key")?.GetValue(entry);
-                    var value = entryType.GetProperty("Value")?.GetValue(entry);
-                    yield return new KeyValuePair<object?, object?>(key, value);
-                }
+                break;
             }
         }
     }

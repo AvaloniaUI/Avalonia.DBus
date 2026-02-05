@@ -245,6 +245,47 @@ public partial class DBusSourceGenerator
         return definitions;
     }
 
+    private static IReadOnlyDictionary<string, AvStructDefinition> LoadStructDefinitions(
+        IEnumerable<string> importPaths,
+        IReadOnlyDictionary<string, string> xmlByPath,
+        XmlSerializer serializer,
+        XmlReaderSettings readerSettings)
+    {
+        Dictionary<string, AvStructDefinition> definitions = new(StringComparer.Ordinal);
+
+        foreach (var path in importPaths)
+        {
+            if (string.IsNullOrWhiteSpace(path) ||
+                !xmlByPath.TryGetValue(path, out var xmlText) ||
+                string.IsNullOrWhiteSpace(xmlText))
+                continue;
+
+            try
+            {
+                using var reader = XmlReader.Create(new StringReader(xmlText), readerSettings);
+                if (serializer.Deserialize(reader) is not AvTypesDocument document)
+                    continue;
+
+                if (document.Structs is null)
+                    continue;
+
+                foreach (var structDefinition in document.Structs)
+                {
+                    if (string.IsNullOrWhiteSpace(structDefinition.Name))
+                        continue;
+
+                    definitions[structDefinition.Name!] = structDefinition;
+                }
+            }
+            catch
+            {
+                // Ignore malformed metadata files to avoid breaking generation.
+            }
+        }
+
+        return definitions;
+    }
+
     private static string BuildTypeAliasesSource(
         IReadOnlyDictionary<string, DBusDotnetType> dictionaryAliases,
         IReadOnlyDictionary<string, DBusDotnetType> bitFlagsAliases,

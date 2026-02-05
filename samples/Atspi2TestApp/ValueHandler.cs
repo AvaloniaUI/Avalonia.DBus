@@ -33,7 +33,7 @@ internal sealed class ValueHandler : OrgA11yAtspiValueHandler
             }
 
             var clamped = Math.Max(_node.Value.Minimum, Math.Min(_node.Value.Maximum, value));
-            _node.Value.Current = clamped;
+            _node.Value = _node.Value with { Current = clamped };
         }
     }
 }

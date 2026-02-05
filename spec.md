@@ -483,6 +483,19 @@ public sealed class DBusConnection : IAsyncDisposable
     /// <summary>
     /// Registers a handler for method calls on the specified path and interface.
     /// </summary>
+    /// <param name="obj">Object handler containing one or more interfaces.</param>
+    /// <param name="synchronizationContext">
+    /// Optional synchronization context to invoke the handler on (e.g., UI thread).
+    /// If null, handler is invoked on the connection's internal thread.
+    /// </param>
+    /// <returns>Disposable that unregisters the object when disposed.</returns>
+    public IDisposable RegisterObject(
+        IDBusObject obj,
+        SynchronizationContext? synchronizationContext = null);
+
+    /// <summary>
+    /// Registers a handler for method calls on the specified path and interface.
+    /// </summary>
     /// <param name="path">Object path to handle.</param>
     /// <param name="iface">Interface name to handle.</param>
     /// <param name="handler">
@@ -548,6 +561,77 @@ public enum DBusRequestNameReply
     /// The caller already owns the name.
     /// </summary>
     AlreadyOwner = 4
+}
+
+public interface IDBusObject
+{
+    DBusObjectPath Path { get; }
+
+    string IntrospectXml { get; }
+
+    bool HasInterface(string name);
+
+    bool TryGetProperty(string iface, string name, out DBusVariant value);
+
+    bool TrySetProperty(string iface, string name, DBusVariant value);
+
+    Dictionary<string, DBusVariant> GetAllProperties(string iface);
+
+    Task<DBusMessage> HandleMethodAsync(DBusMessage request);
+}
+
+public interface IDBusInterfaceHandler
+{
+    DBusConnection Connection { get; }
+
+    DBusObjectPath? Path { get; set; }
+
+    string InterfaceName { get; }
+
+    string IntrospectXml { get; }
+
+    Task<DBusMessage> HandleMethodAsync(DBusMessage request);
+
+    bool TryGetProperty(string name, out DBusVariant value);
+
+    bool TrySetProperty(string name, DBusVariant value);
+
+    Dictionary<string, DBusVariant> GetAllProperties();
+}
+
+public sealed class DBusObject : ICollection<IDBusInterfaceHandler>, IDBusObject
+{
+    public DBusObject(string path);
+    public DBusObject(DBusObjectPath path);
+
+    public DBusObjectPath Path { get; }
+
+    public string IntrospectXml { get; }
+
+    public bool HasInterface(string name);
+
+    public bool TryGetProperty(string iface, string name, out DBusVariant value);
+
+    public bool TrySetProperty(string iface, string name, DBusVariant value);
+
+    public Dictionary<string, DBusVariant> GetAllProperties(string iface);
+
+    public Task<DBusMessage> HandleMethodAsync(DBusMessage request);
+
+    public void Add(IDBusInterfaceHandler item);
+}
+
+public sealed class DBusObjectTree
+{
+    public DBusObjectTree(string rootPath);
+
+    public string Path { get; }
+
+    public DBusObject AddPath(string path);
+
+    public bool RemovePath(string path);
+
+    public IDisposable Register(DBusConnection connection);
 }
 ```
 
@@ -636,21 +720,11 @@ var result = await connection.RequestNameAsync(
 if (result != DBusRequestNameReply.PrimaryOwner)
     throw new Exception("Failed to acquire bus name");
 
-// Register method handler
-using var registration = connection.RegisterObject(
-    (DBusObjectPath)"/com/example/MyService",
-    "com.example.MyService",
-    async message =>
-    {
-        return message.Member switch
-        {
-            "Echo" => message.CreateReply(message.Body.ToArray()),
-            "Add" => message.CreateReply((int)message.Body[0] + (int)message.Body[1]),
-            _ => message.CreateError(
-                "org.freedesktop.DBus.Error.UnknownMethod",
-                $"Unknown method: {message.Member}")
-        };
-    });
+// Register object + interface handler (built-ins for Peer/Properties/Introspectable are automatic)
+// ComExampleMyServiceHandlerImpl is your concrete subclass of the source-gen handler.
+var obj = new DBusObject("/com/example/MyService");
+obj.Add(new ComExampleMyServiceHandlerImpl(connection));
+using var registration = connection.RegisterObject(obj);
 
 // Keep running...
 await Task.Delay(Timeout.Infinite);

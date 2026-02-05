@@ -8,7 +8,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-
 using Avalonia.DBus.Native;
 using static Avalonia.DBus.Native.LibDbus;
 using DBusNativeConnection = Avalonia.DBus.Native.DBusConnection;
@@ -25,10 +24,10 @@ internal sealed partial class DbusWireWorker
     private static readonly unsafe DBusWatchToggledFunction ToggleWatchDelegate = ToggleWatchCallback;
     private static readonly unsafe DBusHandleMessageFunction HandleMsgDelegate = HandleMessageCallback;
 
-    private static readonly IntPtr AddWatchPtr = Marshal.GetFunctionPointerForDelegate(AddWatchDelegate);
-    private static readonly IntPtr RemoveWatchPtr = Marshal.GetFunctionPointerForDelegate(RemoveWatchDelegate);
-    private static readonly IntPtr ToggleWatchPtr = Marshal.GetFunctionPointerForDelegate(ToggleWatchDelegate);
-    private static readonly IntPtr HandleMsgPtr = Marshal.GetFunctionPointerForDelegate(HandleMsgDelegate);
+    private static readonly DBusNativeMessagePtr AddWatchPtr = Marshal.GetFunctionPointerForDelegate(AddWatchDelegate);
+    private static readonly DBusNativeMessagePtr RemoveWatchPtr = Marshal.GetFunctionPointerForDelegate(RemoveWatchDelegate);
+    private static readonly DBusNativeMessagePtr ToggleWatchPtr = Marshal.GetFunctionPointerForDelegate(ToggleWatchDelegate);
+    private static readonly DBusNativeMessagePtr HandleMsgPtr = Marshal.GetFunctionPointerForDelegate(HandleMsgDelegate);
     private static readonly ConcurrentDictionary<int, DbusWireWorker> ActiveWorkers = new();
     private static int _activeWorkerCounter;
 
@@ -192,7 +191,7 @@ internal sealed partial class DbusWireWorker
 
                 var pollFds1 = activeWatches.Select(x => x.pollFd).ToList();
 
-                pollFds1.Add(new PollFd()
+                pollFds1.Add(new PollFd
                 {
                     fd = _curWakeupFd.PollFd,
                     events = PollEventsErrorMask | PollEvents.POLLIN,
@@ -392,7 +391,7 @@ internal sealed partial class DbusWireWorker
             cancelState.Worker.TryEnqueue(new CancelSendItemMessage(cancelState.WorkItem));
         }, new CancelRegistrationState(this, workItem));
     }
-    
+
     private unsafe void ProcessSend(SendWorkItem pending)
     {
         if (pending.IsCanceled)
@@ -489,7 +488,7 @@ internal sealed partial class DbusWireWorker
 
     private static unsafe void DoPoll(PollFd[] activeFds)
     {
-        LogCalleeVerbose();
+        
 
         fixed (PollFd* awPtr = &activeFds[0])
             while (true)
@@ -508,7 +507,7 @@ internal sealed partial class DbusWireWorker
 
     private void RefreshWatches()
     {
-        LogCalleeVerbose();
+        
 
         foreach (var watchPtr in _watches)
             RefreshWatch(watchPtr.Key);
@@ -516,7 +515,7 @@ internal sealed partial class DbusWireWorker
 
     private unsafe void RefreshWatch(DBusWatchPtr watchPtrKey)
     {
-        LogCalleeVerbose();
+        
 
         var watch = (DBusWatch*)watchPtrKey;
 
@@ -530,7 +529,7 @@ internal sealed partial class DbusWireWorker
 
     private unsafe void ConfigureWatchFunctions(DBusNativeConnection* connection)
     {
-        LogCalleeVerbose();
+        
 
         if (dbus_connection_set_watch_functions(connection, AddWatchPtr, RemoveWatchPtr,
                 ToggleWatchPtr,
@@ -542,7 +541,7 @@ internal sealed partial class DbusWireWorker
 
     private static unsafe uint AddWatchCallback(DBusWatch* watch, void* data)
     {
-        LogCalleeVerbose();
+        
 
         if (data == null || !ActiveWorkers.TryGetValue((int)data, out var wire))
             return 0;
@@ -558,7 +557,7 @@ internal sealed partial class DbusWireWorker
 
     private static unsafe void RemoveWatchCallback(DBusWatch* watch, void* data)
     {
-        LogCalleeVerbose();
+        
 
         if (data == null || !ActiveWorkers.TryGetValue((int)data, out var wire))
             return;
@@ -571,7 +570,7 @@ internal sealed partial class DbusWireWorker
 
     private static unsafe void ToggleWatchCallback(DBusWatch* watch, void* data)
     {
-        LogCalleeVerbose();
+        
 
         if (data == null || !ActiveWorkers.TryGetValue((int)data, out var wire))
             return;
@@ -586,7 +585,7 @@ internal sealed partial class DbusWireWorker
         DBusNativeMessage* message,
         void* userData)
     {
-        LogCalleeVerbose();
+        
 
         if (connection == null || message == null || userData == null ||
             !ActiveWorkers.TryGetValue((int)userData, out var worker))
@@ -605,7 +604,7 @@ internal sealed partial class DbusWireWorker
 
     private void HandleMessage(DBusNativeMessagePtr message)
     {
-        LogCalleeVerbose();
+        
 
         try
         {
@@ -679,8 +678,6 @@ internal sealed partial class DbusWireWorker
 
     private unsafe bool AddWatch(DBusWatchPtr watchPtr)
     {
-        LogCalleeVerbose();
-
         if (watchPtr == IntPtr.Zero)
             return false;
 
@@ -694,7 +691,7 @@ internal sealed partial class DbusWireWorker
 
     private void RemoveWatch(DBusWatchPtr watchPtr)
     {
-        LogCalleeVerbose();
+        
 
         if (watchPtr == IntPtr.Zero)
             return;
@@ -704,7 +701,7 @@ internal sealed partial class DbusWireWorker
 
     private void ToggleWatch(DBusWatchPtr watchPtr)
     {
-        LogCalleeVerbose();
+        
         if (watchPtr == IntPtr.Zero)
             return;
 
@@ -730,13 +727,7 @@ internal sealed partial class DbusWireWorker
         Console.Error.WriteLine($"[DBusWire {Environment.CurrentManagedThreadId}] {message}");
 #endif
     }
-
-    private static void LogCalleeVerbose([CallerMemberName] string callee = "<nocallee>")
-    {
-#if DEBUG
-        Console.Error.WriteLine($"Callback {callee} called.");
-#endif
-    }
+ 
 
     private static unsafe void ThrowErrorAndFree(ref DBusError error, string fallbackMessage)
     {

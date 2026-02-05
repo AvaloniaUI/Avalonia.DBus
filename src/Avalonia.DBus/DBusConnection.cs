@@ -10,10 +10,10 @@ public sealed class DBusConnection : IAsyncDisposable
 {
     private readonly object _gate = new();
     private readonly Dictionary<ObjectHandlerKey, ObjectHandlerRegistration> _handlers = new();
+    private readonly Dictionary<string, ObjectRegistration> _objects = new(StringComparer.Ordinal);
     private readonly List<SignalSubscription> _subscriptions = [];
     private readonly CancellationTokenSource _dispatchCts = new();
     private readonly Task _dispatchLoop;
-    private static readonly bool s_verbose = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE"));
     private bool _disposed;
 
     private DBusConnection(DBusWireConnection wire)
@@ -110,17 +110,11 @@ public sealed class DBusConnection : IAsyncDisposable
         SynchronizationContext? synchronizationContext = null)
     {
         if (string.IsNullOrEmpty(iface))
-        {
             throw new ArgumentException("Interface is required.", nameof(iface));
-        }
         if (string.IsNullOrEmpty(member))
-        {
             throw new ArgumentException("Member is required.", nameof(member));
-        }
-        if (handler == null)
-        {
-            throw new ArgumentNullException(nameof(handler));
-        }
+        
+        ArgumentNullException.ThrowIfNull(handler);
 
         var matchRule = BuildMatchRule(sender, path, iface, member);
         await AddMatchAsync(matchRule);
@@ -151,8 +145,7 @@ public sealed class DBusConnection : IAsyncDisposable
                 "RequestName",
                 cancellationToken,
                 name,
-                (uint)flags)
-            ;
+                (uint)flags);
 
         if (reply.Body.Count == 0)
         {
@@ -185,6 +178,58 @@ public sealed class DBusConnection : IAsyncDisposable
     }
 
     /// <summary>
+    /// Resolves the unique name that currently owns a well-known bus name.
+    /// </summary>
+    public async Task<string?> GetNameOwnerAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        if (!DBusBuiltIns.EnableGetNameOwner)
+            throw new InvalidOperationException("GetNameOwner support is disabled. " +
+                                                "Enable it via DBusBuiltIns.EnableGetNameOwner.");
+
+        if (string.IsNullOrEmpty(name))
+            throw new ArgumentException("Name is required.", nameof(name));
+
+        DBusMessage reply;
+        try
+        {
+            reply = await CallBusMethodAsync("GetNameOwner", cancellationToken, name);
+        }
+        catch (DBusException ex) when (string.Equals(ex.ErrorName, "org.freedesktop.DBus.Error.NameHasNoOwner", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (reply.Body.Count == 0)
+            throw new InvalidOperationException("GetNameOwner returned no reply.");
+
+        if (reply.Body[0] is string owner)
+            return string.IsNullOrWhiteSpace(owner) ? null : owner;
+
+        throw new InvalidOperationException("GetNameOwner returned an unexpected value.");
+    }
+
+    /// <summary>
+    /// Registers a handler for method calls on the specified path and interface.
+    /// </summary>
+    public IDisposable RegisterObject(
+        IDBusObject obj,
+        SynchronizationContext? synchronizationContext = null)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+
+        var path = obj.Path.Value;
+        var registration = new ObjectRegistration(this, path, obj, synchronizationContext);
+
+        lock (_gate)
+            if (!_objects.TryAdd(path, registration))
+                throw new InvalidOperationException("An object is already registered for this path.");
+
+        return registration;
+    }
+
+    /// <summary>
     /// Registers a handler for method calls on the specified path and interface.
     /// </summary>
     public IDisposable RegisterObject(
@@ -194,13 +239,9 @@ public sealed class DBusConnection : IAsyncDisposable
         SynchronizationContext? synchronizationContext = null)
     {
         if (string.IsNullOrEmpty(iface))
-        {
             throw new ArgumentException("Interface is required.", nameof(iface));
-        }
-        if (handler == null)
-        {
-            throw new ArgumentNullException(nameof(handler));
-        }
+        
+        ArgumentNullException.ThrowIfNull(handler);
 
         var key = new ObjectHandlerKey(path.Value, iface);
         var registration = new ObjectHandlerRegistration(this, key, handler, synchronizationContext);
@@ -232,8 +273,8 @@ public sealed class DBusConnection : IAsyncDisposable
             _disposed = true;
         }
 
-        _dispatchCts.Cancel();
-        
+        await _dispatchCts.CancelAsync();
+
         try
         {
             await _dispatchLoop;
@@ -286,8 +327,22 @@ public sealed class DBusConnection : IAsyncDisposable
             return;
         }
 
+        ObjectRegistration? objectRegistration;
+        var pathValue = message.Path.Value.Value;
+        lock (_gate)
+        {
+            _objects.TryGetValue(pathValue, out objectRegistration);
+        }
+
+        if (objectRegistration != null)
+        {
+            LogVerbose($"Dispatch METHOD_CALL object: path='{message.Path}' iface='{message.Interface}' member='{message.Member}'");
+            objectRegistration.Invoke(message);
+            return;
+        }
+
         ObjectHandlerRegistration? registration;
-        var key = new ObjectHandlerKey(message.Path.Value.Value, message.Interface);
+        var key = new ObjectHandlerKey(pathValue, message.Interface);
         lock (_gate)
         {
             _handlers.TryGetValue(key, out registration);
@@ -295,26 +350,39 @@ public sealed class DBusConnection : IAsyncDisposable
 
         if (registration == null)
         {
+            var iface = string.IsNullOrWhiteSpace(message.Interface) ? "<null>" : message.Interface;
+            var member = string.IsNullOrWhiteSpace(message.Member) ? "<null>" : message.Member;
+            var path = message.Path.HasValue ? message.Path.Value.Value : "<null>";
+            bool hasPath;
+            lock (_gate)
+            {
+                hasPath = _handlers.Keys.Any(k => string.Equals(k.Path, path, StringComparison.Ordinal));
+            }
+
+            if (hasPath)
+            {
+                var builtInReply = DBusBuiltIns.TryHandlePeer(message);
+                if (builtInReply != null)
+                {
+                    if ((message.Flags & DBusMessageFlags.NoReplyExpected) == 0)
+                        FireAndForget(Wire.SendAsync(builtInReply));
+                    return;
+                }
+            }
+
             if ((message.Flags & DBusMessageFlags.NoReplyExpected) == 0)
             {
-                var iface = string.IsNullOrWhiteSpace(message.Interface) ? "<null>" : message.Interface;
-                var member = string.IsNullOrWhiteSpace(message.Member) ? "<null>" : message.Member;
-                var path = message.Path.HasValue ? message.Path.Value.Value : "<null>";
                 string errorName;
                 string errorMessage;
-                lock (_gate)
+                if (hasPath)
                 {
-                    var hasPath = _handlers.Keys.Any(k => string.Equals(k.Path, path, StringComparison.Ordinal));
-                    if (hasPath)
-                    {
-                        errorName = "org.freedesktop.DBus.Error.UnknownInterface";
-                        errorMessage = $"No handler registered for interface '{iface}' on '{path}'.";
-                    }
-                    else
-                    {
-                        errorName = "org.freedesktop.DBus.Error.UnknownObject";
-                        errorMessage = $"No handler registered for object '{path}'.";
-                    }
+                    errorName = "org.freedesktop.DBus.Error.UnknownInterface";
+                    errorMessage = $"No handler registered for interface '{iface}' on '{path}'.";
+                }
+                else
+                {
+                    errorName = "org.freedesktop.DBus.Error.UnknownObject";
+                    errorMessage = $"No handler registered for object '{path}'.";
                 }
 
                 LogVerbose($"Dispatch METHOD_CALL missing handler: path='{path}' iface='{iface}' member='{member}' -> {errorName}");
@@ -330,12 +398,9 @@ public sealed class DBusConnection : IAsyncDisposable
 
     private static void LogVerbose(string message)
     {
-        if (!s_verbose)
-        {
-            return;
-        }
-
+#if DEBUG
         Console.Error.WriteLine($"[DBusConnection {Environment.CurrentManagedThreadId}] {message}");
+#endif
     }
 
     private async Task<DBusMessage> CallBusMethodAsync(
@@ -368,44 +433,64 @@ public sealed class DBusConnection : IAsyncDisposable
     private static void ThrowIfError(DBusMessage reply)
     {
         if (reply.Type != DBusMessageType.Error)
-        {
             return;
-        }
 
         var errorName = reply.ErrorName ?? "org.freedesktop.DBus.Error.Failed";
         string? errorMessage = null;
-        if (reply.Body.Count > 0 && reply.Body[0] is string message)
-        {
+        
+        if (reply.Body.Count > 0 && reply.Body[0] is string message) 
             errorMessage = message;
-        }
 
         LogVerbose($"D-Bus error reply: name='{errorName}' message='{errorMessage}'");
         throw new DBusException(errorName, errorMessage, reply);
     }
 
+    private static DBusMessage EnsureReplyMetadata(DBusMessage request, DBusMessage reply)
+    {
+        if (reply.Type != DBusMessageType.MethodReturn && reply.Type != DBusMessageType.Error)
+            return reply;
+
+        var replySerial = reply.ReplySerial != 0 ? reply.ReplySerial : request.Serial;
+        var destination = reply.Destination ?? request.Sender;
+        var errorName = reply.ErrorName;
+
+        if (reply.Type == DBusMessageType.Error && string.IsNullOrEmpty(errorName)) 
+            errorName = "org.freedesktop.DBus.Error.Failed";
+
+        if (reply.ReplySerial == replySerial
+            && string.Equals(reply.Destination, destination, StringComparison.Ordinal)
+            && string.Equals(reply.ErrorName, errorName, StringComparison.Ordinal))
+            return reply;
+
+        return new DBusMessage
+        {
+            Type = reply.Type,
+            Flags = reply.Flags,
+            ReplySerial = replySerial,
+            Path = reply.Path,
+            Interface = reply.Interface,
+            Member = reply.Member,
+            ErrorName = errorName,
+            Destination = destination,
+            Body = reply.Body
+        };
+    }
+
     private static string BuildMatchRule(string? sender, DBusObjectPath? path, string iface, string member)
     {
-        var parts = new List<string> { "type='signal'" };
+        List<string> parts = ["type='signal'"];
 
-        if (!string.IsNullOrEmpty(sender))
-        {
+        if (!string.IsNullOrEmpty(sender)) 
             parts.Add($"sender='{EscapeMatchValue(sender)}'");
-        }
 
-        if (path.HasValue)
-        {
+        if (path.HasValue) 
             parts.Add($"path='{EscapeMatchValue(path.Value.Value)}'");
-        }
 
         if (!string.IsNullOrEmpty(iface))
-        {
             parts.Add($"interface='{EscapeMatchValue(iface)}'");
-        }
 
         if (!string.IsNullOrEmpty(member))
-        {
             parts.Add($"member='{EscapeMatchValue(member)}'");
-        }
 
         return string.Join(",", parts);
     }
@@ -417,17 +502,12 @@ public sealed class DBusConnection : IAsyncDisposable
             return string.Empty;
         }
 
-        return value.Replace("\\", "\\\\", StringComparison.Ordinal)
+        return value.Replace("\\", @"\\", StringComparison.Ordinal)
             .Replace("'", "\\'", StringComparison.Ordinal);
     }
 
     private static void FireAndForget(Task task)
     {
-        if (task == null)
-        {
-            return;
-        }
-
         _ = task.ContinueWith(
             t => _ = t.Exception,
             CancellationToken.None,
@@ -435,16 +515,10 @@ public sealed class DBusConnection : IAsyncDisposable
             TaskScheduler.Default);
     }
 
-    private readonly struct ObjectHandlerKey : IEquatable<ObjectHandlerKey>
+    private readonly struct ObjectHandlerKey(string path, string iface) : IEquatable<ObjectHandlerKey>
     {
-        private readonly string _path;
-        private readonly string _iface;
-
-        public ObjectHandlerKey(string path, string iface)
-        {
-            _path = path ?? string.Empty;
-            _iface = iface ?? string.Empty;
-        }
+        private readonly string _path = path ?? string.Empty;
+        private readonly string _iface = iface ?? string.Empty;
 
         public bool Equals(ObjectHandlerKey other)
             => string.Equals(_path, other._path, StringComparison.Ordinal)
@@ -458,72 +532,41 @@ public sealed class DBusConnection : IAsyncDisposable
             => HashCode.Combine(StringComparer.Ordinal.GetHashCode(_path), StringComparer.Ordinal.GetHashCode(_iface));
     }
 
-    private sealed class SignalSubscription : IDisposable
+    private sealed class SignalSubscription(
+        DBusConnection connection,
+        string? sender,
+        DBusObjectPath? path,
+        string iface,
+        string member,
+        Func<DBusMessage, Task> handler,
+        SynchronizationContext? context,
+        string matchRule)
+        : IDisposable
     {
-        private readonly DBusConnection _connection;
-        private readonly string? _sender;
-        private readonly DBusObjectPath? _path;
-        private readonly string _iface;
-        private readonly string _member;
-        private readonly Func<DBusMessage, Task> _handler;
-        private readonly SynchronizationContext? _context;
-        private readonly string _matchRule;
         private bool _disposed;
-
-        public SignalSubscription(
-            DBusConnection connection,
-            string? sender,
-            DBusObjectPath? path,
-            string iface,
-            string member,
-            Func<DBusMessage, Task> handler,
-            SynchronizationContext? context,
-            string matchRule)
-        {
-            _connection = connection;
-            _sender = sender;
-            _path = path;
-            _iface = iface;
-            _member = member;
-            _handler = handler;
-            _context = context;
-            _matchRule = matchRule;
-        }
 
         public bool IsMatch(DBusMessage message)
         {
             if (message.Type != DBusMessageType.Signal)
-            {
                 return false;
-            }
 
-            if (!string.IsNullOrEmpty(_sender) && !string.Equals(message.Sender, _sender, StringComparison.Ordinal))
-            {
+            if (!string.IsNullOrEmpty(sender) && !string.Equals(message.Sender, sender, StringComparison.Ordinal))
                 return false;
-            }
 
-            if (_path.HasValue)
+            if (path.HasValue)
             {
                 if (!message.Path.HasValue)
-                {
                     return false;
-                }
 
-                if (message.Path.Value != _path.Value)
-                {
+                if (message.Path.Value != path.Value)
                     return false;
-                }
             }
 
-            if (!string.Equals(message.Interface, _iface, StringComparison.Ordinal))
-            {
+            if (!string.Equals(message.Interface, iface, StringComparison.Ordinal))
                 return false;
-            }
 
-            if (!string.Equals(message.Member, _member, StringComparison.Ordinal))
-            {
+            if (!string.Equals(message.Member, member, StringComparison.Ordinal))
                 return false;
-            }
 
             return true;
         }
@@ -531,85 +574,57 @@ public sealed class DBusConnection : IAsyncDisposable
         public void Invoke(DBusMessage message)
         {
             if (_disposed)
-            {
                 return;
-            }
-
-            if (_context == null)
-            {
-                FireAndForget(_handler(message));
-            }
+            if (context == null)
+                FireAndForget(handler(message));
             else
-            {
-                _context.Post(_ => FireAndForget(_handler(message)), null);
-            }
+                context.Post(_ => FireAndForget(handler(message)), null);
         }
 
         public void Dispose()
         {
             if (_disposed)
-            {
                 return;
-            }
 
             _disposed = true;
-            lock (_connection._gate)
+            lock (connection._gate)
             {
-                _connection._subscriptions.Remove(this);
+                connection._subscriptions.Remove(this);
             }
 
-            _connection.RemoveMatch(_matchRule);
+            connection.RemoveMatch(matchRule);
         }
     }
 
-    private sealed class ObjectHandlerRegistration : IDisposable
+    private sealed class ObjectRegistration(
+        DBusConnection connection,
+        string path,
+        IDBusObject obj,
+        SynchronizationContext? context)
+        : IDisposable
     {
-        private readonly DBusConnection _connection;
-        private readonly ObjectHandlerKey _key;
-        private readonly Func<DBusMessage, Task<DBusMessage>> _handler;
-        private readonly SynchronizationContext? _context;
         private bool _disposed;
-
-        public ObjectHandlerRegistration(
-            DBusConnection connection,
-            ObjectHandlerKey key,
-            Func<DBusMessage, Task<DBusMessage>> handler,
-            SynchronizationContext? context)
-        {
-            _connection = connection;
-            _key = key;
-            _handler = handler;
-            _context = context;
-        }
 
         public void Invoke(DBusMessage message)
         {
             if (_disposed)
-            {
                 return;
-            }
 
-            if (_context == null)
-            {
+            if (context == null)
                 FireAndForget(HandleAsync(message));
-            }
             else
-            {
-                _context.Post(_ => FireAndForget(HandleAsync(message)), null);
-            }
+                context.Post(_ => FireAndForget(HandleAsync(message)), null);
         }
 
         public void Dispose()
         {
             if (_disposed)
-            {
                 return;
-            }
 
             _disposed = true;
-            lock (_connection._gate)
+            lock (connection._gate)
             {
-                _connection._handlers.Remove(_key);
+                connection._objects.Remove(path);
             }
         }
 
@@ -618,7 +633,11 @@ public sealed class DBusConnection : IAsyncDisposable
             DBusMessage reply;
             try
             {
-                reply = await _handler(message);
+                reply = DBusBuiltIns.TryHandlePeer(message)
+                    ?? DBusBuiltIns.TryHandleProperties(message, obj)
+                    ?? DBusBuiltIns.TryHandleIntrospectable(message, obj)
+                    ?? await obj.HandleMethodAsync(message);
+
                 if (reply == null)
                 {
                     reply = message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");
@@ -631,44 +650,69 @@ public sealed class DBusConnection : IAsyncDisposable
 
             reply = EnsureReplyMetadata(message, reply);
 
-            await _connection.Wire.SendAsync(reply);
+            await connection.Wire.SendAsync(reply);
+        }
+    }
+
+    private sealed class ObjectHandlerRegistration(
+        DBusConnection connection,
+        ObjectHandlerKey key,
+        Func<DBusMessage, Task<DBusMessage>> handler,
+        SynchronizationContext? context)
+        : IDisposable
+    {
+        private bool _disposed;
+
+        public void Invoke(DBusMessage message)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (context == null)
+            {
+                FireAndForget(HandleAsync(message));
+            }
+            else
+            {
+                context.Post(_ => FireAndForget(HandleAsync(message)), null);
+            }
         }
 
-        private static DBusMessage EnsureReplyMetadata(DBusMessage request, DBusMessage reply)
+        public void Dispose()
         {
-            if (reply.Type != DBusMessageType.MethodReturn && reply.Type != DBusMessageType.Error)
+            if (_disposed)
             {
-                return reply;
+                return;
             }
 
-            var replySerial = reply.ReplySerial != 0 ? reply.ReplySerial : request.Serial;
-            var destination = reply.Destination ?? request.Sender;
-            var errorName = reply.ErrorName;
-
-            if (reply.Type == DBusMessageType.Error && string.IsNullOrEmpty(errorName))
+            _disposed = true;
+            lock (connection._gate)
             {
-                errorName = "org.freedesktop.DBus.Error.Failed";
+                connection._handlers.Remove(key);
+            }
+        }
+
+        private async Task HandleAsync(DBusMessage message)
+        {
+            DBusMessage reply;
+            try
+            {
+                reply = await handler(message);
+                if (reply == null)
+                {
+                    reply = message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");
+                }
+            }
+            catch (Exception ex)
+            {
+                reply = message.CreateError("org.freedesktop.DBus.Error.Failed", ex.Message);
             }
 
-            if (reply.ReplySerial == replySerial
-                && string.Equals(reply.Destination, destination, StringComparison.Ordinal)
-                && string.Equals(reply.ErrorName, errorName, StringComparison.Ordinal))
-            {
-                return reply;
-            }
+            reply = EnsureReplyMetadata(message, reply);
 
-            return new DBusMessage
-            {
-                Type = reply.Type,
-                Flags = reply.Flags,
-                ReplySerial = replySerial,
-                Path = reply.Path,
-                Interface = reply.Interface,
-                Member = reply.Member,
-                ErrorName = errorName,
-                Destination = destination,
-                Body = reply.Body
-            };
+            await connection.Wire.SendAsync(reply);
         }
     }
 

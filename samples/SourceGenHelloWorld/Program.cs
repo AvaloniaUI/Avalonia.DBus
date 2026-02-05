@@ -36,6 +36,6 @@ internal static class Program
             });
 
         await Task.Delay(Timeout.Infinite);
- 
+
     }
 }

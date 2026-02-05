@@ -7,10 +7,10 @@ namespace Avalonia.DBus.Native;
 [Conditional("DEBUG")]
 internal sealed class NativeAnnotationAttribute : Attribute
 {
-	internal string Annotation { get; }
+    internal string Annotation { get; }
 
-	internal NativeAnnotationAttribute(string annotation)
-	{
-		Annotation = annotation;
-	}
+    internal NativeAnnotationAttribute(string annotation)
+    {
+        Annotation = annotation;
+    }
 }

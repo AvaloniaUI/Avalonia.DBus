@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Avalonia.DBus.Native;
 
 namespace Avalonia.DBus;
@@ -108,8 +107,8 @@ public sealed class DBusWireConnection : IAsyncDisposable
 
         _worker.TryEnqueue(new DbusWireWorker.EnqueueSendItemMessage(
             message,
-            tcs, 
-            true, 
+            tcs,
+            true,
             cancellationToken
             ));
 

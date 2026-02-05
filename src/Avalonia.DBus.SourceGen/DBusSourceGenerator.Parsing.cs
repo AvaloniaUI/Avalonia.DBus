@@ -64,19 +64,6 @@ public partial class DBusSourceGenerator
     }
 
     [return: NotNullIfNotNull(nameof(dbusValues))]
-    private static string? ParseSignature(IReadOnlyList<DBusValue>? dbusValues)
-    {
-        if (dbusValues is null || dbusValues.Count == 0)
-            return null;
-
-        StringBuilder sb = new();
-        foreach (var dBusValue in dbusValues.Where(static argument => argument.Type is not null))
-            sb.Append(dBusValue.Type);
-
-        return sb.ToString();
-    }
-
-    [return: NotNullIfNotNull(nameof(dbusValues))]
     private static TypeSyntax? ParseReturnType(IReadOnlyList<DBusValue>? dbusValues)
     {
         return dbusValues?.Count switch
@@ -103,7 +90,7 @@ public partial class DBusSourceGenerator
             0 or null => IdentifierName("Task"),
             _ => GenericName("Task")
                 .AddTypeArgumentListArguments(
-                    ParseReturnType(dbusValues)?? throw new InvalidOperationException("ParseTaskReturnType: ParseReturnType(dbusValues) returned null."))
+                    ParseReturnType(dbusValues) ?? throw new InvalidOperationException("ParseTaskReturnType: ParseReturnType(dbusValues) returned null."))
         };
     }
 
@@ -114,21 +101,7 @@ public partial class DBusSourceGenerator
             0 or null => IdentifierName("ValueTask"),
             _ => GenericName("ValueTask")
                 .AddTypeArgumentListArguments(
-                    ParseReturnType(dbusValues) ?? throw new InvalidOperationException("ParseValueTaskReturnType: ParseReturnType(dbusValues) returned null.")) 
-        };
-    }
-
-    private static TypeSyntax ParseTaskCompletionSourceType(IReadOnlyList<DBusValue>? dbusValues)
-    {
-        return dbusValues?.Count switch
-        {
-            0 or null => GenericName("TaskCompletionSource")
-                .AddTypeArgumentListArguments(
-                    PredefinedType(
-                        Token(SyntaxKind.BoolKeyword))),
-            _ => GenericName("TaskCompletionSource")
-                .AddTypeArgumentListArguments(
-                    ParseReturnType(dbusValues) ?? throw new InvalidOperationException("ParseTaskCompletionSourceType: ParseReturnType(dbusValues) returned null."))
+                    ParseReturnType(dbusValues) ?? throw new InvalidOperationException("ParseValueTaskReturnType: ParseReturnType(dbusValues) returned null."))
         };
     }
 
@@ -219,12 +192,12 @@ public partial class DBusSourceGenerator
             return dbusValue.TypeDefinition is null ? type : ApplyTypeDefinition(type, dbusValue.TypeDefinition);
         }
 
-        internal DBusDotnetType WithAlias(string aliasName, bool isBitFlags = false)
+        private DBusDotnetType WithAlias(string aliasName, bool isBitFlags = false)
         {
             return new DBusDotnetType(DotnetType, DBusType, DBusTypeSignature, InnerTypes, aliasName, isBitFlags);
         }
 
-        internal DBusDotnetType WithInnerTypes(DBusDotnetType[] innerTypes)
+        private DBusDotnetType WithInnerTypes(DBusDotnetType[] innerTypes)
         {
             return new DBusDotnetType(DotnetType, DBusType, DBusTypeSignature, innerTypes, AliasName, IsBitFlags);
         }

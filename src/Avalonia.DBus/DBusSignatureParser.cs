@@ -7,15 +7,10 @@ internal static class DBusSignatureParser
 {
     internal static string ReadSingleType(string signature, ref int index)
     {
-        if (signature == null)
-        {
-            throw new ArgumentNullException(nameof(signature));
-        }
+        ArgumentNullException.ThrowIfNull(signature);
 
         if (index < 0 || index >= signature.Length)
-        {
             throw new ArgumentException("Signature index is out of range.", nameof(index));
-        }
 
         var start = index;
         DBusSignatureToken token = signature[index++];
@@ -25,14 +20,10 @@ internal static class DBusSignatureParser
         }
         else if (token == DBusSignatureToken.StructBegin)
         {
-            while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd)
-            {
+            while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd) 
                 ReadSingleType(signature, ref index);
-            }
             if (index >= signature.Length || signature[index] != DBusSignatureToken.StructEnd)
-            {
                 throw new ArgumentException("Struct signature is not closed.", nameof(signature));
-            }
             index++;
         }
         else if (token == DBusSignatureToken.DictEntryBegin)
@@ -40,9 +31,7 @@ internal static class DBusSignatureParser
             ReadSingleType(signature, ref index);
             ReadSingleType(signature, ref index);
             if (index >= signature.Length || signature[index] != DBusSignatureToken.DictEntryEnd)
-            {
                 throw new ArgumentException("Dict entry signature is not closed.", nameof(signature));
-            }
             index++;
         }
 
@@ -52,52 +41,38 @@ internal static class DBusSignatureParser
     internal static IReadOnlyList<string> ParseStructSignatures(string signature)
     {
         if (string.IsNullOrEmpty(signature) || signature[0] != DBusSignatureToken.StructBegin)
-        {
             throw new ArgumentException("Struct signature is invalid.", nameof(signature));
-        }
 
         var index = 1;
         List<string> parts = [];
-        while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd)
-        {
+        
+        while (index < signature.Length && signature[index] != DBusSignatureToken.StructEnd) 
             parts.Add(ReadSingleType(signature, ref index));
-        }
 
         if (index >= signature.Length || signature[index] != DBusSignatureToken.StructEnd)
-        {
             throw new ArgumentException("Struct signature is not closed.", nameof(signature));
-        }
 
         index++;
-        if (index != signature.Length)
-        {
-            throw new ArgumentException("Struct signature contains trailing data.", nameof(signature));
-        }
-
-        return parts;
+        
+        return index != signature.Length ? 
+            throw new ArgumentException("Struct signature contains trailing data.", nameof(signature)) : parts;
     }
 
     internal static (string KeySignature, string ValueSignature) ParseDictEntrySignatures(string signature)
     {
         if (string.IsNullOrEmpty(signature) || signature[0] != DBusSignatureToken.DictEntryBegin)
-        {
             throw new ArgumentException("Dict entry signature is invalid.", nameof(signature));
-        }
 
         var index = 1;
         var keySignature = ReadSingleType(signature, ref index);
         var valueSignature = ReadSingleType(signature, ref index);
+        
         if (index >= signature.Length || signature[index] != DBusSignatureToken.DictEntryEnd)
-        {
             throw new ArgumentException("Dict entry signature is not closed.", nameof(signature));
-        }
 
         index++;
-        if (index != signature.Length)
-        {
-            throw new ArgumentException("Dict entry signature contains trailing data.", nameof(signature));
-        }
-
-        return (keySignature, valueSignature);
+        return index != signature.Length ? 
+            throw new ArgumentException("Dict entry signature contains trailing data.", 
+                nameof(signature)) : (keySignature, valueSignature);
     }
 }

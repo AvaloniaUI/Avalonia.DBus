@@ -423,16 +423,16 @@ public partial class DBusSourceGenerator
     private void AddReadProperties(ref ClassDeclarationSyntax cl, DBusInterface dBusInterface)
     {
         var switchSections = (from property in dBusInterface.Properties!
-            let statements = new List<StatementSyntax>
+                              let statements = new List<StatementSyntax>
             {
                 ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, MakeMemberAccessExpression("props", Pascalize(property.Name.AsSpan())), MakeFromDbusValueExpression(property.DBusDotnetType, MakeMemberAccessExpression("entry", "Value", "Value")))),
                 ExpressionStatement(ConditionalAccessExpression(IdentifierName("changed"), InvocationExpression(MemberBindingExpression(IdentifierName("Add")))
                     .AddArgumentListArguments(Argument(MakeLiteralExpression(Pascalize(property.Name.AsSpan())))))),
                 BreakStatement()
             }
-            select SwitchSection()
-                .AddLabels(CaseSwitchLabel(MakeLiteralExpression(property.Name!)))
-                .AddStatements(statements.ToArray())).ToList();
+                              select SwitchSection()
+                                  .AddLabels(CaseSwitchLabel(MakeLiteralExpression(property.Name!)))
+                                  .AddStatements(statements.ToArray())).ToList();
 
         StatementSyntax propsDeclaration = LocalDeclarationStatement(
             VariableDeclaration(
@@ -581,11 +581,11 @@ public partial class DBusSourceGenerator
     {
         var propsType = GetPropertiesClassIdentifier(dBusInterface);
 
-        var statements = new StatementSyntax[]
+        var statements = new[]
         {
             ParseStatement("if (!string.Equals((string)message.Body[0], Interface, StringComparison.Ordinal))\n{\n    return Task.CompletedTask;\n}\n"),
             ParseStatement("var changed = new List<string>();"),
-            ParseStatement($"var props = ReadProperties((Dictionary<string, DBusVariant>)message.Body[1], changed);"),
+            ParseStatement("var props = ReadProperties((Dictionary<string, DBusVariant>)message.Body[1], changed);"),
             ParseStatement("var invalidated = (List<string>)message.Body[2];"),
             ParseStatement($"handler(new PropertyChanges<{propsType}>(props, invalidated.ToArray(), changed.ToArray()));"),
             ParseStatement("return Task.CompletedTask;")

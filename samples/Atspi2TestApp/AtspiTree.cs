@@ -1,3 +1,4 @@
+using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
@@ -116,7 +117,7 @@ internal sealed class AtspiTree
             StateCheckable,
             StateChecked
         ]);
-        checkBox.Action = new ActionInfo("toggle", "Toggle", "Toggles the checkbox state");
+        checkBox.Action = new AtSpiAction("toggle", "Toggle", "Toggles the checkbox state");
 
         var button = CreateNode("Submit", RoleButton);
         button.Description = "Submit button";
@@ -130,7 +131,7 @@ internal sealed class AtspiTree
             StateShowing,
             StateFocusable
         ]);
-        button.Action = new ActionInfo("click", "Click", "Clicks the submit button");
+        button.Action = new AtSpiAction("click", "Click", "Clicks the submit button");
 
         var slider = CreateNode("Volume", RoleSlider);
         slider.Description = "Volume slider";

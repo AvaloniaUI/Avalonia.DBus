@@ -26,8 +26,8 @@ public partial class DBusSourceGenerator
             .AddMembers(
                 MakeGetSetProperty(
                     NullableType(
-                        IdentifierName("PathHandler")),
-                    "PathHandler",
+                        IdentifierName("DBusObjectPath")),
+                    "Path",
                     Token(SyntaxKind.PublicKeyword)),
                 MakeGetOnlyProperty(
                     IdentifierName("DBusConnection"),
@@ -269,8 +269,10 @@ public partial class DBusSourceGenerator
                 ExpressionStatement(
                     AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
                         IdentifierName("value"),
-                        PostfixUnaryExpression(SyntaxKind.SuppressNullableWarningExpression,
-                            LiteralExpression(SyntaxKind.NullLiteralExpression)))),
+                        ObjectCreationExpression(IdentifierName("DBusVariant"))
+                            .AddArgumentListArguments(
+                                Argument(
+                                    MakeLiteralExpression(string.Empty))))),
                 ReturnStatement(LiteralExpression(SyntaxKind.FalseLiteralExpression)));
 
         return MethodDeclaration(PredefinedType(Token(SyntaxKind.BoolKeyword)), "TryGetProperty")
@@ -433,7 +435,7 @@ public partial class DBusSourceGenerator
             body = body.AddStatements(
                 IfStatement(
                     BinaryExpression(SyntaxKind.EqualsExpression,
-                        IdentifierName("PathHandler"),
+                        IdentifierName("Path"),
                         LiteralExpression(SyntaxKind.NullLiteralExpression)),
                     ThrowStatement(
                         ObjectCreationExpression(IdentifierName("InvalidOperationException"))
@@ -443,7 +445,7 @@ public partial class DBusSourceGenerator
             var args = ArgumentList()
                 .AddArguments(
                     Argument(
-                        MakeMemberAccessExpression("PathHandler", "Path")),
+                        MakeMemberAccessExpression("Path", "Value")),
                     Argument(
                         IdentifierName("InterfaceName")),
                     Argument(

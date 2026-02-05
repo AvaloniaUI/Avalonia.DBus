@@ -7,10 +7,10 @@ namespace Avalonia.DBus.Native;
 [Conditional("DEBUG")]
 internal sealed class NativeTypeNameAttribute : Attribute
 {
-	internal string Name { get; }
+    internal string Name { get; }
 
-	internal NativeTypeNameAttribute(string name)
-	{
-		Name = name;
-	}
+    internal NativeTypeNameAttribute(string name)
+    {
+        Name = name;
+    }
 }

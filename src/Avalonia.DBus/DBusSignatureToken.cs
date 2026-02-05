@@ -2,7 +2,7 @@ using System;
 
 namespace Avalonia.DBus;
 
-internal readonly struct DBusSignatureToken : IEquatable<DBusSignatureToken>
+internal readonly struct DBusSignatureToken(char value) : IEquatable<DBusSignatureToken>
 {
     public static readonly DBusSignatureToken Invalid = new('\0');
     public static readonly DBusSignatureToken Byte = new('y');
@@ -25,21 +25,14 @@ internal readonly struct DBusSignatureToken : IEquatable<DBusSignatureToken>
     public static readonly DBusSignatureToken DictEntryBegin = new('{');
     public static readonly DBusSignatureToken DictEntryEnd = new('}');
 
-    public DBusSignatureToken(char value)
-    {
-        Value = value;
-    }
-
-    public char Value { get; }
+    public char Value { get; } = value;
 
     public static implicit operator DBusSignatureToken(char value) => new(value);
 
     public static implicit operator DBusSignatureToken(string value)
     {
         if (string.IsNullOrEmpty(value) || value.Length != 1)
-        {
             throw new ArgumentException("Signature token string must be a single character.", nameof(value));
-        }
 
         return new DBusSignatureToken(value[0]);
     }

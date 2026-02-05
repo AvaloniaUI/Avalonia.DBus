@@ -1,8 +1,8 @@
 using System;
-using System.IO;
 using System.Collections.Generic;
-using System.Text;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.CodeAnalysis;
@@ -29,8 +29,6 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
         context.RegisterPostInitializationOutput(initializationContext =>
         {
             initializationContext.AddSource("Avalonia.DBus.SourceGen.PropertyChanges.cs", PropertyChangesClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.PathHandler.cs", PathHandlerClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.IDBusInterfaceHandler.cs", DBusInterfaceHandlerInterface);
         });
 
         IncrementalValuesProvider<(DBusNode, string, string)> generatorProvider = context.AdditionalTextsProvider
@@ -68,17 +66,37 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 return;
 
             var xmlByPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in data.Right)
+            foreach (var entry in data.Right
+                         .Where(entry => !string.IsNullOrWhiteSpace(entry.Text)))
             {
-                if (!string.IsNullOrWhiteSpace(entry.Text))
-                    xmlByPath[entry.Path] = entry.Text!;
+                xmlByPath[entry.Path] = entry.Text!;
+            }
+
+            var importPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var value in provider)
+            {
+                var node = value.Item1;
+                if (node.ImportTypes is null || node.ImportTypes.Length == 0)
+                    continue;
+
+                var baseDirectory = Path.GetDirectoryName(value.Item3) ?? string.Empty;
+                foreach (var import in node.ImportTypes)
+                {
+                    if (string.IsNullOrWhiteSpace(import))
+                        continue;
+
+                    var resolvedPath = Path.GetFullPath(Path.Combine(baseDirectory, import));
+                    importPaths.Add(resolvedPath);
+                }
             }
 
             var interfaces = provider.Select(static value => value.Item1).SelectMany(static node => node.Interfaces!);
-            var structAliases = CollectStructAliases(interfaces);
-            ApplyStructAliases(interfaces, structAliases);
+            var dBusInterfaces = interfaces as DBusInterface[] ?? interfaces.ToArray();
+            var structAliases = CollectStructAliases(dBusInterfaces);
+            ApplyStructAliases(dBusInterfaces, structAliases);
 
-            var structDefinitions = CollectStructDefinitions(interfaces);
+            var structMetadata = LoadStructDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
+            var structDefinitions = CollectStructDefinitions(dBusInterfaces, structMetadata);
             if (structDefinitions.Count > 0)
             {
                 productionContext.AddSource(
@@ -86,28 +104,10 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     BuildStructsSource(structDefinitions.Values));
             }
 
-            var (dictionaryAliases, bitFlagsAliases) = CollectTypeAliases(interfaces);
+            var (dictionaryAliases, bitFlagsAliases) = CollectTypeAliases(dBusInterfaces);
 
             if (dictionaryAliases.Count > 0 || bitFlagsAliases.Count > 0)
             {
-                var importPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var value in provider)
-                {
-                    var node = value.Item1;
-                    if (node.ImportTypes is null || node.ImportTypes.Length == 0)
-                        continue;
-
-                    var baseDirectory = Path.GetDirectoryName(value.Item3) ?? string.Empty;
-                    foreach (var import in node.ImportTypes)
-                    {
-                        if (string.IsNullOrWhiteSpace(import))
-                            continue;
-
-                        var resolvedPath = Path.GetFullPath(Path.Combine(baseDirectory, import));
-                        importPaths.Add(resolvedPath);
-                    }
-                }
-
                 var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
                 var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions);
                 if (!string.IsNullOrWhiteSpace(aliasesSource))

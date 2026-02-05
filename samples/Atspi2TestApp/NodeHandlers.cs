@@ -1,17 +1,11 @@
-using Avalonia.DBus.SourceGen;
+using Avalonia.DBus;
 
 namespace Atspi2TestApp;
 
-internal sealed class NodeHandlers
+internal sealed class NodeHandlers(AccessibleNode node, DBusObject dbusObject)
 {
-    public NodeHandlers(AccessibleNode node, PathHandler pathHandler)
-    {
-        Node = node;
-        PathHandler = pathHandler;
-    }
-
-    public AccessibleNode Node { get; }
-    public PathHandler PathHandler { get; }
+    public AccessibleNode Node { get; } = node;
+    public DBusObject DbusObject { get; } = dbusObject;
 
     public AccessibleHandler? AccessibleHandler { get; set; }
     public ApplicationHandler? ApplicationHandler { get; set; }
@@ -22,6 +16,6 @@ internal sealed class NodeHandlers
 
     public void Add(IDBusInterfaceHandler handler)
     {
-        PathHandler.Add(handler);
+        DbusObject.Add(handler);
     }
 }

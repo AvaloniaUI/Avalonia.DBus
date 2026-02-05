@@ -10,23 +10,20 @@ namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
 {
-    private sealed class StructDefinition
+    private sealed class StructDefinition(string name, string signature, DBusDotnetType[] fields, string[]? fieldNames)
     {
-        public StructDefinition(string name, string signature, DBusDotnetType[] fields)
-        {
-            Name = name;
-            Signature = signature;
-            Fields = fields;
-        }
+        public string Name { get; } = name;
 
-        public string Name { get; }
+        public string Signature { get; } = signature;
 
-        public string Signature { get; }
+        public DBusDotnetType[] Fields { get; } = fields;
 
-        public DBusDotnetType[] Fields { get; }
+        public string[]? FieldNames { get; } = fieldNames;
     }
 
-    private static IReadOnlyDictionary<string, StructDefinition> CollectStructDefinitions(IEnumerable<DBusInterface> interfaces)
+    private static IReadOnlyDictionary<string, StructDefinition> CollectStructDefinitions(
+        IEnumerable<DBusInterface> interfaces,
+        IReadOnlyDictionary<string, AvStructDefinition> structDefinitions)
     {
         Dictionary<string, StructDefinition> definitions = new();
 
@@ -44,7 +41,7 @@ public partial class DBusSourceGenerator
                         if (string.IsNullOrWhiteSpace(arg.Type))
                             continue;
 
-                        CollectStructDefinitions(arg.DBusDotnetType, definitions);
+                        CollectStructDefinitions(arg.DBusDotnetType, definitions, structDefinitions);
                     }
                 }
             }
@@ -61,7 +58,7 @@ public partial class DBusSourceGenerator
                         if (string.IsNullOrWhiteSpace(arg.Type))
                             continue;
 
-                        CollectStructDefinitions(arg.DBusDotnetType, definitions);
+                        CollectStructDefinitions(arg.DBusDotnetType, definitions, structDefinitions);
                     }
                 }
             }
@@ -73,7 +70,7 @@ public partial class DBusSourceGenerator
                     if (string.IsNullOrWhiteSpace(prop.Type))
                         continue;
 
-                    CollectStructDefinitions(prop.DBusDotnetType, definitions);
+                    CollectStructDefinitions(prop.DBusDotnetType, definitions, structDefinitions);
                 }
             }
         }
@@ -81,7 +78,10 @@ public partial class DBusSourceGenerator
         return definitions;
     }
 
-    private static void CollectStructDefinitions(DBusDotnetType type, IDictionary<string, StructDefinition> definitions)
+    private static void CollectStructDefinitions(
+        DBusDotnetType type,
+        IDictionary<string, StructDefinition> definitions,
+        IReadOnlyDictionary<string, AvStructDefinition> structDefinitions)
     {
         if (type.DotnetType == DotnetType.Struct && !string.IsNullOrEmpty(type.DBusTypeSignature))
         {
@@ -91,14 +91,15 @@ public partial class DBusSourceGenerator
 
             if (!definitions.ContainsKey(typeName))
             {
-                definitions[typeName] = new StructDefinition(typeName, type.DBusTypeSignature, type.InnerTypes);
+                var fieldNames = TryGetStructFieldNames(typeName, type.InnerTypes.Length, structDefinitions);
+                definitions[typeName] = new StructDefinition(typeName, type.DBusTypeSignature, type.InnerTypes, fieldNames);
             }
         }
- 
+
         foreach (var inner in type.InnerTypes)
         {
-            CollectStructDefinitions(inner, definitions);
-        } 
+            CollectStructDefinitions(inner, definitions, structDefinitions);
+        }
     }
 
     private static string GetStructTypeName(string signature)
@@ -311,7 +312,7 @@ public partial class DBusSourceGenerator
             var signatureLiteral = SymbolDisplay.FormatLiteral(definition.Signature, true);
 
             var parameters = string.Join(", ", definition.Fields.Select((field, index) =>
-                $"{GetTypeName(field)} Item{index + 1}"));
+                $"{GetTypeName(field)} {GetStructFieldName(definition, index)}"));
 
             sb.AppendLine($"    internal sealed record {typeName}({parameters})");
             sb.AppendLine("    {");
@@ -323,7 +324,7 @@ public partial class DBusSourceGenerator
             sb.AppendLine("                throw new ArgumentNullException(nameof(value));");
 
             var fromFields = string.Join(", ", definition.Fields.Select((field, index) =>
-                MakeFromDbusValueExpressionString(field, $"value[{index}]") ));
+                MakeFromDbusValueExpressionString(field, $"value[{index}]")));
 
             sb.AppendLine($"            return new {typeName}({fromFields});");
             sb.AppendLine("        }");
@@ -332,7 +333,7 @@ public partial class DBusSourceGenerator
             sb.AppendLine("        {");
 
             var toFields = string.Join(", ", definition.Fields.Select((field, index) =>
-                MakeToDbusValueExpressionString(field, $"Item{index + 1}") ));
+                MakeToDbusValueExpressionString(field, GetStructFieldName(definition, index))));
 
             sb.AppendLine($"            return new DBusStruct({toFields});");
             sb.AppendLine("        }");
@@ -341,7 +342,7 @@ public partial class DBusSourceGenerator
             sb.AppendLine("        {");
             sb.AppendLine("            if (value is null)");
             sb.AppendLine("                throw new ArgumentNullException(nameof(value));");
-            sb.AppendLine($"            return new List<{typeName}>(value.Select(static item => FromDbusStruct(item)));" );
+            sb.AppendLine($"            return new List<{typeName}>(value.Select(static item => FromDbusStruct(item)));");
             sb.AppendLine("        }");
             sb.AppendLine();
             sb.AppendLine($"        public static List<DBusStruct> ToDbusArray(List<{typeName}> value)");
@@ -355,5 +356,45 @@ public partial class DBusSourceGenerator
 
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private static string GetStructFieldName(StructDefinition definition, int index)
+    {
+        if (definition.FieldNames is { Length: > 0 } names && index < names.Length && !string.IsNullOrWhiteSpace(names[index]))
+            return names[index];
+
+        return $"Item{index + 1}";
+    }
+
+    private static string[]? TryGetStructFieldNames(
+        string structName,
+        int fieldCount,
+        IReadOnlyDictionary<string, AvStructDefinition> structDefinitions)
+    {
+        if (fieldCount <= 0 || structDefinitions.Count == 0)
+            return null;
+
+        if (!structDefinitions.TryGetValue(structName, out var definition))
+            return null;
+
+        if (definition.Properties is null || definition.Properties.Length != fieldCount)
+            return null;
+
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        var fieldNames = new string[fieldCount];
+        for (var i = 0; i < fieldCount; i++)
+        {
+            var name = definition.Properties[i]?.Name;
+            if (string.IsNullOrWhiteSpace(name))
+                return null;
+
+            var identifier = SanitizeIdentifier(Pascalize(name.AsSpan()));
+            if (!used.Add(identifier))
+                return null;
+
+            fieldNames[i] = identifier;
+        }
+
+        return fieldNames;
     }
 }

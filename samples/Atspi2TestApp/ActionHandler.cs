@@ -21,12 +21,14 @@ internal sealed class ActionHandler : OrgA11yAtspiActionHandler
 
     protected override ValueTask<string> OnGetDescriptionAsync(DBusMessage request, int index)
     {
-        return ValueTask.FromResult(_node.Action?.Description ?? string.Empty);
+        // Should return the actual "description" but eh
+        return ValueTask.FromResult(_node.Action?.LocalizedDescription ?? string.Empty);
     }
 
     protected override ValueTask<string> OnGetNameAsync(DBusMessage request, int index)
     {
-        return ValueTask.FromResult(_node.Action?.Name ?? string.Empty);
+        // Should return the actual "name" but eh
+        return ValueTask.FromResult(_node.Action?.LocalizedName ?? string.Empty);
     }
 
     protected override ValueTask<string> OnGetLocalizedNameAsync(DBusMessage request, int index)
@@ -46,8 +48,7 @@ internal sealed class ActionHandler : OrgA11yAtspiActionHandler
             return ValueTask.FromResult(new List<AtSpiAction>());
         }
 
-        var entry = new AtSpiAction(_node.Action.LocalizedName, _node.Action.Description, _node.Action.KeyBinding);
-        return ValueTask.FromResult(new List<AtSpiAction> { entry });
+        return ValueTask.FromResult(new List<AtSpiAction> { _node.Action });
     }
 
     protected override ValueTask<bool> OnDoActionAsync(DBusMessage request, int index)
