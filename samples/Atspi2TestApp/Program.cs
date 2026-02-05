@@ -5,7 +5,6 @@ namespace Atspi2TestApp;
 
 internal static class Program
 {
-    private static readonly bool s_verbose = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ATSPI_VERBOSE"));
     private static readonly Stopwatch s_uptime = Stopwatch.StartNew();
 
     internal const string RootPath = "/org/a11y/atspi/accessible/root";
@@ -86,11 +85,6 @@ internal static class Program
         return culture.Replace('-', '_');
     }
 
-    private static string ResolveSessionBusAddress()
-    {
-        return Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS") ?? string.Empty;
-    }
-
     internal static string ResolveToolkitVersion()
     {
         return typeof(Program).Assembly.GetName().Version?.ToString() ?? "0";
@@ -98,11 +92,6 @@ internal static class Program
 
     public static async Task Main(string[] args)
     {
-        if (s_verbose && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE")))
-        {
-            Environment.SetEnvironmentVariable("LIBDBUS_AUTOGEN_VERBOSE", "1");
-        }
-
         var tree = new AtspiTree();
         var server = new AtspiServer(tree);
         Environment.ExitCode = await server.RunAsync();
@@ -110,11 +99,8 @@ internal static class Program
 
     internal static void LogVerbose(string message)
     {
-        if (!s_verbose)
-        {
-            return;
-        }
-
+#if DEBUG
         Console.Error.WriteLine($@"[{s_uptime.Elapsed:hh\:mm\:ss\.fff}] {message}");
+#endif
     }
 }
