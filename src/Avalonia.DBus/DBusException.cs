@@ -15,7 +15,7 @@ public class DBusException : Exception
     /// <summary>
     /// The original ERROR message.
     /// </summary>
-    public new DBusMessage Message { get; }
+    public DBusMessage ErrorReply { get; }
 
     public DBusException(string errorName, string? message, DBusMessage dbusMessage)
         : base(string.IsNullOrEmpty(message) ? errorName : $"{errorName}: {message}")
@@ -26,6 +26,6 @@ public class DBusException : Exception
         }
 
         ErrorName = errorName;
-        Message = dbusMessage ?? throw new ArgumentNullException(nameof(dbusMessage));
+        ErrorReply = dbusMessage ?? throw new ArgumentNullException(nameof(dbusMessage));
     }
 }
