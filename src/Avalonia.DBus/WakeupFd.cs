@@ -75,8 +75,28 @@ internal sealed unsafe class WakeupFd : IDisposable
             }
 
             byte b = 0;
-            write(_write, &b, 1);
-            _signaled = true;
+            while (true)
+            {
+                var written = write(_write, &b, 1);
+                if (written == 1)
+                {
+                    _signaled = true;
+                    return;
+                }
+
+                var errno = Marshal.GetLastPInvokeError();
+                switch (errno)
+                {
+                    case EINTR:
+                        continue;
+                    case EAGAIN:  
+                        // Non-blocking pipe with a single-byte signal; EAGAIN should only happen if the pipe is already signaled.
+                        _signaled = true;
+                        return;
+                    default:
+                        throw new Win32Exception(errno);
+                }
+            }
         }
     }
 
