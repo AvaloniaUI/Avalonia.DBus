@@ -54,9 +54,20 @@ public sealed class DBusConnection : IAsyncDisposable
     }
 
     /// <summary>
-    /// The underlying wire connection. Exposed for advanced scenarios.
+    /// The underlying DBus wire connection.
     /// </summary>
-    public DBusWireConnection Wire { get; }
+    private DBusWireConnection Wire { get; }
+
+    /// <summary>
+    /// Sends a pre-constructed message without waiting for a reply.
+    /// </summary>
+    public Task SendMessageAsync(
+        DBusMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return Wire.SendAsync(message, cancellationToken);
+    }
 
     /// <summary>
     /// Calls a method on a remote object and returns the reply.

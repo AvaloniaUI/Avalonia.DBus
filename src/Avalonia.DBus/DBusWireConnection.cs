@@ -10,7 +10,7 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Low-level connection handling raw DBus message transport.
 /// </summary>
-public sealed class DBusWireConnection : IAsyncDisposable
+internal sealed class DBusWireConnection : IAsyncDisposable
 {
     private readonly DbusWireWorker _worker;
 

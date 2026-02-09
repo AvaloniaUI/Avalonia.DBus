@@ -8,7 +8,7 @@ A .NET-friendly API for D-Bus built on top of libdbus. The design prioritizes mi
 
 The API is split into two layers:
 
-1. **Wire Layer** (`DBusWireConnection`) - Low-level message transport
+1. **Wire Layer** (`DBusWireConnection`, internal) - Low-level message transport
 2. **High-Level Layer** (`DBusConnection`) - Service registration, signal subscriptions, method dispatch
 
 ---
@@ -318,7 +318,7 @@ public sealed class DBusMessage
 Low-level connection handling raw message transport. This is the only `IDisposable` type in the API.
 
 ```csharp
-public sealed class DBusWireConnection : IAsyncDisposable
+internal sealed class DBusWireConnection : IAsyncDisposable
 {
     /// <summary>
     /// Connects to a D-Bus bus at the specified address.
@@ -405,10 +405,15 @@ public sealed class DBusConnection : IAsyncDisposable
     public static Task<DBusConnection> ConnectSystemAsync(
         CancellationToken cancellationToken = default);
     
+    // The underlying wire connection is internal; consumers should use DBusConnection's public API.
+    internal DBusWireConnection Wire { get; }
+
     /// <summary>
-    /// The underlying wire connection. Exposed for advanced scenarios.
+    /// Sends a pre-constructed message without waiting for a reply.
     /// </summary>
-    public DBusWireConnection Wire { get; }
+    public Task SendMessageAsync(
+        DBusMessage message,
+        CancellationToken cancellationToken = default);
     
     /// <summary>
     /// The unique name assigned by the message bus (e.g., ":1.42").
@@ -730,10 +735,10 @@ using var registration = connection.RegisterObject(obj);
 await Task.Delay(Timeout.Infinite);
 ```
 
-### Wire Layer: Low-Level Access
+### Wire Layer: Low-Level Access (Internal)
 
 ```csharp
-await using var wire = await DBusWireConnection.ConnectSessionAsync();
+await using var connection = await DBusConnection.ConnectSessionAsync();
 
 // Manual message construction
 var message = DBusMessage.CreateMethodCall(
@@ -742,7 +747,11 @@ var message = DBusMessage.CreateMethodCall(
     "org.freedesktop.DBus",
     "ListNames");
 
-var reply = await wire.SendWithReplyAsync(message);
+var reply = await connection.CallMethodAsync(
+    "org.freedesktop.DBus",
+    (DBusObjectPath)"/org/freedesktop/DBus",
+    "org.freedesktop.DBus",
+    "ListNames");
 var names = (DBusArray<string>)reply.Body[0];
 
 foreach (var name in names)
