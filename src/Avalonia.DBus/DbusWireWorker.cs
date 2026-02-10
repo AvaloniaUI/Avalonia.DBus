@@ -63,17 +63,19 @@ internal sealed partial class DbusWireWorker
     private readonly WakeupFd _curWakeupFd = new();
 
     private readonly bool _closeOnDispose;
+    private readonly DBusLogger? _loggers;
 
     internal ChannelReader<DBusMessage> ReceivingReader => _receiving.Reader;
     internal Task DisposeTask => _disposeCompletion.Task;
 
-    private unsafe DbusWireWorker(DBusNativeConnection* connection, bool closeOnDispose)
+    private unsafe DbusWireWorker(DBusNativeConnection* connection, bool closeOnDispose, DBusLogger? loggers)
     {
         if (!OperatingSystem.IsLinux())
             throw new PlatformNotSupportedException("The D-Bus wire connection requires Linux polling.");
 
         _connection = connection;
         _closeOnDispose = closeOnDispose;
+        _loggers = loggers;
         _activeWorkerId = Interlocked.Increment(ref _activeWorkerCounter);
         ActiveWorkers[_activeWorkerId] = this;
 
@@ -97,7 +99,7 @@ internal sealed partial class DbusWireWorker
         StartEventLoop();
     }
 
-    internal static unsafe DbusWireWorker OpenBus(DBusBusType busType)
+    internal static unsafe DbusWireWorker OpenBus(DBusBusType busType, DBusLogger? loggers = null)
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
@@ -105,13 +107,13 @@ internal sealed partial class DbusWireWorker
 
         var connection = dbus_bus_get(busType, &error);
         if (connection == null)
-            ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.");
+            ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.", loggers);
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
-        return new DbusWireWorker(connection, closeOnDispose: false);
+        return new DbusWireWorker(connection, closeOnDispose: false, loggers);
     }
 
-    internal static unsafe DbusWireWorker OpenAddress(string address)
+    internal static unsafe DbusWireWorker OpenAddress(string address, DBusLogger? loggers = null)
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
@@ -121,18 +123,18 @@ internal sealed partial class DbusWireWorker
         var connection = dbus_connection_open_private(addressUtf8.Pointer, &error);
         if (connection == null)
         {
-            ThrowErrorAndFree(ref error, "Failed to open D-Bus connection.");
+            ThrowErrorAndFree(ref error, "Failed to open D-Bus connection.", loggers);
         }
 
         if (dbus_bus_register(connection, &error) == 0)
         {
             dbus_connection_close(connection);
             dbus_connection_unref(connection);
-            ThrowErrorAndFree(ref error, "Failed to register D-Bus connection.");
+            ThrowErrorAndFree(ref error, "Failed to register D-Bus connection.", loggers);
         }
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
-        return new DbusWireWorker(connection, closeOnDispose: true);
+        return new DbusWireWorker(connection, closeOnDispose: true, loggers);
     }
 
     internal bool TryEnqueue(WireWorkerMessage message)
@@ -547,14 +549,12 @@ internal sealed partial class DbusWireWorker
 
     private static void LogNativeCallbackException(Exception ex)
     {
-        try
-        {
-            LogVerbose(ex.ToString());
-        }
-        catch
-        {
-            // Never throw back into native code from a callback.
-        }
+        // Native callbacks don't carry an instance, so we can't route this through a configured logger.
+        // Keep it best-effort and silent in release.
+#if DEBUG
+        try { Console.Error.WriteLine($"[DBusWire {Environment.CurrentManagedThreadId}] {ex}"); }
+        catch { }
+#endif
     }
 
     private static unsafe uint AddWatchCallback(DBusWatch* watch, void* data)
@@ -766,19 +766,32 @@ internal sealed partial class DbusWireWorker
         return false;
     }
 
-    private static void LogVerbose(string message)
+    private void LogVerbose(string message)
     {
+        var sink = _loggers?.WireVerbose;
+        if (sink == null)
+            return;
+
 #if DEBUG
-        Console.Error.WriteLine($"[DBusWire {Environment.CurrentManagedThreadId}] {message}");
+        sink($"[DBusWire {Environment.CurrentManagedThreadId}] {message}");
+#else
+        sink(message);
 #endif
     }
 
-
-    private static unsafe void ThrowErrorAndFree(ref DBusError error, string fallbackMessage)
+    private static unsafe void ThrowErrorAndFree(ref DBusError error, string fallbackMessage, DBusLogger? loggers)
     {
         var name = error.name != null ? DbusHelpers.PtrToString(error.name) : "DBus error";
         var message = error.message != null ? DbusHelpers.PtrToString(error.message) : fallbackMessage;
-        LogVerbose($"libdbus error: {name}: {message}");
+        var sink = loggers?.WireVerbose;
+        if (sink != null)
+        {
+#if DEBUG
+            sink($"[DBusWire {Environment.CurrentManagedThreadId}] libdbus error: {name}: {message}");
+#else
+            sink($"libdbus error: {name}: {message}");
+#endif
+        }
 
         fixed (DBusError* errorPtr = &error)
             if (dbus_error_is_set(errorPtr) != 0)

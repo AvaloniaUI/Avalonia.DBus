@@ -481,7 +481,7 @@ public partial class DBusSourceGenerator
                     AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
                         IdentifierName("_"),
                         InvocationExpression(
-                                MakeMemberAccessExpression("Connection", "Wire", "SendAsync"))
+                                MakeMemberAccessExpression("Connection", "SendMessageAsync"))
                             .AddArgumentListArguments(
                                 Argument(
                                     IdentifierName("message"))))));

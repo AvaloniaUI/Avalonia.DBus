@@ -6,22 +6,18 @@ internal static class Program
 {
     private static async Task Main()
     {
-        await using var wire = await DBusWireConnection.ConnectSessionAsync();
+        await using var connection = await DBusConnection.ConnectSessionAsync();
 
-        // Manual message construction
-        var message = DBusMessage.CreateMethodCall(
+        // Manual message construction (sent via the public DBusConnection API)
+        var reply = await connection.CallMethodAsync(
             "org.freedesktop.DBus",
             (DBusObjectPath)"/org/freedesktop/DBus",
             "org.freedesktop.DBus",
             "ListNames");
-
-        var reply = await wire.SendWithReplyAsync(message);
         var names = (List<string>)reply.Body[0];
 
         foreach (var name in names)
             Console.WriteLine(name);
-
-        await using var connection = await DBusConnection.ConnectSessionAsync();
 
         using var subscription = await connection.SubscribeAsync(
             sender: null,
