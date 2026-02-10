@@ -13,11 +13,13 @@ public sealed class DBusConnection : IAsyncDisposable
     private readonly List<SignalSubscription> _subscriptions = [];
     private readonly CancellationTokenSource _dispatchCts = new();
     private readonly Task _dispatchLoop;
+    private readonly DBusLogger _logger;
     private bool _disposed;
 
-    private DBusConnection(DBusWireConnection wire)
+    private DBusConnection(DBusWireConnection wire, DBusLogger? loggers)
     {
         Wire = wire ?? throw new ArgumentNullException(nameof(wire));
+        _logger = loggers ?? DBusLogger.CreateDefault();
         _dispatchLoop = Task.Run(() => DispatchLoopAsync(_dispatchCts.Token));
     }
 
@@ -29,7 +31,19 @@ public sealed class DBusConnection : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken);
-        return new DBusConnection(wire);
+        return new DBusConnection(wire, loggers: null);
+    }
+
+    /// <summary>
+    /// Connects to a D-Bus bus at the specified address.
+    /// </summary>
+    public static async Task<DBusConnection> ConnectAsync(
+        string address,
+        DBusLogger? loggers,
+        CancellationToken cancellationToken = default)
+    {
+        var wire = await DBusWireConnection.ConnectAsync(address, loggers, cancellationToken);
+        return new DBusConnection(wire, loggers);
     }
 
     /// <summary>
@@ -39,7 +53,18 @@ public sealed class DBusConnection : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken);
-        return new DBusConnection(wire);
+        return new DBusConnection(wire, loggers: null);
+    }
+
+    /// <summary>
+    /// Connects to the session bus.
+    /// </summary>
+    public static async Task<DBusConnection> ConnectSessionAsync(
+        DBusLogger? loggers,
+        CancellationToken cancellationToken = default)
+    {
+        var wire = await DBusWireConnection.ConnectSessionAsync(loggers, cancellationToken);
+        return new DBusConnection(wire, loggers);
     }
 
     /// <summary>
@@ -49,7 +74,18 @@ public sealed class DBusConnection : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken);
-        return new DBusConnection(wire);
+        return new DBusConnection(wire, loggers: null);
+    }
+
+    /// <summary>
+    /// Connects to the system bus.
+    /// </summary>
+    public static async Task<DBusConnection> ConnectSystemAsync(
+        DBusLogger? loggers,
+        CancellationToken cancellationToken = default)
+    {
+        var wire = await DBusWireConnection.ConnectSystemAsync(loggers, cancellationToken);
+        return new DBusConnection(wire, loggers);
     }
 
     /// <summary>
@@ -417,10 +453,16 @@ public sealed class DBusConnection : IAsyncDisposable
         registration.Invoke(message);
     }
 
-    private static void LogVerbose(string message)
+    private void LogVerbose(string message)
     {
+        var sink = _logger.Verbose;
+        if (sink == null)
+            return;
+
 #if DEBUG
-        Console.Error.WriteLine($"[DBusConnection {Environment.CurrentManagedThreadId}] {message}");
+        sink($"[DBusConnection {Environment.CurrentManagedThreadId}] {message}");
+#else
+        sink(message);
 #endif
     }
 
@@ -451,7 +493,7 @@ public sealed class DBusConnection : IAsyncDisposable
         FireAndForget(CallBusMethodAsync("RemoveMatch", CancellationToken.None, rule));
     }
 
-    private static void ThrowIfError(DBusMessage reply)
+    private void ThrowIfError(DBusMessage reply)
     {
         if (reply.Type != DBusMessageType.Error)
             return;
