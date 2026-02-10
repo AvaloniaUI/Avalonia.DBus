@@ -432,14 +432,16 @@ internal static class Program
             return;
         }
 
-        var kindKeyword = t.TypeKind switch
-        {
-            TypeKind.Class => "class",
-            TypeKind.Struct => "struct",
-            TypeKind.Interface => "interface",
-            TypeKind.Enum => "enum",
-            _ => "type",
-        };
+        var kindKeyword = t.IsRecord
+            ? (t.TypeKind == TypeKind.Struct ? "record struct" : "record")
+            : t.TypeKind switch
+            {
+                TypeKind.Class => "class",
+                TypeKind.Struct => "struct",
+                TypeKind.Interface => "interface",
+                TypeKind.Enum => "enum",
+                _ => "type",
+            };
 
         var typeMods = new List<string>();
         var accessibility = GetAccessibilityKeyword(t.DeclaredAccessibility);
