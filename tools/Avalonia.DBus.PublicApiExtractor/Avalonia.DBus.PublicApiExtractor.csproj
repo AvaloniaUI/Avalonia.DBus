@@ -13,4 +13,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Generated output should never be compiled as part of the tool itself. -->
+    <Compile Remove="**/public-api-skeleton*.cs" />
+  </ItemGroup>
 </Project>

@@ -13,9 +13,15 @@ internal static class Program
     {
         try
         {
-            var csprojPath = args.Length >= 1 ? args[0] : "src/Avalonia.DBus/Avalonia.DBus.csproj";
-            var outputPath = args.Length >= 2 ? args[1] : "public-api-skeleton.cs";
+            var csprojPath = args.Length >= 1 ? args[0] : FindDefaultCsprojPath();
+            var outputPath = args.Length >= 2 ? args[1] : GetDefaultOutputPath(csprojPath);
             if (args.Length > 2) return Usage();
+
+            if (!File.Exists(csprojPath))
+            {
+                Console.Error.WriteLine($"error: csproj not found: {Path.GetFullPath(csprojPath)}");
+                return Usage();
+            }
 
             var compilation = CreateCompilationFromCsproj(csprojPath);
 
@@ -27,8 +33,8 @@ internal static class Program
             lines.Add("#nullable enable");
             lines.Add("");
 
-            var typeFormat = new SymbolDisplayFormat(
-                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+            var qualifiedTypeFormat = new SymbolDisplayFormat(
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
                 typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
                 genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
                 miscellaneousOptions:
@@ -36,8 +42,20 @@ internal static class Program
                     SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier |
                     SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
+            // Prefer short type names in the output (no namespaces). We'll generate `using` directives
+            // at the top of the file and only fall back to fully-qualified names when needed to
+            // disambiguate collisions.
+            var shortTypeFormat = new SymbolDisplayFormat(
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypes,
+                genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
+                miscellaneousOptions:
+                    SymbolDisplayMiscellaneousOptions.UseSpecialTypes |
+                    SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier |
+                    SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
+
             var memberFormat = new SymbolDisplayFormat(
-                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
                 typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
                 genericsOptions:
                     SymbolDisplayGenericsOptions.IncludeTypeParameters |
@@ -73,35 +91,54 @@ internal static class Program
                 .ThenBy(t => t.Name, StringComparer.Ordinal)
                 .ToList();
 
+            var ambiguousShortTypeKeys = GetAmbiguousShortTypeKeys(orderedTopLevelTypes, shortTypeFormat);
+            var namespacesToImport = new SortedSet<string>(StringComparer.Ordinal);
+
             var byNamespace = orderedTopLevelTypes
                 .GroupBy(GetNamespaceName, StringComparer.Ordinal)
                 .OrderBy(g => g.Key, StringComparer.Ordinal)
                 .ToList();
 
+            var bodyLines = new List<string>(capacity: 16_384);
+            var ctx = new DisplayContext(
+                shortTypeFormat,
+                qualifiedTypeFormat,
+                ambiguousShortTypeKeys,
+                namespacesToImport);
+
             foreach (var nsGroup in byNamespace)
             {
                 var nsName = nsGroup.Key;
+                ctx.CurrentNamespace = nsName;
                 if (nsName.Length == 0)
                 {
                     // global namespace: emit types directly.
-                    foreach (var t in nsGroup.OrderBy(t => t.ToDisplayString(typeFormat), StringComparer.Ordinal))
+                    foreach (var t in nsGroup.OrderBy(t => t.ToDisplayString(qualifiedTypeFormat), StringComparer.Ordinal))
                     {
-                        EmitType(lines, t, typeFormat, memberFormat, indentLevel: 0);
-                        lines.Add("");
+                        EmitType(bodyLines, t, ctx, memberFormat, indentLevel: 0);
+                        bodyLines.Add("");
                     }
                     continue;
                 }
 
-                lines.Add($"namespace {nsName}");
-                lines.Add("{");
-                foreach (var t in nsGroup.OrderBy(t => t.ToDisplayString(typeFormat), StringComparer.Ordinal))
+                bodyLines.Add($"namespace {nsName}");
+                bodyLines.Add("{");
+                foreach (var t in nsGroup.OrderBy(t => t.ToDisplayString(qualifiedTypeFormat), StringComparer.Ordinal))
                 {
-                    EmitType(lines, t, typeFormat, memberFormat, indentLevel: 1);
-                    lines.Add("");
+                    EmitType(bodyLines, t, ctx, memberFormat, indentLevel: 1);
+                    bodyLines.Add("");
                 }
-                lines.Add("}");
-                lines.Add("");
+                bodyLines.Add("}");
+                bodyLines.Add("");
             }
+
+            // Prepend using directives after the file header. Keep them stable and minimal.
+            foreach (var ns in namespacesToImport)
+                lines.Add($"using {ns};");
+            if (namespacesToImport.Count != 0)
+                lines.Add("");
+
+            lines.AddRange(bodyLines);
 
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath)) ?? ".");
             await File.WriteAllLinesAsync(outputPath, lines, Encoding.UTF8).ConfigureAwait(false);
@@ -120,9 +157,54 @@ internal static class Program
     {
         Console.Error.WriteLine("Usage: dotnet run --project tools/Avalonia.DBus.PublicApiExtractor -- [csprojPath] [outputPath]");
         Console.Error.WriteLine("Defaults:");
-        Console.Error.WriteLine("  csprojPath: src/Avalonia.DBus/Avalonia.DBus.csproj");
-        Console.Error.WriteLine("  outputPath: public-api-skeleton.cs");
+        Console.Error.WriteLine("  csprojPath: auto-detected by searching upwards for src/Avalonia.DBus/Avalonia.DBus.csproj");
+        Console.Error.WriteLine("  outputPath: artifacts/public-api-skeleton.cs (nearest artifacts/ folder above the csproj)");
         return 2;
+    }
+
+    private static string FindDefaultCsprojPath()
+    {
+        // Make `dotnet run` from anywhere inside the repo work without parameters.
+        // We walk up from the current working directory looking for the known project path.
+        var cur = Directory.GetCurrentDirectory();
+        for (var i = 0; i < 3; i++)
+        {
+            var candidate = Path.Combine(cur, "src", "Avalonia.DBus", "Avalonia.DBus.csproj");
+            if (File.Exists(candidate))
+                return candidate;
+
+            var parent = Path.GetDirectoryName(cur);
+            if (string.IsNullOrWhiteSpace(parent) || string.Equals(parent, cur, StringComparison.Ordinal))
+                break;
+            cur = parent;
+        }
+
+        // Fallback to the previous relative default (keeps behavior for unusual layouts).
+        return Path.Combine("src", "Avalonia.DBus", "Avalonia.DBus.csproj");
+    }
+
+    private static string GetDefaultOutputPath(string csprojPath)
+    {
+        var full = Path.GetFullPath(csprojPath);
+        var dir = Path.GetDirectoryName(full) ?? ".";
+
+        // Prefer writing to the repo-level artifacts/ directory, regardless of the current working directory.
+        // We locate it by walking up from the csproj's directory.
+        var cur = dir;
+        for (var i = 0; i < 10; i++)
+        {
+            var artifactsDir = Path.Combine(cur, "artifacts");
+            if (Directory.Exists(artifactsDir))
+                return Path.Combine(artifactsDir, "public-api-skeleton.cs");
+
+            var parent = Path.GetDirectoryName(cur);
+            if (string.IsNullOrWhiteSpace(parent) || string.Equals(parent, cur, StringComparison.Ordinal))
+                break;
+            cur = parent;
+        }
+
+        // Fallback: original behavior.
+        return Path.Combine(dir, "public-api-skeleton.cs");
     }
 
     private static CSharpCompilation CreateCompilationFromCsproj(string csprojPath)
@@ -320,15 +402,24 @@ internal static class Program
 
     private static string GetNamespaceName(INamedTypeSymbol t)
     {
+        // Use a stable, fully-qualified namespace name so `using` directives and grouping are correct.
+        // `MinimallyQualifiedFormat` can yield shortened names like "Threading" instead of "System.Threading".
         var ns = t.ContainingNamespace?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
-        // "global::X.Y" -> "X.Y", "global::" -> ""
-        const string globalPrefix = "global::";
-        if (ns.StartsWith(globalPrefix, StringComparison.Ordinal))
-            ns = ns[globalPrefix.Length..];
-        return ns;
+        return StripGlobalPrefix(ns);
     }
 
-    private static void EmitType(List<string> lines, INamedTypeSymbol t, SymbolDisplayFormat typeFormat, SymbolDisplayFormat memberFormat, int indentLevel)
+    private static string StripGlobalPrefix(string s)
+    {
+        // "global::X.Y" -> "X.Y", "global::" -> ""
+        const string globalPrefix = "global::";
+        if (s.StartsWith(globalPrefix, StringComparison.Ordinal))
+            s = s[globalPrefix.Length..];
+        if (string.Equals(s, "global::", StringComparison.Ordinal))
+            return "";
+        return s;
+    }
+
+    private static void EmitType(List<string> lines, INamedTypeSymbol t, DisplayContext ctx, SymbolDisplayFormat memberFormat, int indentLevel)
     {
         var indent = new string(' ', indentLevel * 4);
         var nestedIndent = new string(' ', (indentLevel + 1) * 4);
@@ -336,7 +427,7 @@ internal static class Program
         // Delegate types are emitted as single-line declarations.
         if (t.TypeKind == TypeKind.Delegate && t.DelegateInvokeMethod is { } invoke)
         {
-            var decl = $"{indent}{GetAccessibilityKeyword(t.DeclaredAccessibility)} delegate {invoke.ReturnType.ToDisplayString(typeFormat)} {t.Name}{RenderTypeParameters(t)}{RenderParameters(invoke, typeFormat)}{RenderTypeParameterConstraints(t, typeFormat)};";
+            var decl = $"{indent}{GetAccessibilityKeyword(t.DeclaredAccessibility)} delegate {FormatType(invoke.ReturnType, ctx)} {t.Name}{RenderTypeParameters(t)}{RenderParameters(invoke, ctx)}{RenderTypeParameterConstraints(t, ctx)};";
             lines.Add(decl.Trim());
             return;
         }
@@ -366,13 +457,13 @@ internal static class Program
 
         var bases = new List<string>();
         if (t.TypeKind == TypeKind.Class && t.BaseType is { } bt && bt.SpecialType != SpecialType.System_Object)
-            bases.Add(bt.ToDisplayString(typeFormat));
+            bases.Add(FormatType(bt, ctx));
         if (t.TypeKind != TypeKind.Enum)
-            bases.AddRange(t.Interfaces.Select(i => i.ToDisplayString(typeFormat)));
+            bases.AddRange(t.Interfaces.Select(i => FormatType(i, ctx)));
         if (bases.Count != 0)
             header.Append(" : ").Append(string.Join(", ", bases.Distinct(StringComparer.Ordinal)));
 
-        var constraints = RenderTypeParameterConstraints(t, typeFormat);
+        var constraints = RenderTypeParameterConstraints(t, ctx);
         lines.Add(header.ToString());
         if (constraints.Length != 0)
             lines.Add($"{indent}{constraints}");
@@ -399,7 +490,7 @@ internal static class Program
             .Where(m => !m.IsImplicitlyDeclared)
             .Where(m => m is not INamedTypeSymbol) // nested types handled separately
             .Where(m => IsExternallyVisibleMember(m))
-            .Select(m => EmitMember(m, t, typeFormat, memberFormat, nestedIndent))
+            .Select(m => EmitMember(m, t, ctx, memberFormat, nestedIndent))
             .Where(s => s.Length != 0)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(s => s, StringComparer.Ordinal)
@@ -410,7 +501,7 @@ internal static class Program
 
         // Explicit interface implementations (callable via the interface) even though they're often private.
         var explicitMembers = GetExplicitInterfaceMembers(t)
-            .Select(m => EmitMember(m, t, typeFormat, memberFormat, nestedIndent))
+            .Select(m => EmitMember(m, t, ctx, memberFormat, nestedIndent))
             .Where(s => s.Length != 0)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(s => s, StringComparer.Ordinal)
@@ -423,7 +514,7 @@ internal static class Program
         var nestedTypes = t.GetTypeMembers()
             .Where(nt => !nt.IsImplicitlyDeclared)
             .Where(IsExternallyVisibleType)
-            .OrderBy(nt => nt.ToDisplayString(typeFormat), StringComparer.Ordinal)
+            .OrderBy(nt => nt.ToDisplayString(ctx.QualifiedTypeFormat), StringComparer.Ordinal)
             .ToList();
 
         if (nestedTypes.Count != 0 && (members.Count != 0 || explicitMembers.Count != 0))
@@ -431,7 +522,7 @@ internal static class Program
 
         foreach (var nt in nestedTypes)
         {
-            EmitType(lines, nt, typeFormat, memberFormat, indentLevel + 1);
+            EmitType(lines, nt, ctx, memberFormat, indentLevel + 1);
             lines.Add("");
         }
 
@@ -442,7 +533,7 @@ internal static class Program
         lines.Add($"{indent}}}");
     }
 
-    private static string EmitMember(ISymbol m, INamedTypeSymbol containingType, SymbolDisplayFormat typeFormat, SymbolDisplayFormat memberFormat, string indent)
+    private static string EmitMember(ISymbol m, INamedTypeSymbol containingType, DisplayContext ctx, SymbolDisplayFormat memberFormat, string indent)
     {
         // Signatures only: we intentionally do not emit method bodies.
         // The output is meant as an API surface reference, not a compilable implementation.
@@ -452,18 +543,18 @@ internal static class Program
             case IFieldSymbol f:
                 if (f.AssociatedSymbol is not null) return "";
                 if (f.ContainingType.TypeKind == TypeKind.Enum) return "";
-                return $"{indent}{RenderField(f, typeFormat)}";
+                return $"{indent}{RenderField(f, ctx)}";
 
             case IEventSymbol e:
-                return $"{indent}{RenderEvent(e, typeFormat, inInterface)}";
+                return $"{indent}{RenderEvent(e, ctx, inInterface)}";
 
             case IPropertySymbol p:
-                return $"{indent}{RenderProperty(p, typeFormat, inInterface)}";
+                return $"{indent}{RenderProperty(p, ctx, inInterface)}";
 
             case IMethodSymbol ms:
                 if (ms.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove)
                     return "";
-                return $"{indent}{RenderMethod(ms, containingType, typeFormat, memberFormat, inInterface)}";
+                return $"{indent}{RenderMethod(ms, containingType, ctx, memberFormat, inInterface)}";
         }
 
         return "";
@@ -492,7 +583,7 @@ internal static class Program
         }
     }
 
-    private static string RenderField(IFieldSymbol f, SymbolDisplayFormat typeFormat)
+    private static string RenderField(IFieldSymbol f, DisplayContext ctx)
     {
         var mods = new List<string>();
         var acc = GetAccessibilityKeyword(f.DeclaredAccessibility);
@@ -506,7 +597,7 @@ internal static class Program
 
         var sb = new StringBuilder();
         sb.Append(string.Join(" ", mods)).Append(' ');
-        sb.Append(f.Type.ToDisplayString(typeFormat)).Append(' ').Append(f.Name);
+        sb.Append(FormatType(f.Type, ctx)).Append(' ').Append(f.Name);
 
         if (f.IsConst)
         {
@@ -520,7 +611,7 @@ internal static class Program
         return sb.ToString();
     }
 
-    private static string RenderEvent(IEventSymbol e, SymbolDisplayFormat typeFormat, bool inInterface)
+    private static string RenderEvent(IEventSymbol e, DisplayContext ctx, bool inInterface)
     {
         var mods = new List<string>();
         if (!inInterface)
@@ -538,16 +629,16 @@ internal static class Program
 
         var prefix = mods.Count == 0 ? "" : string.Join(" ", mods) + " ";
         var name = e.ExplicitInterfaceImplementations.Length != 0
-            ? e.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
+            ? e.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
             : e.Name;
 
         // For explicit impls, ToDisplayString includes containing type; strip it.
         name = StripContainingTypePrefix(name, e.ContainingType);
 
-        return $"{prefix}event {e.Type.ToDisplayString(typeFormat)} {name};";
+        return $"{prefix}event {FormatType(e.Type, ctx)} {name};";
     }
 
-    private static string RenderProperty(IPropertySymbol p, SymbolDisplayFormat typeFormat, bool inInterface)
+    private static string RenderProperty(IPropertySymbol p, DisplayContext ctx, bool inInterface)
     {
         var mods = new List<string>();
         if (!inInterface)
@@ -569,15 +660,15 @@ internal static class Program
         if (p.IsIndexer)
         {
             var indexerTarget = p.ExplicitInterfaceImplementations.Length != 0
-                ? p.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
+                ? p.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
                 : "this";
             indexerTarget = StripContainingTypePrefix(indexerTarget, p.ContainingType);
-            name = $"{indexerTarget}[{RenderIndexerParameters(p, typeFormat)}]";
+            name = $"{indexerTarget}[{RenderIndexerParameters(p, ctx)}]";
         }
         else
         {
             name = p.ExplicitInterfaceImplementations.Length != 0
-                ? p.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
+                ? p.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
                 : p.Name;
             name = StripContainingTypePrefix(name, p.ContainingType);
         }
@@ -589,17 +680,17 @@ internal static class Program
             accessors.Add("set;");
         // Roslyn symbols don't expose init accessors directly; treat an init setter as a setter for skeleton purposes.
 
-        return $"{prefix}{p.Type.ToDisplayString(typeFormat)} {name} {{ {string.Join(" ", accessors)} }}";
+        return $"{prefix}{FormatType(p.Type, ctx)} {name} {{ {string.Join(" ", accessors)} }}";
     }
 
-    private static string RenderMethod(IMethodSymbol m, INamedTypeSymbol containingType, SymbolDisplayFormat typeFormat, SymbolDisplayFormat memberFormat, bool inInterface)
+    private static string RenderMethod(IMethodSymbol m, INamedTypeSymbol containingType, DisplayContext ctx, SymbolDisplayFormat memberFormat, bool inInterface)
     {
         // Constructors
         if (m.MethodKind == MethodKind.Constructor)
         {
             var acc = inInterface ? "" : GetAccessibilityKeyword(m.DeclaredAccessibility);
             var ctorPrefix = acc.Length == 0 ? "" : acc + " ";
-            return $"{ctorPrefix}{containingType.Name}{RenderParameters(m, typeFormat)};";
+            return $"{ctorPrefix}{containingType.Name}{RenderParameters(m, ctx)};";
         }
 
         // Operators, conversions, normal methods
@@ -628,24 +719,24 @@ internal static class Program
         var mods = modsList.Count == 0 ? "" : string.Join(" ", modsList) + " ";
 
         var name = m.ExplicitInterfaceImplementations.Length != 0
-            ? m.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
+            ? m.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat.WithMemberOptions(SymbolDisplayMemberOptions.IncludeExplicitInterface))
             : m.Name;
         name = StripContainingTypePrefix(name, m.ContainingType);
 
         // Special method names (operators)
         if (m.MethodKind == MethodKind.UserDefinedOperator || m.MethodKind == MethodKind.Conversion)
         {
-            return $"{mods}{RenderOperatorOrConversion(m, typeFormat)};";
+            return $"{mods}{RenderOperatorOrConversion(m, ctx)};";
         }
 
         var sb = new StringBuilder();
         sb.Append(mods);
-        sb.Append(m.ReturnType.ToDisplayString(typeFormat)).Append(' ');
+        sb.Append(FormatType(m.ReturnType, ctx)).Append(' ');
         sb.Append(name);
         sb.Append(RenderTypeParameters(m));
-        sb.Append(RenderParameters(m, typeFormat));
+        sb.Append(RenderParameters(m, ctx));
 
-        var constraints = RenderTypeParameterConstraints(m, typeFormat);
+        var constraints = RenderTypeParameterConstraints(m, ctx);
         if (constraints.Length != 0)
             sb.Append(' ').Append(constraints);
         sb.Append(';');
@@ -665,7 +756,7 @@ internal static class Program
         return "<" + string.Join(", ", m.TypeParameters.Select(tp => tp.Name)) + ">";
     }
 
-    private static string RenderParameters(IMethodSymbol m, SymbolDisplayFormat typeFormat)
+    private static string RenderParameters(IMethodSymbol m, DisplayContext ctx)
     {
         var ps = m.Parameters;
         if (ps.Length == 0) return "()";
@@ -684,7 +775,7 @@ internal static class Program
                 _ => "",
             });
 
-            sb.Append(p.Type.ToDisplayString(typeFormat)).Append(' ').Append(p.Name);
+            sb.Append(FormatType(p.Type, ctx)).Append(' ').Append(p.Name);
 
             if (p.HasExplicitDefaultValue)
                 sb.Append(" = ").Append(RenderDefaultValue(p));
@@ -695,7 +786,7 @@ internal static class Program
         return "(" + string.Join(", ", parts) + ")";
     }
 
-    private static string RenderIndexerParameters(IPropertySymbol p, SymbolDisplayFormat typeFormat)
+    private static string RenderIndexerParameters(IPropertySymbol p, DisplayContext ctx)
     {
         if (p.Parameters.Length == 0) return "";
         var parts = new List<string>(p.Parameters.Length);
@@ -710,7 +801,7 @@ internal static class Program
                 RefKind.RefReadOnlyParameter => "ref readonly ",
                 _ => "",
             });
-            sb.Append(par.Type.ToDisplayString(typeFormat)).Append(' ').Append(par.Name);
+            sb.Append(FormatType(par.Type, ctx)).Append(' ').Append(par.Name);
             if (par.HasExplicitDefaultValue)
                 sb.Append(" = ").Append(RenderDefaultValue(par));
             parts.Add(sb.ToString());
@@ -718,19 +809,19 @@ internal static class Program
         return string.Join(", ", parts);
     }
 
-    private static string RenderTypeParameterConstraints(INamedTypeSymbol t, SymbolDisplayFormat typeFormat)
+    private static string RenderTypeParameterConstraints(INamedTypeSymbol t, DisplayContext ctx)
     {
         if (t.TypeParameters.Length == 0) return "";
-        return string.Join(" ", t.TypeParameters.Select(tp => RenderTypeParameterConstraints(tp, typeFormat)).Where(s => s.Length != 0));
+        return string.Join(" ", t.TypeParameters.Select(tp => RenderTypeParameterConstraints(tp, ctx)).Where(s => s.Length != 0));
     }
 
-    private static string RenderTypeParameterConstraints(IMethodSymbol m, SymbolDisplayFormat typeFormat)
+    private static string RenderTypeParameterConstraints(IMethodSymbol m, DisplayContext ctx)
     {
         if (m.TypeParameters.Length == 0) return "";
-        return string.Join(" ", m.TypeParameters.Select(tp => RenderTypeParameterConstraints(tp, typeFormat)).Where(s => s.Length != 0));
+        return string.Join(" ", m.TypeParameters.Select(tp => RenderTypeParameterConstraints(tp, ctx)).Where(s => s.Length != 0));
     }
 
-    private static string RenderTypeParameterConstraints(ITypeParameterSymbol tp, SymbolDisplayFormat typeFormat)
+    private static string RenderTypeParameterConstraints(ITypeParameterSymbol tp, DisplayContext ctx)
     {
         var parts = new List<string>();
         if (tp.HasNotNullConstraint) parts.Add("notnull");
@@ -738,7 +829,7 @@ internal static class Program
         if (tp.HasUnmanagedTypeConstraint) parts.Add("unmanaged");
         if (tp.HasValueTypeConstraint) parts.Add("struct");
         foreach (var ct in tp.ConstraintTypes)
-            parts.Add(ct.ToDisplayString(typeFormat));
+            parts.Add(FormatType(ct, ctx));
         if (tp.HasConstructorConstraint) parts.Add("new()");
 
         if (parts.Count == 0) return "";
@@ -759,7 +850,7 @@ internal static class Program
     private static string StripContainingTypePrefix(string display, INamedTypeSymbol? containingType)
     {
         if (containingType is null) return display;
-        var ct = containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var ct = containingType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         if (display.StartsWith(ct + ".", StringComparison.Ordinal))
             return display[(ct.Length + 1)..];
         return display;
@@ -798,7 +889,7 @@ internal static class Program
         };
     }
 
-    private static string RenderOperatorOrConversion(IMethodSymbol m, SymbolDisplayFormat typeFormat)
+    private static string RenderOperatorOrConversion(IMethodSymbol m, DisplayContext ctx)
     {
         // Conversions
         if (m.MethodKind == MethodKind.Conversion)
@@ -810,8 +901,8 @@ internal static class Program
                 _ => "explicit",
             };
 
-            var fromType = m.Parameters.Length == 1 ? m.Parameters[0].Type.ToDisplayString(typeFormat) : "object";
-            return $"{keyword} operator {m.ReturnType.ToDisplayString(typeFormat)}({fromType} value)";
+            var fromType = m.Parameters.Length == 1 ? FormatType(m.Parameters[0].Type, ctx) : "object";
+            return $"{keyword} operator {FormatType(m.ReturnType, ctx)}({fromType} value)";
         }
 
         // Operators
@@ -849,10 +940,229 @@ internal static class Program
         for (var i = 0; i < m.Parameters.Length; i++)
         {
             var p = m.Parameters[i];
-            paramParts.Add($"{p.Type.ToDisplayString(typeFormat)} {p.Name}");
+            paramParts.Add($"{FormatType(p.Type, ctx)} {p.Name}");
         }
 
-        return $"{m.ReturnType.ToDisplayString(typeFormat)} operator {opToken}({string.Join(", ", paramParts)})";
+        return $"{FormatType(m.ReturnType, ctx)} operator {opToken}({string.Join(", ", paramParts)})";
+    }
+
+    private sealed class DisplayContext(
+        SymbolDisplayFormat shortTypeFormat,
+        SymbolDisplayFormat qualifiedTypeFormat,
+        HashSet<string> ambiguousShortTypeKeys,
+        SortedSet<string> namespacesToImport)
+    {
+        public SymbolDisplayFormat ShortTypeFormat { get; } = shortTypeFormat;
+        public SymbolDisplayFormat QualifiedTypeFormat { get; } = qualifiedTypeFormat;
+        public HashSet<string> AmbiguousShortTypeKeys { get; } = ambiguousShortTypeKeys;
+        public SortedSet<string> NamespacesToImport { get; } = namespacesToImport;
+        public string CurrentNamespace { get; set; } = "";
+    }
+
+    private static string FormatType(ITypeSymbol type, DisplayContext ctx)
+    {
+        // If any referenced named type would be ambiguous without namespaces, fall back to qualified output.
+        if (ContainsAmbiguousNamedType(type, ctx))
+            return type.ToDisplayString(ctx.QualifiedTypeFormat);
+
+        AddNamespacesForType(type, ctx);
+        return type.ToDisplayString(ctx.ShortTypeFormat);
+    }
+
+    private static bool ContainsAmbiguousNamedType(ITypeSymbol type, DisplayContext ctx)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol ats:
+                return ContainsAmbiguousNamedType(ats.ElementType, ctx);
+            case IPointerTypeSymbol pts:
+                return ContainsAmbiguousNamedType(pts.PointedAtType, ctx);
+            case IFunctionPointerTypeSymbol:
+                // Keep function pointers qualified; they can be gnarly and are rare in this codebase.
+                return true;
+            case INamedTypeSymbol nts:
+            {
+                // Special types (string, int, etc.) won't collide in a meaningful way.
+                if (nts.SpecialType != SpecialType.None)
+                    return false;
+
+                // Use the short display of the generic definition for collision detection.
+                var def = (INamedTypeSymbol)nts.OriginalDefinition;
+                var key = def.ToDisplayString(ctx.ShortTypeFormat);
+                if (ctx.AmbiguousShortTypeKeys.Contains(key))
+                    return true;
+
+                foreach (var arg in nts.TypeArguments)
+                {
+                    if (ContainsAmbiguousNamedType(arg, ctx))
+                        return true;
+                }
+                return false;
+            }
+            default:
+                return false;
+        }
+    }
+
+    private static void AddNamespacesForType(ITypeSymbol type, DisplayContext ctx)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol ats:
+                AddNamespacesForType(ats.ElementType, ctx);
+                break;
+            case IPointerTypeSymbol pts:
+                AddNamespacesForType(pts.PointedAtType, ctx);
+                break;
+            case INamedTypeSymbol nts:
+            {
+                if (nts.SpecialType != SpecialType.None)
+                    return;
+
+                var ns = GetNamespaceName(nts);
+                // If we're already inside that namespace block, no need for a using.
+                if (ns.Length != 0 && !string.Equals(ns, ctx.CurrentNamespace, StringComparison.Ordinal))
+                    ctx.NamespacesToImport.Add(ns);
+
+                foreach (var arg in nts.TypeArguments)
+                    AddNamespacesForType(arg, ctx);
+                break;
+            }
+        }
+    }
+
+    private static HashSet<string> GetAmbiguousShortTypeKeys(IEnumerable<INamedTypeSymbol> topLevelExternallyVisibleTypes, SymbolDisplayFormat shortTypeFormat)
+    {
+        var keysToSymbols = new Dictionary<string, HashSet<ISymbol>>(StringComparer.Ordinal);
+
+        foreach (var t in topLevelExternallyVisibleTypes)
+            CollectShortTypeKeys(t, shortTypeFormat, keysToSymbols);
+
+        var ambiguous = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (key, syms) in keysToSymbols)
+        {
+            if (syms.Count > 1)
+                ambiguous.Add(key);
+        }
+
+        return ambiguous;
+    }
+
+    private static void CollectShortTypeKeys(INamedTypeSymbol t, SymbolDisplayFormat shortTypeFormat, Dictionary<string, HashSet<ISymbol>> keysToSymbols)
+    {
+        // Collect types referenced by the public surface so we can detect "short-name" collisions.
+        void AddNamed(INamedTypeSymbol? s)
+        {
+            if (s is null) return;
+            if (s.SpecialType != SpecialType.None) return;
+            var def = (INamedTypeSymbol)s.OriginalDefinition;
+            var key = def.ToDisplayString(shortTypeFormat);
+            if (!keysToSymbols.TryGetValue(key, out var set))
+            {
+                set = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+                keysToSymbols[key] = set;
+            }
+            set.Add(def);
+        }
+
+        void AddType(ITypeSymbol? ts)
+        {
+            if (ts is null) return;
+            switch (ts)
+            {
+                case IArrayTypeSymbol ats:
+                    AddType(ats.ElementType);
+                    break;
+                case IPointerTypeSymbol pts:
+                    AddType(pts.PointedAtType);
+                    break;
+                case INamedTypeSymbol nts:
+                    AddNamed(nts);
+                    foreach (var arg in nts.TypeArguments)
+                        AddType(arg);
+                    break;
+            }
+        }
+
+        AddNamed(t);
+        if (t.BaseType is { } bt && bt.SpecialType != SpecialType.System_Object)
+            AddType(bt);
+        foreach (var i in t.Interfaces)
+            AddType(i);
+
+        foreach (var tp in t.TypeParameters)
+        {
+            foreach (var ct in tp.ConstraintTypes)
+                AddType(ct);
+        }
+
+        if (t.TypeKind == TypeKind.Delegate && t.DelegateInvokeMethod is { } inv)
+        {
+            AddType(inv.ReturnType);
+            foreach (var p in inv.Parameters)
+                AddType(p.Type);
+        }
+
+        foreach (var m in t.GetMembers().Where(m => !m.IsImplicitlyDeclared))
+        {
+            if (m is INamedTypeSymbol) continue;
+            if (!IsExternallyVisibleMember(m)) continue;
+
+            switch (m)
+            {
+                case IFieldSymbol f:
+                    AddType(f.Type);
+                    break;
+                case IEventSymbol e:
+                    AddType(e.Type);
+                    foreach (var ei in e.ExplicitInterfaceImplementations)
+                        AddNamed(ei.ContainingType);
+                    break;
+                case IPropertySymbol p:
+                    AddType(p.Type);
+                    foreach (var par in p.Parameters)
+                        AddType(par.Type);
+                    foreach (var pi in p.ExplicitInterfaceImplementations)
+                        AddNamed(pi.ContainingType);
+                    break;
+                case IMethodSymbol ms:
+                    if (ms.MethodKind is MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove)
+                        break;
+                    AddType(ms.ReturnType);
+                    foreach (var p in ms.Parameters)
+                        AddType(p.Type);
+                    foreach (var tp in ms.TypeParameters)
+                    {
+                        foreach (var ct in tp.ConstraintTypes)
+                            AddType(ct);
+                    }
+                    foreach (var ei in ms.ExplicitInterfaceImplementations)
+                        AddNamed(ei.ContainingType);
+                    break;
+            }
+        }
+
+        foreach (var explicitMember in GetExplicitInterfaceMembers(t))
+        {
+            switch (explicitMember)
+            {
+                case IEventSymbol e:
+                    foreach (var ei in e.ExplicitInterfaceImplementations)
+                        AddNamed(ei.ContainingType);
+                    break;
+                case IPropertySymbol p:
+                    foreach (var pi in p.ExplicitInterfaceImplementations)
+                        AddNamed(pi.ContainingType);
+                    break;
+                case IMethodSymbol ms:
+                    foreach (var mi in ms.ExplicitInterfaceImplementations)
+                        AddNamed(mi.ContainingType);
+                    break;
+            }
+        }
+
+        foreach (var nt in t.GetTypeMembers().Where(nt => !nt.IsImplicitlyDeclared).Where(IsExternallyVisibleType))
+            CollectShortTypeKeys(nt, shortTypeFormat, keysToSymbols);
     }
 
     private sealed class NamedTypeSymbolComparer : IEqualityComparer<INamedTypeSymbol>
