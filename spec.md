@@ -515,7 +515,7 @@ public sealed class DBusConnection : IAsyncDisposable
     public IDisposable RegisterObject(
         DBusObjectPath path,
         string iface,
-        Func<DBusMessage, Task<DBusMessage>> handler,
+        Func<DBusConnection, DBusMessage, Task<DBusMessage>> handler,
         SynchronizationContext? synchronizationContext = null);
     
     /// <summary>

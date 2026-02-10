@@ -315,7 +315,7 @@ public sealed class DBusConnection : IAsyncDisposable
     public IDisposable RegisterObject(
         DBusObjectPath path,
         string iface,
-        Func<DBusMessage, Task<DBusMessage>> handler,
+        Func<DBusConnection, DBusMessage, Task<DBusMessage>> handler,
         SynchronizationContext? synchronizationContext = null)
     {
         if (string.IsNullOrEmpty(iface))
@@ -667,7 +667,7 @@ public sealed class DBusConnection : IAsyncDisposable
     private sealed class ObjectHandlerRegistration(
         DBusConnection connection,
         ObjectHandlerKey key,
-        Func<DBusMessage, Task<DBusMessage>> handler,
+        Func<DBusConnection, DBusMessage, Task<DBusMessage>> handler,
         SynchronizationContext? context)
         : IDisposable
     {
@@ -709,7 +709,7 @@ public sealed class DBusConnection : IAsyncDisposable
             DBusMessage reply;
             try
             {
-                reply = await handler(message);
+                reply = await handler(connection, message);
                 if (reply == null)
                 {
                     reply = message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");

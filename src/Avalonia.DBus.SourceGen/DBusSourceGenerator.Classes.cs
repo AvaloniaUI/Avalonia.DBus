@@ -609,7 +609,7 @@ public partial class DBusSourceGenerator
                                                                                    connection.RegisterObject(
                                                                                        obj.Path,
                                                                                        handler.InterfaceName,
-                                                                                       handler.HandleMethodAsync,
+                                                                                       (conn, msg) => handler.HandleMethodAsync(msg),
                                                                                        synchronizationContext));
                                                                            }
 
@@ -619,7 +619,7 @@ public partial class DBusSourceGenerator
                                                                                    connection.RegisterObject(
                                                                                        obj.Path,
                                                                                        DBusBuiltIns.PeerInterfaceName,
-                                                                                       msg => Task.FromResult(bi.TryHandlePeer(msg) ?? msg.CreateError("org.freedesktop.DBus.Error.Failed", "Peer handler returned null reply.")),
+                                                                                       (conn, msg) => Task.FromResult(bi.TryHandlePeer(msg) ?? msg.CreateError("org.freedesktop.DBus.Error.Failed", "Peer handler returned null reply.")),
                                                                                        synchronizationContext));
                                                                            }
 
@@ -629,7 +629,7 @@ public partial class DBusSourceGenerator
                                                                                    connection.RegisterObject(
                                                                                        obj.Path,
                                                                                        DBusBuiltIns.PropertiesInterfaceName,
-                                                                                       msg => Task.FromResult(bi.TryHandleProperties(msg, obj) ?? msg.CreateError("org.freedesktop.DBus.Error.Failed", "Properties handler returned null reply.")),
+                                                                                       (conn, msg) => Task.FromResult(bi.TryHandleProperties(msg, obj) ?? msg.CreateError("org.freedesktop.DBus.Error.Failed", "Properties handler returned null reply.")),
                                                                                        synchronizationContext));
                                                                            }
 
@@ -639,7 +639,7 @@ public partial class DBusSourceGenerator
                                                                                    connection.RegisterObject(
                                                                                        obj.Path,
                                                                                        DBusBuiltIns.IntrospectableInterfaceName,
-                                                                                       msg => Task.FromResult(bi.TryHandleIntrospectable(msg, obj) ?? msg.CreateError("org.freedesktop.DBus.Error.Failed", "Introspectable handler returned null reply.")),
+                                                                                       (conn, msg) => Task.FromResult(bi.TryHandleIntrospectable(msg, obj) ?? msg.CreateError("org.freedesktop.DBus.Error.Failed", "Introspectable handler returned null reply.")),
                                                                                        synchronizationContext));
                                                                            }
 
