@@ -297,7 +297,7 @@ internal static unsafe class DBusMessageMarshaler
             dbus_message_iter_next(iterPtr);
         }
 
-        return new DBusVariant(new DBusSignature(signature), value);
+        return new DBusVariant(value);
     }
 
     private static string InferSignatureFromIter(ref DBusMessageIter iter)
