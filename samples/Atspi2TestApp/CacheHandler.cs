@@ -4,41 +4,44 @@ using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
 
-internal sealed class CacheHandler : OrgA11yAtspiCacheHandler
+internal sealed class CacheHandler(AtspiServer server) : IOrgA11yAtspiCache
 {
-    private readonly AtspiServer _server;
+    public uint Version => CacheVersion;
 
-    public CacheHandler(AtspiServer server)
-    {
-        _server = server;
-        Version = CacheVersion;
-    }
-
-    public override DBusConnection Connection => _server.A11yConnection;
-
-    protected override ValueTask<List<AtSpiAccessibleCacheItem>> OnGetItemsAsync(DBusMessage request)
+    public ValueTask<List<AtSpiAccessibleCacheItem>> GetItemsAsync()
     {
         AccessibleNode[] snapshot;
-        lock (_server.TreeGate)
+        lock (server.TreeGate)
         {
-            snapshot = _server.Tree.NodesByPath.Values
+            snapshot = server.Tree.NodesByPath.Values
                 .OrderBy(static node => node.Path, StringComparer.Ordinal)
                 .ToArray();
         }
 
         var items = new List<AtSpiAccessibleCacheItem>(snapshot.Length);
-        items.AddRange(snapshot.Select(t => _server.BuildCacheItem(t)));
+        items.AddRange(snapshot.Select(t => server.BuildCacheItem(t)));
 
         return ValueTask.FromResult(items);
     }
 
     public void EmitAddAccessibleSignal(AtSpiAccessibleCacheItem item)
     {
-        EmitAddAccessible(item);
+        EmitSignal("AddAccessible", item);
     }
 
     public void EmitRemoveAccessibleSignal(AtSpiObjectReference node)
     {
-        EmitRemoveAccessible(node);
+        EmitSignal("RemoveAccessible", node);
+    }
+
+    private void EmitSignal(string member, params object[] body)
+    {
+        var message = DBusMessage.CreateSignal(
+            (DBusObjectPath)CachePath,
+            IfaceCache,
+            member,
+            body);
+
+        _ = server.A11yConnection.SendMessageAsync(message);
     }
 }

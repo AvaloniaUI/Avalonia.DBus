@@ -382,6 +382,7 @@ internal sealed class DBusWireConnection : IAsyncDisposable
 ## High-Level Layer
 
 Wraps `DBusWireConnection` with service registration, signal subscriptions, and method dispatch.
+Service-side dispatch is descriptor-driven and uses explicit exported-target registration.
 
 ```csharp
 public sealed class DBusConnection : IAsyncDisposable
@@ -418,7 +419,7 @@ public sealed class DBusConnection : IAsyncDisposable
     /// <summary>
     /// The unique name assigned by the message bus (e.g., ":1.42").
     /// </summary>
-    public string UniqueName { get; }
+    public Task<string?> GetUniqueNameAsync();
     
     // ============ Client: Method Calls ============
     
@@ -486,37 +487,39 @@ public sealed class DBusConnection : IAsyncDisposable
     // ============ Server: Object Registration ============
     
     /// <summary>
-    /// Registers a handler for method calls on the specified path and interface.
+    /// Registers a low-level delegate handler for a path/interface pair.
     /// </summary>
-    /// <param name="obj">Object handler containing one or more interfaces.</param>
-    /// <param name="synchronizationContext">
-    /// Optional synchronization context to invoke the handler on (e.g., UI thread).
-    /// If null, handler is invoked on the connection's internal thread.
-    /// </param>
-    /// <returns>Disposable that unregisters the object when disposed.</returns>
-    public IDisposable RegisterObject(
-        IDBusObject obj,
-        SynchronizationContext? synchronizationContext = null);
-
-    /// <summary>
-    /// Registers a handler for method calls on the specified path and interface.
-    /// </summary>
-    /// <param name="path">Object path to handle.</param>
-    /// <param name="iface">Interface name to handle.</param>
-    /// <param name="handler">
-    /// Async callback that receives METHOD_CALL messages and returns 
-    /// METHOD_RETURN or ERROR replies.
-    /// </param>
-    /// <param name="synchronizationContext">
-    /// Optional synchronization context to invoke the handler on (e.g., UI thread).
-    /// If null, handler is invoked on the connection's internal thread.
-    /// </param>
-    /// <returns>Disposable that unregisters the handler when disposed.</returns>
     public IDisposable RegisterObject(
         DBusObjectPath path,
         string iface,
         Func<DBusConnection, DBusMessage, Task<DBusMessage>> handler,
         SynchronizationContext? synchronizationContext = null);
+
+    /// <summary>
+    /// Registers an exported target at a full object path.
+    /// Target must be a DBusExportedTarget.
+    /// </summary>
+    public IDisposable Register(
+        string fullPath,
+        DBusExportedTarget target,
+        SynchronizationContext? synchronizationContext = null);
+
+    /// <summary>
+    /// Applies add/remove/replace registration operations atomically.
+    /// </summary>
+    public void ApplyRegistrationBatch(
+        IEnumerable<DBusRegistrationOperation> operations,
+        SynchronizationContext? synchronizationContext = null);
+
+    /// <summary>
+    /// Returns direct child object paths for the provided parent path.
+    /// </summary>
+    public IReadOnlyList<string> QueryChildren(string path);
+
+    /// <summary>
+    /// Returns true when an exported target is registered at the exact path.
+    /// </summary>
+    public bool IsPathRegistered(string path);
     
     /// <summary>
     /// Closes the connection and releases resources.
@@ -568,80 +571,81 @@ public enum DBusRequestNameReply
     AlreadyOwner = 4
 }
 
-public interface IDBusObject
+public sealed class DBusExportedTargetBindingBuilder
 {
-    DBusObjectPath Path { get; }
-
-    string IntrospectXml { get; }
-
-    bool HasInterface(string name);
-
-    bool TryGetProperty(string iface, string name, out DBusVariant value);
-
-    bool TrySetProperty(string iface, string name, DBusVariant value);
-
-    Dictionary<string, DBusVariant> GetAllProperties(string iface);
-
-    Task<DBusMessage> HandleMethodAsync(DBusMessage request);
+    public void Bind<TInterface>(
+        TInterface target,
+        SynchronizationContext? synchronizationContext = null)
+        where TInterface : class;
 }
 
-public interface IDBusInterfaceHandler
+public sealed class DBusExportedTarget
 {
-    DBusConnection Connection { get; }
+    public static DBusExportedTarget Create(
+        object target,
+        Action<DBusExportedTargetBindingBuilder> configure);
 
-    DBusObjectPath? Path { get; set; }
-
-    string InterfaceName { get; }
-
-    string IntrospectXml { get; }
-
-    Task<DBusMessage> HandleMethodAsync(DBusMessage request);
-
-    bool TryGetProperty(string name, out DBusVariant value);
-
-    bool TrySetProperty(string name, DBusVariant value);
-
-    Dictionary<string, DBusVariant> GetAllProperties();
+    public static DBusExportedTarget Create<TInterface>(
+        TInterface target,
+        SynchronizationContext? synchronizationContext = null)
+        where TInterface : class;
 }
 
-// NOTE: DBusObject and DBusObjectTree are helper types generated by the Avalonia.DBus.SourceGen package
-// (kept out of the runtime assembly). If you don't use the source generator, implement IDBusObject yourself
-// or use DBusConnection.RegisterObject(path, iface, handler).
-public sealed class DBusObject : ICollection<IDBusInterfaceHandler>, IDBusObject
+public readonly struct DBusRegistrationOperation
 {
-    public DBusObject(string path);
-    public DBusObject(DBusObjectPath path);
-
-    public DBusObjectPath Path { get; }
-
-    public string IntrospectXml { get; }
-
-    public bool HasInterface(string name);
-
-    public bool TryGetProperty(string iface, string name, out DBusVariant value);
-
-    public bool TrySetProperty(string iface, string name, DBusVariant value);
-
-    public Dictionary<string, DBusVariant> GetAllProperties(string iface);
-
-    public Task<DBusMessage> HandleMethodAsync(DBusMessage request);
-
-    public void Add(IDBusInterfaceHandler item);
-}
-
-public sealed class DBusObjectTree
-{
-    public DBusObjectTree(string rootPath);
-
     public string Path { get; }
+    public DBusExportedTarget? Target { get; }
 
-    public DBusObject AddPath(string path);
+    public static DBusRegistrationOperation Add(string fullPath, DBusExportedTarget target);
+    public static DBusRegistrationOperation Remove(string fullPath);
+    public static DBusRegistrationOperation Replace(string fullPath, DBusExportedTarget target);
+}
 
-    public bool RemovePath(string path);
+public interface IDBusInterfaceCallDispatcher
+{
+    Task<DBusMessage> Handle(DBusMessage message, DBusConnection connection, object target);
+}
 
-    public IDisposable Register(DBusConnection connection);
+public sealed class DBusInterfaceDescriptor
+{
+    public string InterfaceName { get; init; }
+    public Type ClrInterfaceType { get; init; }
+    public string IntrospectionXml { get; init; }
+    public IDBusInterfaceCallDispatcher Dispatcher { get; init; }
+    public IReadOnlyDictionary<string, DBusPropertyDescriptor> Properties { get; init; }
+    public IReadOnlyDictionary<string, DBusMethodDescriptor> Methods { get; init; }
+}
+
+public static class DBusGeneratedMetadata
+{
+    public static void Register(DBusInterfaceDescriptor descriptor);
+}
+
+public interface IDBusSubtreeLifecycle
+{
+    void OnConnectedToTree(DBusConnection connection, string fullPath);
+    void OnDisconnectedFromTree(DBusConnection connection, string fullPath);
+}
+
+public readonly struct DBusSubtreeRegistration
+{
+    public string FullPath { get; }
+    public DBusExportedTarget Target { get; }
+    public IDBusSubtreeLifecycle? Lifecycle { get; }
+}
+
+public sealed class DBusSubtreeRegistrationHelper
+{
+    public DBusSubtreeRegistrationHelper(DBusConnection connection);
+    public void ApplySnapshot(
+        IEnumerable<DBusSubtreeRegistration> registrations,
+        SynchronizationContext? synchronizationContext = null);
+    public void Clear(SynchronizationContext? synchronizationContext = null);
 }
 ```
+
+Legacy service contracts `IDBusObject`, `IDBusInterfaceHandler`, `DBusObject`, and `DBusConnection.Root` were removed.
+For migration guidance, see `docs/dispatch-refactor-migration.md`.
 
 ---
 
@@ -728,11 +732,11 @@ var result = await connection.RequestNameAsync(
 if (result != DBusRequestNameReply.PrimaryOwner)
     throw new Exception("Failed to acquire bus name");
 
-// Register object + interface handler (built-ins for Peer/Properties/Introspectable are automatic)
-// ComExampleMyServiceHandlerImpl is your concrete subclass of the source-gen handler.
-var obj = new DBusObject("/com/example/MyService");
-obj.Add(new ComExampleMyServiceHandlerImpl(connection));
-using var registration = connection.RegisterObject(obj);
+// Register exported target using generated Service-mode bindings.
+var service = new ComExampleMyServiceImpl();
+using var registration = connection.Register(
+    "/com/example/MyService",
+    ComExampleMyServiceExport.CreateTarget(service));
 
 // Keep running...
 await Task.Delay(Timeout.Infinite);

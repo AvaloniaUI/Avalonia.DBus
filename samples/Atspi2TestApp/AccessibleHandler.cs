@@ -1,106 +1,76 @@
-using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
 
-internal sealed class AccessibleHandler : OrgA11yAtspiAccessibleHandler
+internal sealed class AccessibleHandler(AtspiServer server, AccessibleNode node) : IOrgA11yAtspiAccessible
 {
-    private readonly AtspiServer _server;
-    private readonly AccessibleNode _node;
+    public uint Version => AccessibleVersion;
 
-    public AccessibleHandler(AtspiServer server, AccessibleNode node)
+    public string Name => node.Name;
+
+    public string Description => node.Description;
+
+    public AtSpiObjectReference Parent => server.GetReference(node.Parent);
+
+    public int ChildCount => node.Children.Count;
+
+    public string Locale => node.Locale;
+
+    public string AccessibleId => node.AccessibleId;
+
+    public string HelpText => node.HelpText;
+
+    public ValueTask<AtSpiObjectReference> GetChildAtIndexAsync(int index)
     {
-        _server = server;
-        _node = node;
-        RefreshProperties();
+        var child = index >= 0 && index < node.Children.Count ? node.Children[index] : null;
+        return ValueTask.FromResult(server.GetReference(child));
     }
 
-    public override DBusConnection Connection => _server.A11yConnection;
-
-    public void RefreshProperties()
+    public ValueTask<List<AtSpiObjectReference>> GetChildrenAsync()
     {
-        Version = AccessibleVersion;
-        Name = _node.Name;
-        Description = _node.Description;
-        Parent = _server.GetReference(_node.Parent);
-        ChildCount = _node.Children.Count;
-        Locale = _node.Locale;
-        AccessibleId = _node.AccessibleId;
-        HelpText = _node.HelpText;
-    }
-
-    protected override ValueTask<AtSpiObjectReference> OnGetChildAtIndexAsync(DBusMessage request, int index)
-    {
-        var child = index >= 0 && index < _node.Children.Count ? _node.Children[index] : null;
-        return ValueTask.FromResult(_server.GetReference(child));
-    }
-
-    protected override ValueTask<List<AtSpiObjectReference>> OnGetChildrenAsync(DBusMessage request)
-    {
-        if (_node.Children.Count == 0)
-        {
+        if (node.Children.Count == 0)
             return ValueTask.FromResult(new List<AtSpiObjectReference>());
-        }
 
-        var children = new List<AtSpiObjectReference>(_node.Children.Count);
-        for (var i = 0; i < _node.Children.Count; i++)
-        {
-            children.Add(_server.GetReference(_node.Children[i]));
-        }
+        var children = new List<AtSpiObjectReference>(node.Children.Count);
+        for (var i = 0; i < node.Children.Count; i++)
+            children.Add(server.GetReference(node.Children[i]));
 
         return ValueTask.FromResult(children);
     }
 
-    protected override ValueTask<int> OnGetIndexInParentAsync(DBusMessage request)
+    public ValueTask<int> GetIndexInParentAsync()
     {
-        var index = _node.Parent == null ? -1 : _node.Parent.Children.IndexOf(_node);
+        var index = node.Parent == null ? -1 : node.Parent.Children.IndexOf(node);
         return ValueTask.FromResult(index);
     }
 
-    protected override ValueTask<List<AtSpiRelationEntry>> OnGetRelationSetAsync(DBusMessage request)
+    public ValueTask<List<AtSpiRelationEntry>> GetRelationSetAsync()
     {
         return ValueTask.FromResult(AtspiServer.EmptyRelations);
     }
 
-    protected override ValueTask<uint> OnGetRoleAsync(DBusMessage request)
+    public ValueTask<uint> GetRoleAsync() => ValueTask.FromResult((uint)node.Role);
+
+    public ValueTask<string> GetRoleNameAsync() => ValueTask.FromResult(server.GetRoleName(node.Role));
+
+    public ValueTask<string> GetLocalizedRoleNameAsync() => ValueTask.FromResult(server.GetRoleName(node.Role));
+
+    public ValueTask<List<uint>> GetStateAsync() => ValueTask.FromResult(BuildStateSet(node.States));
+
+    public ValueTask<AtSpiAttributeSet> GetAttributesAsync() => ValueTask.FromResult(new AtSpiAttributeSet());
+
+    public ValueTask<AtSpiObjectReference> GetApplicationAsync()
     {
-        return ValueTask.FromResult((uint)_node.Role);
+        return ValueTask.FromResult(server.GetReference(server.Tree.Root));
     }
 
-    protected override ValueTask<string> OnGetRoleNameAsync(DBusMessage request)
+    public ValueTask<List<string>> GetInterfacesAsync()
     {
-        return ValueTask.FromResult(_server.GetRoleName(_node.Role));
-    }
-
-    protected override ValueTask<string> OnGetLocalizedRoleNameAsync(DBusMessage request)
-    {
-        return ValueTask.FromResult(_server.GetRoleName(_node.Role));
-    }
-
-    protected override ValueTask<List<uint>> OnGetStateAsync(DBusMessage request)
-    {
-        return ValueTask.FromResult(BuildStateSet(_node.States));
-    }
-
-    protected override ValueTask<AtSpiAttributeSet> OnGetAttributesAsync(DBusMessage request)
-    {
-        return ValueTask.FromResult(new AtSpiAttributeSet());
-    }
-
-    protected override ValueTask<AtSpiObjectReference> OnGetApplicationAsync(DBusMessage request)
-    {
-        return ValueTask.FromResult(_server.GetReference(_server.Tree.Root));
-    }
-
-    protected override ValueTask<List<string>> OnGetInterfacesAsync(DBusMessage request)
-    {
-        if (_node.Interfaces.Count == 0)
-        {
+        if (node.Interfaces.Count == 0)
             return ValueTask.FromResult(new List<string>());
-        }
 
-        var interfaces = _node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray();
+        var interfaces = node.Interfaces.OrderBy(static iface => iface, StringComparer.Ordinal).ToArray();
         return ValueTask.FromResult(new List<string>(interfaces));
     }
 }

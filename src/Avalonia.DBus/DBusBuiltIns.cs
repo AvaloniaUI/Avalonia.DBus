@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Avalonia.DBus;
 
-public sealed class DBusBuiltIns
+internal sealed class DBusBuiltIns
 {
     private const string PeerInterfaceName = "org.freedesktop.DBus.Peer";
     private const string PropertiesInterfaceName = "org.freedesktop.DBus.Properties";
@@ -22,12 +23,23 @@ public sealed class DBusBuiltIns
     private const string ErrorUnknownMethod = "org.freedesktop.DBus.Error.UnknownMethod";
     private const string ErrorUnknownInterface = "org.freedesktop.DBus.Error.UnknownInterface";
     private const string ErrorUnknownProperty = "org.freedesktop.DBus.Error.UnknownProperty";
+    private const string ErrorInvalidArgs = "org.freedesktop.DBus.Error.InvalidArgs";
 
     private string? _machineId;
 
     public bool EnablePeerInterface { get; set; } = true;
     public bool EnablePropertiesInterface { get; set; } = true;
     public bool EnableIntrospectableInterface { get; set; } = true;
+
+    internal static bool IsBuiltInInterface(string? iface)
+    {
+        if (string.IsNullOrEmpty(iface))
+            return false;
+
+        return string.Equals(iface, PeerInterfaceName, StringComparison.Ordinal)
+               || string.Equals(iface, PropertiesInterfaceName, StringComparison.Ordinal)
+               || string.Equals(iface, IntrospectableInterfaceName, StringComparison.Ordinal);
+    }
 
     internal DBusMessage? TryHandlePeer(DBusMessage request)
     {
@@ -45,7 +57,7 @@ public sealed class DBusBuiltIns
         };
     }
 
-    internal DBusMessage? TryHandleProperties(DBusMessage request, IDBusObject obj)
+    internal DBusMessage? TryHandleProperties(DBusMessage request, DBusRegisteredPathEntry? entry)
     {
         if (!EnablePropertiesInterface || request.Type != DBusMessageType.MethodCall)
             return null;
@@ -57,38 +69,81 @@ public sealed class DBusBuiltIns
         {
             case "Get":
                 if (request.Body.Count < 2 || request.Body[0] is not string iface || request.Body[1] is not string name)
-                    return request.CreateError(ErrorUnknownMethod, "Invalid Get arguments.");
+                    return request.CreateError(ErrorInvalidArgs, "Invalid Get arguments.");
 
-                if (!HasInterface(obj, iface))
+                if (!TryGetBoundInterface(entry, iface, out var getBinding))
                     return request.CreateError(ErrorUnknownInterface, "Unknown interface");
 
-                if (!obj.TryGetProperty(iface, name, out var value))
+                if (!getBinding.Descriptor.Properties.TryGetValue(name, out var getProperty)
+                    || !getProperty.CanRead
+                    || getProperty.TryGet == null)
+                {
                     return request.CreateError(ErrorUnknownProperty, "Unknown property");
+                }
 
-                return request.CreateReply(value);
+                try
+                {
+                    if (!getProperty.TryGet(getBinding.Target, out var value))
+                        return request.CreateError(ErrorUnknownProperty, "Unknown property");
+
+                    return request.CreateReply(value);
+                }
+                catch (Exception ex)
+                {
+                    return request.CreateError(ErrorInvalidArgs, ex.Message);
+                }
 
             case "GetAll":
                 if (request.Body.Count < 1 || request.Body[0] is not string getAllIface)
-                    return request.CreateError(ErrorUnknownMethod, "Invalid GetAll arguments.");
+                    return request.CreateError(ErrorInvalidArgs, "Invalid GetAll arguments.");
 
-                if (!HasInterface(obj, getAllIface))
+                if (!TryGetBoundInterface(entry, getAllIface, out var getAllBinding))
                     return request.CreateError(ErrorUnknownInterface, "Unknown interface");
 
-                return obj.TryGetAllProperties(getAllIface, out var props)
-                    ? request.CreateReply(props)
-                    : request.CreateError(ErrorUnknownProperty, "Unknown property");
+                var values = new Dictionary<string, DBusVariant>(StringComparer.Ordinal);
+                foreach (var (propertyName, descriptor) in getAllBinding.Descriptor.Properties.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+                {
+                    if (!descriptor.CanRead || descriptor.TryGet == null)
+                        continue;
+
+                    try
+                    {
+                        if (descriptor.TryGet(getAllBinding.Target, out var value))
+                            values[propertyName] = value;
+                    }
+                    catch (Exception ex)
+                    {
+                        return request.CreateError(ErrorInvalidArgs, ex.Message);
+                    }
+                }
+
+                return request.CreateReply(values);
 
             case "Set":
                 if (request.Body.Count < 3 || request.Body[0] is not string setIface || request.Body[1] is not string setName || request.Body[2] is not DBusVariant setValue)
-                    return request.CreateError(ErrorUnknownMethod, "Invalid Set arguments.");
+                    return request.CreateError(ErrorInvalidArgs, "Invalid Set arguments.");
 
-                if (!HasInterface(obj, setIface))
+                if (!TryGetBoundInterface(entry, setIface, out var setBinding))
                     return request.CreateError(ErrorUnknownInterface, "Unknown interface");
 
-                if (!obj.TrySetProperty(setIface, setName, setValue))
+                if (!setBinding.Descriptor.Properties.TryGetValue(setName, out var setProperty)
+                    || !setProperty.CanWrite
+                    || setProperty.TrySet == null)
+                {
                     return request.CreateError(ErrorUnknownProperty, "Unknown property");
+                }
 
-                return request.CreateReply();
+                try
+                {
+                    if (!setProperty.TrySet(setBinding.Target, setValue))
+                        return request.CreateError(ErrorUnknownProperty, "Unknown property");
+
+                    return request.CreateReply();
+                }
+                catch (Exception ex)
+                {
+                    return request.CreateError(ErrorInvalidArgs, ex.Message);
+                }
 
             default:
                 return request.CreateError(ErrorUnknownMethod, "Unknown method");
@@ -110,18 +165,18 @@ public sealed class DBusBuiltIns
         };
     }
 
-    private static bool HasInterface(IDBusObject obj, string iface)
+    private static bool TryGetBoundInterface(
+        DBusRegisteredPathEntry? entry,
+        string iface,
+        out DBusBoundInterfaceRegistration binding)
     {
-        if (!obj.TryGetInterfaces(out var ifaces))
-            return false;
-
-        foreach (var item in ifaces)
+        if (entry == null || string.IsNullOrEmpty(iface))
         {
-            if (string.Equals(item, iface, StringComparison.Ordinal))
-                return true;
+            binding = null!;
+            return false;
         }
 
-        return false;
+        return entry.TryGetBinding(iface, out binding);
     }
 
     private string GetMachineId()

@@ -129,18 +129,21 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                                 .AddMembers(typeDeclarationSyntax);
                             var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
                             productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs", compilationUnit.GetText(Encoding.UTF8));
+
+                            var metadataSource = BuildProxyMetadataSource(dBusInterface);
+                            productionContext.AddSource(
+                                $"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.Metadata.g.cs",
+                                metadataSource);
                         }
 
                         break;
-                    case "Handler":
+                    case "Service":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            TypeDeclarationSyntax typeDeclarationSyntax = GenerateHandler(dBusInterface);
-                            var namespaceDeclaration = NamespaceDeclaration(
-                                    IdentifierName("Avalonia.DBus.SourceGen"))
-                                .AddMembers(typeDeclarationSyntax);
-                            var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
-                            productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs", compilationUnit.GetText(Encoding.UTF8));
+                            var source = BuildServiceSource(dBusInterface);
+                            productionContext.AddSource(
+                                $"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Service.g.cs",
+                                source);
                         }
 
                         break;

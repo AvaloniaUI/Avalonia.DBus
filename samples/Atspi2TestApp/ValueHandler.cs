@@ -1,36 +1,35 @@
-using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
 
-internal sealed class ValueHandler : OrgA11yAtspiValueHandler
+internal sealed class ValueHandler : IOrgA11yAtspiValue
 {
-    private readonly AtspiServer _server;
     private readonly AccessibleNode _node;
 
     public ValueHandler(AtspiServer server, AccessibleNode node)
     {
-        _server = server;
+        _ = server;
         _node = node;
-        Version = ValueVersion;
-        MinimumValue = node.Value?.Minimum ?? 0;
-        MaximumValue = node.Value?.Maximum ?? 0;
-        MinimumIncrement = node.Value?.Increment ?? 0;
-        Text = node.Value?.Text ?? string.Empty;
     }
 
-    public override DBusConnection Connection => _server.A11yConnection;
+    public uint Version => ValueVersion;
 
-    public override double CurrentValue
+    public double MinimumValue => _node.Value?.Minimum ?? 0;
+
+    public double MaximumValue => _node.Value?.Maximum ?? 0;
+
+    public double MinimumIncrement => _node.Value?.Increment ?? 0;
+
+    public string Text => _node.Value?.Text ?? string.Empty;
+
+    public double CurrentValue
     {
         get => _node.Value?.Current ?? 0;
         set
         {
             if (_node.Value == null)
-            {
                 return;
-            }
 
             var clamped = Math.Max(_node.Value.Minimum, Math.Min(_node.Value.Maximum, value));
             _node.Value = _node.Value with { Current = clamped };

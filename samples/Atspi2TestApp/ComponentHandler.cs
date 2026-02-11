@@ -1,97 +1,80 @@
-using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
 
-internal sealed class ComponentHandler : OrgA11yAtspiComponentHandler
+internal sealed class ComponentHandler(AtspiServer server, AccessibleNode node) : IOrgA11yAtspiComponent
 {
-    private readonly AtspiServer _server;
-    private readonly AccessibleNode _node;
+    public uint Version => ComponentVersion;
 
-    public ComponentHandler(AtspiServer server, AccessibleNode node)
+    public ValueTask<bool> ContainsAsync(int x, int y, uint coordType)
     {
-        _server = server;
-        _node = node;
-        Version = ComponentVersion;
-    }
-
-    public override DBusConnection Connection => _server.A11yConnection;
-
-    protected override ValueTask<bool> OnContainsAsync(DBusMessage request, int x, int y, uint coordType)
-    {
-        var screenPoint = _server.TranslatePoint(_node, x, y, coordType);
-        var contains = _server.ContainsPoint(_node.Extents, screenPoint.x, screenPoint.y);
+        var screenPoint = server.TranslatePoint(node, x, y, coordType);
+        var contains = server.ContainsPoint(node.Extents, screenPoint.x, screenPoint.y);
         return ValueTask.FromResult(contains);
     }
 
-    protected override ValueTask<AtSpiObjectReference> OnGetAccessibleAtPointAsync(DBusMessage request, int x, int y, uint coordType)
+    public ValueTask<AtSpiObjectReference> GetAccessibleAtPointAsync(int x, int y, uint coordType)
     {
-        var screenPoint = _server.TranslatePoint(_node, x, y, coordType);
-        var target = _server.FindAtPoint(_node, screenPoint.x, screenPoint.y);
-        return ValueTask.FromResult(_server.GetReference(target));
+        var screenPoint = server.TranslatePoint(node, x, y, coordType);
+        var target = server.FindAtPoint(node, screenPoint.x, screenPoint.y);
+        return ValueTask.FromResult(server.GetReference(target));
     }
 
-    protected override ValueTask<AtSpiRect> OnGetExtentsAsync(DBusMessage request, uint coordType)
+    public ValueTask<AtSpiRect> GetExtentsAsync(uint coordType)
     {
-        var rect = _server.TranslateRect(_node, coordType);
+        var rect = server.TranslateRect(node, coordType);
         return ValueTask.FromResult(new AtSpiRect(rect.X, rect.Y, rect.Width, rect.Height));
     }
 
-    protected override ValueTask<(int X, int Y)> OnGetPositionAsync(DBusMessage request, uint coordType)
+    public ValueTask<(int X, int Y)> GetPositionAsync(uint coordType)
     {
-        var rect = _server.TranslateRect(_node, coordType);
+        var rect = server.TranslateRect(node, coordType);
         return ValueTask.FromResult((rect.X, rect.Y));
     }
 
-    protected override ValueTask<(int Width, int Height)> OnGetSizeAsync(DBusMessage request)
+    public ValueTask<(int Width, int Height)> GetSizeAsync()
     {
-        return ValueTask.FromResult((_node.Extents.Width, _node.Extents.Height));
+        return ValueTask.FromResult((node.Extents.Width, node.Extents.Height));
     }
 
-    protected override ValueTask<uint> OnGetLayerAsync(DBusMessage request)
+    public ValueTask<uint> GetLayerAsync()
     {
-        var layer = _node.Role == RoleFrame ? 7u : 3u;
+        var layer = node.Role == RoleFrame ? 7u : 3u;
         return ValueTask.FromResult(layer);
     }
 
-    protected override ValueTask<short> OnGetMDIZOrderAsync(DBusMessage request)
-    {
-        return ValueTask.FromResult((short)-1);
-    }
+    public ValueTask<short> GetMDIZOrderAsync() => ValueTask.FromResult((short)-1);
 
-    protected override ValueTask<bool> OnGrabFocusAsync(DBusMessage request)
+    public ValueTask<bool> GrabFocusAsync()
     {
-        _server.SetFocused(_node);
+        server.SetFocused(node);
         return ValueTask.FromResult(true);
     }
 
-    protected override ValueTask<double> OnGetAlphaAsync(DBusMessage request)
-    {
-        return ValueTask.FromResult(1.0);
-    }
+    public ValueTask<double> GetAlphaAsync() => ValueTask.FromResult(1.0);
 
-    protected override ValueTask<bool> OnSetExtentsAsync(DBusMessage request, int x, int y, int width, int height, uint coordType)
+    public ValueTask<bool> SetExtentsAsync(int x, int y, int width, int height, uint coordType)
     {
         return ValueTask.FromResult(false);
     }
 
-    protected override ValueTask<bool> OnSetPositionAsync(DBusMessage request, int x, int y, uint coordType)
+    public ValueTask<bool> SetPositionAsync(int x, int y, uint coordType)
     {
         return ValueTask.FromResult(false);
     }
 
-    protected override ValueTask<bool> OnSetSizeAsync(DBusMessage request, int width, int height)
+    public ValueTask<bool> SetSizeAsync(int width, int height)
     {
         return ValueTask.FromResult(false);
     }
 
-    protected override ValueTask<bool> OnScrollToAsync(DBusMessage request, uint type)
+    public ValueTask<bool> ScrollToAsync(uint type)
     {
         return ValueTask.FromResult(false);
     }
 
-    protected override ValueTask<bool> OnScrollToPointAsync(DBusMessage request, uint type, int x, int y)
+    public ValueTask<bool> ScrollToPointAsync(uint coordType, int x, int y)
     {
         return ValueTask.FromResult(false);
     }

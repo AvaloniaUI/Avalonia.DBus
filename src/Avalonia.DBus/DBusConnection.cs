@@ -7,11 +7,11 @@ using System.Xml;
 
 namespace Avalonia.DBus;
 
-public sealed class DBusConnection : IAsyncDisposable
+public sealed class DBusConnection : IDBusConnection
 {
     private readonly object _gate = new();
     private readonly Dictionary<ObjectHandlerKey, ObjectHandlerRegistration> _handlers = new();
-    private readonly Dictionary<string, RegisteredObject> _registeredObjects = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DBusRegisteredPathEntry> _registeredPathEntries = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _activePathRefCounts = new(StringComparer.Ordinal);
     private readonly Dictionary<ChildEdgeKey, int> _childEdgeRefCounts = new();
     private readonly Dictionary<string, HashSet<string>> _childNodesByPath = new(StringComparer.Ordinal);
@@ -20,21 +20,13 @@ public sealed class DBusConnection : IAsyncDisposable
     private readonly Task _dispatchLoop;
     private readonly DBusLogger _logger;
     private readonly DBusBuiltIns _builtIns = new();
-    private readonly ObjectTreeRegistration _serviceTreeRegistration;
+    private long _nextRegistrationId = 1;
     private bool _disposed;
 
     private DBusConnection(DBusWireConnection wire, DBusLogger? loggers)
     {
         Wire = wire ?? throw new ArgumentNullException(nameof(wire));
         _logger = loggers ?? DBusLogger.CreateDefault();
-        Root = new DBusObject("/");
-        _serviceTreeRegistration = new ObjectTreeRegistration(this, synchronizationContext: null);
-
-        lock (_gate)
-        {
-            RegisterNodeLocked(_serviceTreeRegistration, Root);
-        }
-
         _dispatchLoop = Task.Run(() => DispatchLoopAsync(_dispatchCts.Token));
     }
 
@@ -109,13 +101,17 @@ public sealed class DBusConnection : IAsyncDisposable
     private DBusWireConnection Wire { get; }
 
     /// <summary>
-    /// Root of the service-side object tree managed by this connection.
-    /// </summary>
-    public DBusObject Root { get; }
-
-    /// <summary>
     /// Sends a pre-constructed message without waiting for a reply.
     /// </summary>
+    public object CreateProxy(
+        Type interfaceType,
+        string destination,
+        DBusObjectPath path,
+        string? iface = null)
+    {
+        return DBusWrapperMetadata.CreateProxy(interfaceType, this, destination, path, iface);
+    }
+
     public Task SendMessageAsync(
         DBusMessage message,
         CancellationToken cancellationToken = default)
@@ -127,23 +123,12 @@ public sealed class DBusConnection : IAsyncDisposable
     /// <summary>
     /// Calls a method on a remote object and returns the reply.
     /// </summary>
-    public Task<DBusMessage> CallMethodAsync(
-        string destination,
-        DBusObjectPath path,
-        string iface,
-        string member,
-        params object[] args)
-        => CallMethodAsync(destination, path, iface, member, CancellationToken.None, args);
-
-    /// <summary>
-    /// Calls a method on a remote object and returns the reply.
-    /// </summary>
     public async Task<DBusMessage> CallMethodAsync(
         string destination,
         DBusObjectPath path,
         string iface,
         string member,
-        CancellationToken cancellationToken,
+        CancellationToken cancellationToken = default,
         params object[] args)
     {
         LogVerbose($"CallMethod start: dest='{destination}' path='{path}' iface='{iface}' member='{member}' args={(args?.Length ?? 0)}");
@@ -157,16 +142,6 @@ public sealed class DBusConnection : IAsyncDisposable
     /// <summary>
     /// Subscribes to signals matching the specified criteria.
     /// </summary>
-    /// <param name="sender">Filter by sender (null for any).</param>
-    /// <param name="path">Filter by object path (null for any).</param>
-    /// <param name="iface">Interface name.</param>
-    /// <param name="member">Signal name.</param>
-    /// <param name="handler">Async callback invoked for each matching signal.</param>
-    /// <param name="synchronizationContext">
-    /// Optional synchronization context to invoke the handler on (e.g., UI thread).
-    /// If null, handler is invoked on the connection's internal thread.
-    /// </param>
-    /// <returns>Disposable that unsubscribes when disposed.</returns>
     public async Task<IDisposable> SubscribeAsync(
         string? sender,
         DBusObjectPath? path,
@@ -179,7 +154,7 @@ public sealed class DBusConnection : IAsyncDisposable
             throw new ArgumentException("Interface is required.", nameof(iface));
         if (string.IsNullOrEmpty(member))
             throw new ArgumentException("Member is required.", nameof(member));
-        
+
         ArgumentNullException.ThrowIfNull(handler);
 
         var matchRule = BuildMatchRule(sender, path, iface, member);
@@ -188,6 +163,7 @@ public sealed class DBusConnection : IAsyncDisposable
         var subscription = new SignalSubscription(this, sender, path, iface, member, handler, synchronizationContext, matchRule);
         lock (_gate)
         {
+            ThrowIfDisposed();
             _subscriptions.Add(subscription);
         }
 
@@ -197,9 +173,6 @@ public sealed class DBusConnection : IAsyncDisposable
     /// <summary>
     /// Subscribes to the org.freedesktop.DBus NameOwnerChanged signal.
     /// </summary>
-    /// <param name="handler">Invoked with (name, oldOwner, newOwner).</param>
-    /// <param name="emitOnCapturedContext">Whether to invoke the handler on the captured context.</param>
-    /// <param name="sender">Filter by sender (null for any).</param>
     public Task<IDisposable> WatchNameOwnerChangedAsync(
         Action<string, string?, string?> handler,
         bool emitOnCapturedContext = true,
@@ -226,9 +199,6 @@ public sealed class DBusConnection : IAsyncDisposable
     /// <summary>
     /// Subscribes to the org.freedesktop.DBus NameOwnerChanged signal.
     /// </summary>
-    /// <param name="handler">Invoked with (name, oldOwner, newOwner).</param>
-    /// <param name="emitOnCapturedContext">Whether to invoke the handler on the captured context.</param>
-    /// <param name="sender">Filter by sender (null for any).</param>
     public Task<IDisposable> WatchNameOwnerChangedAsync(
         Func<string, string?, string?, Task> handler,
         bool emitOnCapturedContext = true,
@@ -260,20 +230,16 @@ public sealed class DBusConnection : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(name))
-        {
             throw new ArgumentException("Name is required.", nameof(name));
-        }
 
         var reply = await CallBusMethodAsync(
-                "RequestName",
-                cancellationToken,
-                name,
-                (uint)flags);
+            "RequestName",
+            cancellationToken,
+            name,
+            (uint)flags);
 
         if (reply.Body.Count == 0)
-        {
             throw new InvalidOperationException("RequestName returned no reply.");
-        }
 
         var value = reply.Body[0] switch
         {
@@ -293,9 +259,7 @@ public sealed class DBusConnection : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(name))
-        {
             throw new ArgumentException("Name is required.", nameof(name));
-        }
 
         await CallBusMethodAsync("ReleaseName", cancellationToken, name);
     }
@@ -340,14 +304,23 @@ public sealed class DBusConnection : IAsyncDisposable
     {
         if (string.IsNullOrEmpty(iface))
             throw new ArgumentException("Interface is required.", nameof(iface));
-        
+
         ArgumentNullException.ThrowIfNull(handler);
 
-        var key = new ObjectHandlerKey(path.Value, iface);
+        var normalizedPath = NormalizePath(path.Value);
+        var key = new ObjectHandlerKey(normalizedPath, iface);
         var registration = new ObjectHandlerRegistration(this, key, handler, synchronizationContext);
 
         lock (_gate)
         {
+            ThrowIfDisposed();
+
+            if (_registeredPathEntries.ContainsKey(normalizedPath))
+            {
+                throw new InvalidOperationException(
+                    $"Path '{normalizedPath}' is already occupied by explicit exported-target registration.");
+            }
+
             if (_handlers.ContainsKey(key))
             {
                 throw new InvalidOperationException("A handler is already registered for this path and interface.");
@@ -360,68 +333,118 @@ public sealed class DBusConnection : IAsyncDisposable
     }
 
     /// <summary>
-    /// Registers a <see cref="DBusObject"/> tree for service-side dispatch.
+    /// Registers a service target for dispatch at the specified full object path.
     /// </summary>
-    public IDisposable RegisterObject(
-        DBusObject root,
-        SynchronizationContext? synchronizationContext = null)
+    public IDisposable Register(
+        string fullPath,
+        DBusExportedTarget target,
+        SynchronizationContext? context = null)
     {
-        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(target);
 
-        var registration = new ObjectTreeRegistration(this, synchronizationContext);
+        var normalizedPath = NormalizePath(fullPath);
+        long registrationId;
         lock (_gate)
         {
             ThrowIfDisposed();
-            RegisterSubtreeLocked(registration, root);
+
+            if (_registeredPathEntries.ContainsKey(normalizedPath))
+                throw new InvalidOperationException($"An exported target is already registered for path '{normalizedPath}'.");
+
+            EnsureNoLegacyPathCollisionLocked(normalizedPath, target);
+            var entry = CreateRegisteredPathEntryLocked(normalizedPath, target, context);
+            _registeredPathEntries.Add(normalizedPath, entry);
+            IncrementPathRefCountsLocked(normalizedPath);
+            registrationId = entry.RegistrationId;
         }
 
-        return registration;
+        return new ExportedPathRegistration(this, normalizedPath, registrationId);
     }
 
     /// <summary>
-    /// Queries active tree nodes with a simple selector syntax.
-    /// Supported selectors:
-    /// - <c>/a/b</c>
-    /// - <c>/a/*</c>
-    /// - <c>/a/**</c>
-    /// - predicate suffix: <c>[iface='org.example.Interface']</c>
+    /// Applies a batch of add/remove/replace registration operations atomically.
     /// </summary>
-    public IReadOnlyList<DBusObject> Query(string selector)
+    public void ApplyRegistrationBatch(
+        IEnumerable<DBusRegistrationOperation> operations,
+        SynchronizationContext? context = null)
     {
-        if (string.IsNullOrWhiteSpace(selector))
-            throw new ArgumentException("Selector must be provided.", nameof(selector));
+        ArgumentNullException.ThrowIfNull(operations);
 
-        var parsed = ParseQuerySelector(selector);
+        var operationArray = operations as DBusRegistrationOperation[] ?? operations.ToArray();
+        if (operationArray.Length == 0)
+            return;
+
         lock (_gate)
         {
             ThrowIfDisposed();
 
-            IEnumerable<string> paths = parsed.Mode switch
+            var candidate = new Dictionary<string, DBusRegisteredPathEntry>(_registeredPathEntries, StringComparer.Ordinal);
+            foreach (var operation in operationArray)
             {
-                QueryMode.Exact => _activePathRefCounts.ContainsKey(parsed.Path)
-                    ? [parsed.Path]
-                    : [],
-                QueryMode.Children => QueryChildPathsLocked(parsed.Path),
-                QueryMode.Descendants => QueryDescendantPathsLocked(parsed.Path),
-                _ => Array.Empty<string>()
-            };
+                var path = NormalizePath(operation.Path);
+                switch (operation.Kind)
+                {
+                    case RegistrationOperationKind.Add:
+                    {
+                        if (candidate.ContainsKey(path))
+                            throw new InvalidOperationException($"An exported target is already registered for path '{path}'.");
 
-            var results = new List<DBusObject>();
-            foreach (var pathValue in paths.OrderBy(static x => x, StringComparer.Ordinal))
-            {
-                if (!_registeredObjects.TryGetValue(pathValue, out var registered))
-                    continue;
+                        var exportedTarget = CoerceExportedTarget(operation.Target, path);
+                        EnsureNoLegacyPathCollisionLocked(path, exportedTarget);
+                        candidate[path] = CreateRegisteredPathEntryLocked(path, exportedTarget, context);
+                        break;
+                    }
+                    case RegistrationOperationKind.Remove:
+                    {
+                        if (!candidate.Remove(path))
+                            throw new InvalidOperationException($"No exported target is registered for path '{path}'.");
+                        break;
+                    }
+                    case RegistrationOperationKind.Replace:
+                    {
+                        if (!candidate.ContainsKey(path))
+                            throw new InvalidOperationException($"No exported target is registered for path '{path}'.");
 
-                if (registered.Object is not DBusObject node)
-                    continue;
-
-                if (!MatchesInterfaceFilter(node, parsed.InterfaceFilter))
-                    continue;
-
-                results.Add(node);
+                        var exportedTarget = CoerceExportedTarget(operation.Target, path);
+                        EnsureNoLegacyPathCollisionLocked(path, exportedTarget);
+                        candidate[path] = CreateRegisteredPathEntryLocked(path, exportedTarget, context);
+                        break;
+                    }
+                    default:
+                        throw new InvalidOperationException($"Unsupported registration operation '{operation.Kind}'.");
+                }
             }
 
-            return results;
+            CommitRegisteredPathEntriesLocked(candidate);
+        }
+    }
+
+    /// <summary>
+    /// Returns direct child object paths for a parent path.
+    /// </summary>
+    public IReadOnlyList<string> QueryChildren(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+
+            return QueryChildPathsLocked(normalizedPath)
+                .OrderBy(static x => x, StringComparer.Ordinal)
+                .ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Returns true when an explicit exported target is currently registered at the exact path.
+    /// </summary>
+    public bool IsPathRegistered(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            return _registeredPathEntries.ContainsKey(normalizedPath);
         }
     }
 
@@ -430,25 +453,19 @@ public sealed class DBusConnection : IAsyncDisposable
     /// </summary>
     public async ValueTask DisposeAsync()
     {
-        ObjectTreeRegistration[] objectRegistrations;
         lock (_gate)
         {
             if (_disposed)
-            {
                 return;
-            }
+
             _disposed = true;
-
-            objectRegistrations = _registeredObjects.Values
-                .Select(static x => x.Registration)
-                .Where(static x => x != null)
-                .Distinct()
-                .Cast<ObjectTreeRegistration>()
-                .ToArray();
+            _registeredPathEntries.Clear();
+            _activePathRefCounts.Clear();
+            _childEdgeRefCounts.Clear();
+            _childNodesByPath.Clear();
+            _handlers.Clear();
+            _subscriptions.Clear();
         }
-
-        foreach (var registration in objectRegistrations)
-            registration.Dispose();
 
         await _dispatchCts.CancelAsync();
 
@@ -500,23 +517,21 @@ public sealed class DBusConnection : IAsyncDisposable
     private void DispatchMethodCall(DBusMessage message)
     {
         if (!message.Path.HasValue || string.IsNullOrEmpty(message.Interface))
-        {
             return;
-        }
 
         var pathValue = (string)message.Path.Value;
 
         ObjectHandlerRegistration? registration;
-        RegisteredObject? registeredObject;
+        DBusRegisteredPathEntry? registeredPathEntry;
         bool hasLegacyPath;
-        bool hasObjectPath;
+        bool hasActivePath;
         var key = new ObjectHandlerKey(pathValue, message.Interface);
         lock (_gate)
         {
             _handlers.TryGetValue(key, out registration);
+            _registeredPathEntries.TryGetValue(pathValue, out registeredPathEntry);
             hasLegacyPath = _handlers.Keys.Any(k => string.Equals(k.Path, pathValue, StringComparison.Ordinal));
-            _registeredObjects.TryGetValue(pathValue, out registeredObject);
-            hasObjectPath = _activePathRefCounts.ContainsKey(pathValue);
+            hasActivePath = _activePathRefCounts.ContainsKey(pathValue);
         }
 
         if (registration != null)
@@ -526,43 +541,40 @@ public sealed class DBusConnection : IAsyncDisposable
             return;
         }
 
-        if (hasObjectPath)
+        if (registeredPathEntry != null)
         {
-            DispatchObjectCall(message, registeredObject);
+            DispatchExportedPathCall(message, pathValue, registeredPathEntry);
+            return;
+        }
+
+        if (hasActivePath)
+        {
+            DispatchVirtualPathCall(message, pathValue);
             return;
         }
 
         ReplyMissingHandler(message, hasLegacyPath);
     }
 
-    private void DispatchObjectCall(DBusMessage message, RegisteredObject? registeredObject)
+    private void DispatchVirtualPathCall(DBusMessage message, string path)
     {
-        LogVerbose($"Dispatch METHOD_CALL (object): path='{message.Path}' iface='{message.Interface}' member='{message.Member}'");
-        if (registeredObject?.SynchronizationContext == null)
-        {
-            FireAndForget(HandleObjectCallAsync(message, registeredObject));
-        }
-        else
-        {
-            registeredObject.SynchronizationContext.Post(
-                _ => FireAndForget(HandleObjectCallAsync(message, registeredObject)),
-                null);
-        }
+        LogVerbose($"Dispatch METHOD_CALL (virtual): path='{message.Path}' iface='{message.Interface}' member='{message.Member}'");
+        FireAndForget(HandleVirtualPathCallAsync(message, path));
     }
 
-    private async Task HandleObjectCallAsync(DBusMessage message, RegisteredObject? registeredObject)
+    private async Task HandleVirtualPathCallAsync(DBusMessage message, string path)
     {
         DBusMessage reply;
         try
         {
-            var path = (string)message.Path!.Value;
-            var objectForProperties = registeredObject?.Object ?? EmptyDbusObject.Instance;
-            var introspectionXml = BuildIntrospectionXml(path, registeredObject?.Object);
+            var introspectionXml = BuildIntrospectionXml(path, exportedEntry: null);
 
             reply = _builtIns.TryHandlePeer(message)
-                    ?? _builtIns.TryHandleProperties(message, objectForProperties)
+                    ?? _builtIns.TryHandleProperties(message, entry: null)
                     ?? _builtIns.TryHandleIntrospectable(message, introspectionXml)
-                    ?? await InvokeObjectMemberAsync(message, registeredObject);
+                    ?? message.CreateError(
+                        "org.freedesktop.DBus.Error.UnknownInterface",
+                        $"No handler registered for interface '{message.Interface}' on '{path}'.");
         }
         catch (Exception ex)
         {
@@ -573,19 +585,75 @@ public sealed class DBusConnection : IAsyncDisposable
         await Wire.SendAsync(reply);
     }
 
-    private async Task<DBusMessage> InvokeObjectMemberAsync(DBusMessage message, RegisteredObject? registeredObject)
+    private void DispatchExportedPathCall(DBusMessage message, string path, DBusRegisteredPathEntry registeredPathEntry)
     {
-        if (registeredObject == null)
+        LogVerbose($"Dispatch METHOD_CALL (exported): path='{message.Path}' iface='{message.Interface}' member='{message.Member}'");
+        var synchronizationContext = ResolveExportedPathSynchronizationContext(message, registeredPathEntry);
+        if (synchronizationContext == null)
         {
-            var iface = string.IsNullOrWhiteSpace(message.Interface) ? "<null>" : message.Interface;
-            var path = message.Path.HasValue ? (string)message.Path.Value : "<null>";
-            return message.CreateError(
-                "org.freedesktop.DBus.Error.UnknownInterface",
-                $"No handler registered for interface '{iface}' on '{path}'.");
+            FireAndForget(HandleExportedPathCallAsync(message, path, registeredPathEntry));
+        }
+        else
+        {
+            synchronizationContext.Post(
+                _ => FireAndForget(HandleExportedPathCallAsync(message, path, registeredPathEntry)),
+                null);
+        }
+    }
+
+    private async Task HandleExportedPathCallAsync(
+        DBusMessage message,
+        string path,
+        DBusRegisteredPathEntry registeredPathEntry)
+    {
+        DBusMessage reply;
+        try
+        {
+            var introspectionXml = BuildIntrospectionXml(path, registeredPathEntry);
+
+            reply = _builtIns.TryHandlePeer(message)
+                    ?? _builtIns.TryHandleProperties(message, registeredPathEntry)
+                    ?? _builtIns.TryHandleIntrospectable(message, introspectionXml)
+                    ?? await InvokeExportedTargetMemberAsync(message, registeredPathEntry);
+        }
+        catch (Exception ex)
+        {
+            reply = message.CreateError("org.freedesktop.DBus.Error.Failed", ex.Message);
         }
 
-        var reply = await registeredObject.Object.InvokeMember(message);
-        return reply ?? message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");
+        reply = EnsureReplyMetadata(message, reply);
+        await Wire.SendAsync(reply);
+    }
+
+    private async Task<DBusMessage> InvokeExportedTargetMemberAsync(DBusMessage message, DBusRegisteredPathEntry entry)
+    {
+        var iface = message.Interface;
+        if (string.IsNullOrWhiteSpace(iface))
+        {
+            return message.CreateError(
+                "org.freedesktop.DBus.Error.UnknownInterface",
+                $"No handler registered for interface '<null>' on '{entry.Path}'.");
+        }
+
+        if (!entry.TryGetBinding(iface, out var binding))
+        {
+            return message.CreateError(
+                "org.freedesktop.DBus.Error.UnknownInterface",
+                $"No handler registered for interface '{iface}' on '{entry.Path}'.");
+        }
+
+        var reply = await binding.Descriptor.Dispatcher.Handle(message, this, binding.Target);
+        return reply ?? message.CreateError("org.freedesktop.DBus.Error.Failed", "Dispatcher returned null reply.");
+    }
+
+    private static SynchronizationContext? ResolveExportedPathSynchronizationContext(
+        DBusMessage message,
+        DBusRegisteredPathEntry entry)
+    {
+        if (!string.IsNullOrEmpty(message.Interface) && entry.TryGetBinding(message.Interface, out var binding))
+            return binding.SynchronizationContext ?? entry.DefaultSynchronizationContext;
+
+        return entry.DefaultSynchronizationContext;
     }
 
     private void ReplyMissingHandler(DBusMessage message, bool hasPath)
@@ -626,195 +694,136 @@ public sealed class DBusConnection : IAsyncDisposable
         return children.Select(childName => parentPath == "/" ? "/" + childName : parentPath + "/" + childName);
     }
 
-    private IEnumerable<string> QueryDescendantPathsLocked(string basePath)
+    private static DBusExportedTarget CoerceExportedTarget(DBusExportedTarget? target, string path)
     {
-        if (!_activePathRefCounts.ContainsKey(basePath))
-            return [];
-
-        return _activePathRefCounts.Keys.Where(path => IsDescendantPath(path, basePath));
+        return target ?? throw new InvalidOperationException(
+            $"Registration for path '{path}' requires an explicit exported target. " +
+            "Use DBusExportedTarget.Create(...) and generated binding helpers.");
     }
 
-    private static bool IsDescendantPath(string path, string parentPath)
+    private void EnsureNoLegacyPathCollisionLocked(string path, DBusExportedTarget exportedTarget)
     {
-        if (string.Equals(path, parentPath, StringComparison.Ordinal))
-            return false;
-
-        if (string.Equals(parentPath, "/", StringComparison.Ordinal))
-            return path.StartsWith("/", StringComparison.Ordinal) && path.Length > 1;
-
-        return path.Length > parentPath.Length
-               && path.StartsWith(parentPath, StringComparison.Ordinal)
-               && path[parentPath.Length] == '/';
-    }
-
-    private static bool MatchesInterfaceFilter(DBusObject node, string? interfaceFilter)
-    {
-        if (string.IsNullOrEmpty(interfaceFilter))
-            return true;
-
-        if (!node.TryGetInterfaces(out var ifaces))
-            return false;
-
-        foreach (var iface in ifaces)
+        if (_handlers.Keys.Any(key => string.Equals(key.Path, path, StringComparison.Ordinal)))
         {
-            if (string.Equals(iface, interfaceFilter, StringComparison.Ordinal))
-                return true;
+            throw new InvalidOperationException(
+                $"Path '{path}' is already occupied by legacy path/interface handlers. " +
+                "Legacy and exported-target registrations cannot share the same exact path.");
         }
 
-        return false;
-    }
-
-    private static QuerySelector ParseQuerySelector(string selector)
-    {
-        var text = selector.Trim();
-        var interfaceFilter = default(string);
-
-        var predicateStart = text.IndexOf("[iface='", StringComparison.Ordinal);
-        if (predicateStart >= 0)
+        if (exportedTarget.BoundInterfaces.Count == 0)
         {
-            const string predicatePrefix = "[iface='";
-            const string predicateSuffix = "']";
-
-            if (!text.EndsWith(predicateSuffix, StringComparison.Ordinal))
-                throw new ArgumentException("Invalid selector predicate.", nameof(selector));
-
-            var predicate = text[predicateStart..];
-            if (!predicate.StartsWith(predicatePrefix, StringComparison.Ordinal))
-                throw new ArgumentException("Only iface predicates are supported.", nameof(selector));
-
-            var valueLength = predicate.Length - predicatePrefix.Length - predicateSuffix.Length;
-            if (valueLength <= 0)
-                throw new ArgumentException("Interface predicate value must be provided.", nameof(selector));
-
-            interfaceFilter = predicate.Substring(predicatePrefix.Length, valueLength);
-            text = text[..predicateStart];
-        }
-
-        if (text.EndsWith("/**", StringComparison.Ordinal))
-        {
-            var basePath = text[..^3];
-            if (basePath.Length == 0)
-                basePath = "/";
-            basePath = NormalizePath(basePath);
-            return new QuerySelector(basePath, QueryMode.Descendants, interfaceFilter);
-        }
-
-        if (text.EndsWith("/*", StringComparison.Ordinal))
-        {
-            var parentPath = text[..^2];
-            if (parentPath.Length == 0)
-                parentPath = "/";
-            parentPath = NormalizePath(parentPath);
-            return new QuerySelector(parentPath, QueryMode.Children, interfaceFilter);
-        }
-
-        if (text.Contains('*'))
-            throw new ArgumentException("Unsupported wildcard selector.", nameof(selector));
-
-        var exactPath = NormalizePath(text);
-        return new QuerySelector(exactPath, QueryMode.Exact, interfaceFilter);
-    }
-
-    private void RegisterSubtreeLocked(ObjectTreeRegistration registration, DBusObject root)
-    {
-        foreach (var node in EnumerateSubtree(root))
-        {
-            RegisterNodeLocked(registration, node);
+            throw new InvalidOperationException(
+                $"Registration for path '{path}' must provide at least one bound interface.");
         }
     }
 
-    private void UnregisterSubtreeLocked(ObjectTreeRegistration registration, DBusObject root)
+    private DBusRegisteredPathEntry CreateRegisteredPathEntryLocked(
+        string path,
+        DBusExportedTarget exportedTarget,
+        SynchronizationContext? defaultSynchronizationContext)
     {
-        var nodes = EnumerateSubtree(root);
-        nodes.Sort(static (a, b) => StringComparer.Ordinal.Compare(b.Path, a.Path));
-        foreach (var node in nodes)
+        var interfacesByName = new Dictionary<string, DBusBoundInterfaceRegistration>(StringComparer.Ordinal);
+        for (var i = 0; i < exportedTarget.BoundInterfaces.Count; i++)
         {
-            UnregisterNodeLocked(registration, node);
+            var boundInterface = exportedTarget.BoundInterfaces[i]
+                                 ?? throw new InvalidOperationException(
+                                     $"Registration for path '{path}' contains a null interface binding at index {i}.");
+
+            var descriptor = boundInterface.Descriptor
+                             ?? throw new InvalidOperationException(
+                                 $"Registration for path '{path}' contains a binding with no descriptor at index {i}.");
+
+            if (!DBusGeneratedMetadata.TryGetByInterfaceName(descriptor.InterfaceName, out var canonicalByName)
+                || !DBusGeneratedMetadata.TryGetByClrType(descriptor.ClrInterfaceType, out var canonicalByClrType))
+            {
+                throw new InvalidOperationException(
+                    $"Descriptor '{descriptor.InterfaceName}' / '{descriptor.ClrInterfaceType.FullName}' is not registered. " +
+                    "Ensure generated module initializers have run before registering the target.");
+            }
+
+            if (!ReferenceEquals(canonicalByName, canonicalByClrType))
+            {
+                throw new InvalidOperationException(
+                    $"Descriptor registry is inconsistent for interface '{descriptor.InterfaceName}' and CLR type '{descriptor.ClrInterfaceType.FullName}'.");
+            }
+
+            if (interfacesByName.ContainsKey(canonicalByName.InterfaceName))
+            {
+                throw new InvalidOperationException(
+                    $"Registration for path '{path}' contains duplicate interface '{canonicalByName.InterfaceName}'.");
+            }
+
+            interfacesByName.Add(
+                canonicalByName.InterfaceName,
+                new DBusBoundInterfaceRegistration(
+                    canonicalByName,
+                    boundInterface.Target,
+                    boundInterface.SynchronizationContext ?? defaultSynchronizationContext));
+        }
+
+        if (interfacesByName.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Registration for path '{path}' must provide at least one bound interface.");
+        }
+
+        var registrationId = _nextRegistrationId++;
+        return new DBusRegisteredPathEntry(
+            registrationId,
+            path,
+            exportedTarget,
+            interfacesByName,
+            defaultSynchronizationContext);
+    }
+
+    private void CommitRegisteredPathEntriesLocked(Dictionary<string, DBusRegisteredPathEntry> candidate)
+    {
+        var removedPaths = _registeredPathEntries.Keys
+            .Where(path => !candidate.ContainsKey(path))
+            .ToArray();
+
+        var addedPaths = candidate.Keys
+            .Where(path => !_registeredPathEntries.ContainsKey(path))
+            .ToArray();
+
+        _registeredPathEntries.Clear();
+        foreach (var (path, entry) in candidate)
+        {
+            _registeredPathEntries[path] = entry;
+        }
+
+        foreach (var removedPath in removedPaths)
+        {
+            DecrementPathRefCountsLocked(removedPath);
+        }
+
+        foreach (var addedPath in addedPaths)
+        {
+            IncrementPathRefCountsLocked(addedPath);
         }
     }
 
-    private void RegisterNodeLocked(ObjectTreeRegistration registration, DBusObject node)
+    private void TryUnregisterExportedPath(string path, long registrationId)
     {
-        var path = NormalizePath(node.Path);
-
-        if (registration.TryGetNode(path, out var existingInRegistration))
+        lock (_gate)
         {
-            if (!ReferenceEquals(existingInRegistration, node))
-                throw new InvalidOperationException($"Multiple objects in the same tree use path '{path}'.");
-            return;
-        }
+            if (_disposed)
+                return;
 
-        if (_registeredObjects.TryGetValue(path, out var existing))
-        {
-            if (!ReferenceEquals(existing.Object, node))
-                throw new InvalidOperationException($"An object is already registered for path '{path}'.");
-            return;
-        }
+            if (!_registeredPathEntries.TryGetValue(path, out var current))
+                return;
 
-        registration.TrackNode(path, node);
-        _registeredObjects[path] = new RegisteredObject(node, registration, registration.SynchronizationContext);
-        IncrementPathRefCountsLocked(path);
-    }
+            if (current.RegistrationId != registrationId)
+                return;
 
-    private void UnregisterNodeLocked(ObjectTreeRegistration registration, DBusObject node)
-    {
-        var path = NormalizePath(node.Path);
-        if (!registration.TryGetNode(path, out var existing) || !ReferenceEquals(existing, node))
-            return;
-
-        registration.UntrackNode(path, node);
-
-        if (_registeredObjects.TryGetValue(path, out var current)
-            && ReferenceEquals(current.Registration, registration)
-            && ReferenceEquals(current.Object, node))
-        {
-            _registeredObjects.Remove(path);
+            _registeredPathEntries.Remove(path);
             DecrementPathRefCountsLocked(path);
         }
     }
 
-    private void UnregisterTreeLocked(ObjectTreeRegistration registration)
-    {
-        var nodes = registration.SnapshotNodes();
-        Array.Sort(nodes, static (a, b) => StringComparer.Ordinal.Compare(b.Path, a.Path));
-
-        foreach (var (path, node) in nodes)
-        {
-            registration.UntrackNode(path, node);
-
-            if (_registeredObjects.TryGetValue(path, out var current)
-                && ReferenceEquals(current.Registration, registration)
-                && ReferenceEquals(current.Object, node))
-            {
-                _registeredObjects.Remove(path);
-                DecrementPathRefCountsLocked(path);
-            }
-        }
-    }
-
-    private void OnTreeChildAdded(ObjectTreeRegistration registration, DBusObject parent, DBusObject child)
-    {
-        lock (_gate)
-        {
-            if (registration.IsDisposed || !registration.ContainsNode(parent))
-                return;
-
-            RegisterSubtreeLocked(registration, child);
-        }
-    }
-
-    private void OnTreeChildRemoved(ObjectTreeRegistration registration, DBusObject child)
-    {
-        lock (_gate)
-        {
-            if (registration.IsDisposed)
-                return;
-
-            UnregisterSubtreeLocked(registration, child);
-        }
-    }
-
-    private string BuildIntrospectionXml(string path, IDBusObject? obj)
+    private string BuildIntrospectionXml(
+        string path,
+        DBusRegisteredPathEntry? exportedEntry)
     {
         string[] children;
         lock (_gate)
@@ -828,19 +837,11 @@ public sealed class DBusConnection : IAsyncDisposable
         doc.LoadXml("<node/>");
         var root = doc.DocumentElement ?? throw new InvalidOperationException("Failed to create introspection root.");
 
-        if (obj != null && obj.TryGetInterfaces(out var ifaces))
+        if (exportedEntry != null)
         {
-            foreach (var iface in ifaces.OrderBy(static x => x, StringComparer.Ordinal))
+            foreach (var (_, binding) in exportedEntry.InterfacesByName.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
             {
-                if (!obj.TryGetIntrospectionXml(iface, out var xml))
-                    continue;
-
-                var ifaceRoot = xml.DocumentElement;
-                if (ifaceRoot == null)
-                    continue;
-
-                var imported = doc.ImportNode(ifaceRoot, deep: true);
-                root.AppendChild(imported);
+                AppendXmlFragment(doc, root, binding.Descriptor.IntrospectionXml);
             }
         }
 
@@ -993,31 +994,6 @@ public sealed class DBusConnection : IAsyncDisposable
         return path == "/" ? Array.Empty<string>() : path.Split('/', StringSplitOptions.RemoveEmptyEntries);
     }
 
-    private static List<DBusObject> EnumerateSubtree(DBusObject root)
-    {
-        var result = new List<DBusObject>();
-        var visited = new HashSet<DBusObject>(ReferenceEqualityComparer.Instance);
-        var stack = new Stack<DBusObject>();
-        stack.Push(root);
-
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            if (!visited.Add(current))
-                continue;
-
-            result.Add(current);
-
-            var children = current.Children;
-            for (var i = children.Count - 1; i >= 0; i--)
-            {
-                stack.Push(children[i]);
-            }
-        }
-
-        return result;
-    }
-
     private void ThrowIfDisposed()
     {
         if (_disposed)
@@ -1071,8 +1047,8 @@ public sealed class DBusConnection : IAsyncDisposable
 
         var errorName = reply.ErrorName ?? "org.freedesktop.DBus.Error.Failed";
         string? errorMessage = null;
-        
-        if (reply.Body.Count > 0 && reply.Body[0] is string message) 
+
+        if (reply.Body.Count > 0 && reply.Body[0] is string message)
             errorMessage = message;
 
         LogVerbose($"D-Bus error reply: name='{errorName}' message='{errorMessage}'");
@@ -1088,13 +1064,15 @@ public sealed class DBusConnection : IAsyncDisposable
         var destination = reply.Destination ?? request.Sender;
         var errorName = reply.ErrorName;
 
-        if (reply.Type == DBusMessageType.Error && string.IsNullOrEmpty(errorName)) 
+        if (reply.Type == DBusMessageType.Error && string.IsNullOrEmpty(errorName))
             errorName = "org.freedesktop.DBus.Error.Failed";
 
         if (reply.ReplySerial == replySerial
             && string.Equals(reply.Destination, destination, StringComparison.Ordinal)
             && string.Equals(reply.ErrorName, errorName, StringComparison.Ordinal))
+        {
             return reply;
+        }
 
         return new DBusMessage
         {
@@ -1114,10 +1092,10 @@ public sealed class DBusConnection : IAsyncDisposable
     {
         List<string> parts = ["type='signal'"];
 
-        if (!string.IsNullOrEmpty(sender)) 
+        if (!string.IsNullOrEmpty(sender))
             parts.Add($"sender='{EscapeMatchValue(sender)}'");
 
-        if (path.HasValue) 
+        if (path.HasValue)
             parts.Add($"path='{EscapeMatchValue(path.Value)}'");
 
         if (!string.IsNullOrEmpty(iface))
@@ -1132,9 +1110,7 @@ public sealed class DBusConnection : IAsyncDisposable
     private static string EscapeMatchValue(string value)
     {
         if (string.IsNullOrEmpty(value))
-        {
             return string.Empty;
-        }
 
         return value.Replace("\\", @"\\", StringComparison.Ordinal)
             .Replace("'", "\\'", StringComparison.Ordinal);
@@ -1154,20 +1130,6 @@ public sealed class DBusConnection : IAsyncDisposable
             TaskScheduler.Default);
     }
 
-    private enum QueryMode
-    {
-        Exact,
-        Children,
-        Descendants
-    }
-
-    private readonly struct QuerySelector(string path, QueryMode mode, string? interfaceFilter)
-    {
-        public string Path { get; } = path;
-        public QueryMode Mode { get; } = mode;
-        public string? InterfaceFilter { get; } = interfaceFilter;
-    }
-
     private readonly struct ChildEdgeKey(string parentPath, string childName) : IEquatable<ChildEdgeKey>
     {
         private readonly string _parentPath = parentPath ?? string.Empty;
@@ -1183,11 +1145,22 @@ public sealed class DBusConnection : IAsyncDisposable
             => HashCode.Combine(StringComparer.Ordinal.GetHashCode(_parentPath), StringComparer.Ordinal.GetHashCode(_childName));
     }
 
-    private sealed class RegisteredObject(IDBusObject obj, ObjectTreeRegistration? registration, SynchronizationContext? synchronizationContext)
+    private sealed class ExportedPathRegistration(
+        DBusConnection connection,
+        string path,
+        long registrationId)
+        : IDisposable
     {
-        public IDBusObject Object { get; } = obj;
-        public ObjectTreeRegistration? Registration { get; } = registration;
-        public SynchronizationContext? SynchronizationContext { get; } = synchronizationContext;
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            connection.TryUnregisterExportedPath(path, registrationId);
+        }
     }
 
     private readonly struct ObjectHandlerKey(string path, string iface) : IEquatable<ObjectHandlerKey>
@@ -1205,123 +1178,6 @@ public sealed class DBusConnection : IAsyncDisposable
 
         public override int GetHashCode()
             => HashCode.Combine(StringComparer.Ordinal.GetHashCode(_path), StringComparer.Ordinal.GetHashCode(_iface));
-    }
-
-    private sealed class ObjectTreeRegistration(DBusConnection connection, SynchronizationContext? synchronizationContext) : IDisposable
-    {
-        private readonly Dictionary<string, DBusObject> _nodesByPath = new(StringComparer.Ordinal);
-        private readonly Dictionary<DBusObject, NodeEventHandlers> _nodeEventHandlers = new(ReferenceEqualityComparer.Instance);
-        private bool _disposed;
-
-        public SynchronizationContext? SynchronizationContext { get; } = synchronizationContext;
-
-        public bool IsDisposed => _disposed;
-
-        public bool ContainsNode(DBusObject node) => _nodeEventHandlers.ContainsKey(node);
-
-        public bool TryGetNode(string path, out DBusObject node) => _nodesByPath.TryGetValue(path, out node!);
-
-        public void TrackNode(string path, DBusObject node)
-        {
-            if (_nodesByPath.ContainsKey(path))
-                return;
-
-            _nodesByPath[path] = node;
-
-            EventHandler<DBusObjectChildChangedEventArgs> added = (_, args) =>
-                connection.OnTreeChildAdded(this, node, args.Child);
-            EventHandler<DBusObjectChildChangedEventArgs> removed = (_, args) =>
-                connection.OnTreeChildRemoved(this, args.Child);
-
-            node.ChildAdded += added;
-            node.ChildRemoved += removed;
-
-            _nodeEventHandlers[node] = new NodeEventHandlers(added, removed);
-        }
-
-        public void UntrackNode(string path, DBusObject node)
-        {
-            _nodesByPath.Remove(path);
-
-            if (_nodeEventHandlers.TryGetValue(node, out var handlers))
-            {
-                node.ChildAdded -= handlers.ChildAdded;
-                node.ChildRemoved -= handlers.ChildRemoved;
-                _nodeEventHandlers.Remove(node);
-            }
-        }
-
-        public (string Path, DBusObject Node)[] SnapshotNodes()
-        {
-            return _nodesByPath.Select(static pair => (pair.Key, pair.Value)).ToArray();
-        }
-
-        public void Dispose()
-        {
-            lock (connection._gate)
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-                connection.UnregisterTreeLocked(this);
-            }
-        }
-
-        private sealed class NodeEventHandlers(
-            EventHandler<DBusObjectChildChangedEventArgs> childAdded,
-            EventHandler<DBusObjectChildChangedEventArgs> childRemoved)
-        {
-            public EventHandler<DBusObjectChildChangedEventArgs> ChildAdded { get; } = childAdded;
-            public EventHandler<DBusObjectChildChangedEventArgs> ChildRemoved { get; } = childRemoved;
-        }
-    }
-
-    private sealed class EmptyDbusObject : IDBusObject
-    {
-        public static EmptyDbusObject Instance { get; } = new();
-
-        public DBusObjectPath Path => (DBusObjectPath)"/";
-
-        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged
-        {
-            add { }
-            remove { }
-        }
-
-        public Task<DBusMessage> InvokeMember(DBusMessage request)
-        {
-            return Task.FromResult(request.CreateError("org.freedesktop.DBus.Error.UnknownInterface", "Unknown interface"));
-        }
-
-        public bool TryGetAllProperties(string iface, out Dictionary<string, DBusVariant> props)
-        {
-            props = new Dictionary<string, DBusVariant>(StringComparer.Ordinal);
-            return false;
-        }
-
-        public bool TryGetInterfaces(out IReadOnlyList<string> ifaces)
-        {
-            ifaces = Array.Empty<string>();
-            return true;
-        }
-
-        public bool TryGetIntrospectionXml(string iface, out System.Xml.XmlDocument value)
-        {
-            value = null!;
-            return false;
-        }
-
-        public bool TryGetProperty(string iface, string name, out DBusVariant value)
-        {
-            value = new DBusVariant(string.Empty);
-            return false;
-        }
-
-        public bool TrySetProperty(string iface, string name, DBusVariant value)
-        {
-            return false;
-        }
     }
 
     private sealed class SignalSubscription(
@@ -1367,6 +1223,7 @@ public sealed class DBusConnection : IAsyncDisposable
         {
             if (_disposed)
                 return;
+
             if (context == null)
                 FireAndForget(handler(message));
             else
@@ -1400,9 +1257,7 @@ public sealed class DBusConnection : IAsyncDisposable
         public void Invoke(DBusMessage message)
         {
             if (_disposed)
-            {
                 return;
-            }
 
             if (context == null)
             {
@@ -1417,9 +1272,7 @@ public sealed class DBusConnection : IAsyncDisposable
         public void Dispose()
         {
             if (_disposed)
-            {
                 return;
-            }
 
             _disposed = true;
             lock (connection._gate)
@@ -1435,9 +1288,7 @@ public sealed class DBusConnection : IAsyncDisposable
             {
                 reply = await handler(connection, message);
                 if (reply == null)
-                {
                     reply = message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");
-                }
             }
             catch (Exception ex)
             {
@@ -1445,7 +1296,6 @@ public sealed class DBusConnection : IAsyncDisposable
             }
 
             reply = EnsureReplyMetadata(message, reply);
-
             await connection.Wire.SendAsync(reply);
         }
     }

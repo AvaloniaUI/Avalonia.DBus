@@ -30,6 +30,7 @@ internal sealed class AtspiServer
     private int _windowToggleCounter;
     private volatile bool _emitObjectEvents;
     private CacheHandler? _cacheHandler;
+    private DBusSubtreeRegistrationHelper? _subtreeRegistrationHelper;
     private OrgA11yAtspiRegistryProxy? _registryProxy;
     private IDisposable? _registryRegisteredSubscription;
     private IDisposable? _registryDeregisteredSubscription;
@@ -145,83 +146,46 @@ internal sealed class AtspiServer
 
     private void BuildHandlers()
     {
-        var connection = A11yConnection;
-
-        foreach (var child in connection.Root.Children.ToArray())
-        {
-            connection.Root.RemoveChild(child);
-        }
-
         foreach (var node in _tree.NodesByPath.Values)
         {
-            var pathHandler = new DBusObject(node.Path);
-            connection.Root.AddChild(pathHandler);
-            
-            pathHandler.ClearInterfaceHandlers();
-            var handlers = new NodeHandlers(node, pathHandler);
+            var handlers = new NodeHandlers(node);
 
             if (node.Interfaces.Contains(IfaceAccessible))
             {
                 var handler = new AccessibleHandler(this, node);
                 handlers.AccessibleHandler = handler;
-                handlers.Add(handler);
             }
 
             if (node.Interfaces.Contains(IfaceApplication))
             {
                 var handler = new ApplicationHandler(this, node);
                 handlers.ApplicationHandler = handler;
-                handlers.Add(handler);
             }
 
             if (node.Interfaces.Contains(IfaceComponent))
             {
                 var handler = new ComponentHandler(this, node);
                 handlers.ComponentHandler = handler;
-                handlers.Add(handler);
             }
 
             if (node.Interfaces.Contains(IfaceAction))
             {
                 var handler = new ActionHandler(this, node);
                 handlers.ActionHandler = handler;
-                handlers.Add(handler);
             }
 
             if (node.Interfaces.Contains(IfaceValue))
             {
                 var handler = new ValueHandler(this, node);
                 handlers.ValueHandler = handler;
-                handlers.Add(handler);
             }
 
-            handlers.EventObjectHandler = new EventObjectHandler(this);
-            handlers.Add(handlers.EventObjectHandler);
+            handlers.EventObjectHandler = new EventObjectHandler(this, node.Path);
 
             node.Handlers = handlers;
         }
 
-        var cachePathHandler = new DBusObject(CachePath);
-        connection.Root.AddChild(cachePathHandler);
-        cachePathHandler.ClearInterfaceHandlers();
-        var cacheHandler = new CacheHandler(this);
-        cachePathHandler.AddInterfaceHandler(cacheHandler);
-        _cacheHandler = cacheHandler;
-
-        RefreshAllAccessibleHandlers();
-    }
-
-    private void RefreshAllAccessibleHandlers()
-    {
-        foreach (var node in _tree.NodesByPath.Values)
-        {
-            node.Handlers?.AccessibleHandler?.RefreshProperties();
-        }
-    }
-
-    private void RefreshAccessibleHandler(AccessibleNode node)
-    {
-        node.Handlers?.AccessibleHandler?.RefreshProperties();
+        _cacheHandler = new CacheHandler(this);
     }
 
     private async Task<bool> TryConnectAsync()
@@ -304,6 +268,27 @@ internal sealed class AtspiServer
         {
             return;
         }
+
+        _subtreeRegistrationHelper ??= new DBusSubtreeRegistrationHelper(_a11yConnection);
+
+        var registrations = new List<DBusSubtreeRegistration>(_tree.NodesByPath.Count + 1);
+        foreach (var node in _tree.NodesByPath.Values.OrderBy(static n => n.Path, StringComparer.Ordinal))
+        {
+            if (node.Handlers == null)
+                continue;
+
+            registrations.Add(new DBusSubtreeRegistration(node.Path, node.Handlers.CreateExportedTarget()));
+        }
+
+        if (_cacheHandler != null)
+        {
+            registrations.Add(
+                new DBusSubtreeRegistration(
+                    CachePath,
+                    OrgA11yAtspiCacheExport.CreateTarget(_cacheHandler)));
+        }
+
+        _subtreeRegistrationHelper.ApplySnapshot(registrations);
     }
 
     private async Task<bool> EmbedApplicationAsync()
@@ -618,6 +603,9 @@ internal sealed class AtspiServer
             _toggleTimer = null;
         }
 
+        _subtreeRegistrationHelper?.Clear();
+        _subtreeRegistrationHelper = null;
+
         if (_a11yConnection != null)
         {
             await _a11yConnection.DisposeAsync();
@@ -720,11 +708,7 @@ internal sealed class AtspiServer
             {
                 var index = _tree.GetToggleWindowIndex();
                 _tree.RemoveToggleWindow();
-                var toggleObj = _a11yConnection.Query(_tree.ToggleWindow.Path).FirstOrDefault();
-                if (toggleObj != null)
-                    _a11yConnection.Root.RemoveChild(toggleObj);
-                RefreshAccessibleHandler(_tree.Root);
-                RefreshAccessibleHandler(_tree.ToggleWindow);
+                RefreshPathRegistrations();
                 EmitChildrenChanged(_tree.Root, "remove", index < 0 ? 0 : index, _tree.ToggleWindow);
                 EmitCacheRemoveSubtree(_tree.ToggleWindow);
             }
@@ -733,11 +717,7 @@ internal sealed class AtspiServer
                 _windowToggleCounter++;
                 _tree.ToggleWindow.Description = $"Recurring window (cycle {_windowToggleCounter})";
                 _tree.AddToggleWindow();
-                var toggleHandlers = _tree.ToggleWindow.Handlers;
-                if (toggleHandlers != null)
-                    _a11yConnection.Root.AddChild(toggleHandlers.DbusObject);
-                RefreshAccessibleHandler(_tree.Root);
-                RefreshAccessibleHandler(_tree.ToggleWindow);
+                RefreshPathRegistrations();
                 var index = _tree.GetToggleWindowIndex();
                 EmitChildrenChanged(_tree.Root, "add", index < 0 ? 0 : index, _tree.ToggleWindow);
                 EmitPropertyChange(_tree.ToggleWindow, "accessible-description", _tree.ToggleWindow.Description);
