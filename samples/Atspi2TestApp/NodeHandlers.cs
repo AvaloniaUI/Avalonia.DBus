@@ -16,6 +16,6 @@ internal sealed class NodeHandlers(AccessibleNode node, DBusObject dbusObject)
 
     public void Add(IDBusInterfaceHandler handler)
     {
-        DbusObject.Add(handler);
+        DbusObject.AddInterfaceHandler(handler);
     }
 }

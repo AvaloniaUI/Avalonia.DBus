@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -8,7 +7,7 @@ using System.Xml;
 
 namespace Avalonia.DBus;
 
-public sealed class DBusObject : ICollection<IDBusInterfaceHandler>, IDBusObject
+public sealed class DBusObject : IDBusObject
 {
     private const string ErrorUnknownInterface = "org.freedesktop.DBus.Error.UnknownInterface";
 
@@ -191,35 +190,32 @@ public sealed class DBusObject : ICollection<IDBusInterfaceHandler>, IDBusObject
         return true;
     }
 
-    public void Add(IDBusInterfaceHandler item)
+    public void AddInterfaceHandler(IDBusInterfaceHandler handler)
     {
-        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(handler);
 
         lock (_gate)
         {
-            item.Path = Path;
-            _interfaces.Add(item);
+            handler.Path = Path;
+            _interfaces.Add(handler);
         }
     }
 
-    public bool Contains(IDBusInterfaceHandler item)
+    public bool RemoveInterfaceHandler(IDBusInterfaceHandler handler)
     {
+        ArgumentNullException.ThrowIfNull(handler);
+
         lock (_gate)
         {
-            return _interfaces.Contains(item);
+            if (!_interfaces.Remove(handler))
+                return false;
+
+            handler.Path = null;
+            return true;
         }
     }
 
-    public bool Remove(IDBusInterfaceHandler item)
-    {
-        lock (_gate)
-        {
-            item.Path = null;
-            return _interfaces.Remove(item);
-        }
-    }
-
-    public void Clear()
+    public void ClearInterfaceHandlers()
     {
         lock (_gate)
         {
@@ -229,37 +225,6 @@ public sealed class DBusObject : ICollection<IDBusInterfaceHandler>, IDBusObject
             _interfaces.Clear();
         }
     }
-
-    public int Count
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _interfaces.Count;
-            }
-        }
-    }
-
-    public bool IsReadOnly => false;
-
-    public void CopyTo(IDBusInterfaceHandler[] array, int arrayIndex)
-    {
-        lock (_gate)
-        {
-            _interfaces.CopyTo(array, arrayIndex);
-        }
-    }
-
-    public IEnumerator<IDBusInterfaceHandler> GetEnumerator()
-    {
-        lock (_gate)
-        {
-            return _interfaces.ToArray().AsEnumerable().GetEnumerator();
-        }
-    }
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public void NotifyPropertyChanged(string propertyName)
     {

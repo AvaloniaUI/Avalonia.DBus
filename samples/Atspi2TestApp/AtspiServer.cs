@@ -157,7 +157,7 @@ internal sealed class AtspiServer
             var pathHandler = new DBusObject(node.Path);
             connection.Root.AddChild(pathHandler);
             
-            pathHandler.Clear();
+            pathHandler.ClearInterfaceHandlers();
             var handlers = new NodeHandlers(node, pathHandler);
 
             if (node.Interfaces.Contains(IfaceAccessible))
@@ -203,9 +203,9 @@ internal sealed class AtspiServer
 
         var cachePathHandler = new DBusObject(CachePath);
         connection.Root.AddChild(cachePathHandler);
-        cachePathHandler.Clear();
+        cachePathHandler.ClearInterfaceHandlers();
         var cacheHandler = new CacheHandler(this);
-        cachePathHandler.Add(cacheHandler);
+        cachePathHandler.AddInterfaceHandler(cacheHandler);
         _cacheHandler = cacheHandler;
 
         RefreshAllAccessibleHandlers();
