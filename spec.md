@@ -573,10 +573,41 @@ public enum DBusRequestNameReply
 
 public sealed class DBusExportedTargetBindingBuilder
 {
-    public void Bind<TInterface>(
-        TInterface target,
-        SynchronizationContext? synchronizationContext = null)
-        where TInterface : class;
+    public void BindInterface(
+        object target,
+        Type clrInterfaceType,
+        string interfaceName,
+        string introspectionXml,
+        Func<DBusMessage, DBusConnection, object, Task<DBusMessage>> dispatch,
+        IReadOnlyList<DBusExportedTargetBindingBuilder.PropertyMetadata> properties,
+        IReadOnlyList<DBusExportedTargetBindingBuilder.MethodMetadata> methods,
+        SynchronizationContext? synchronizationContext = null);
+
+    public readonly struct PropertyMetadata
+    {
+        public PropertyMetadata(
+            string name,
+            bool canRead,
+            bool canWrite,
+            string signature,
+            Func<object, DBusVariant?>? tryGet = null,
+            Func<object, DBusVariant, bool>? trySet = null);
+
+        public string Name { get; }
+        public bool CanRead { get; }
+        public bool CanWrite { get; }
+        public string Signature { get; }
+        public Func<object, DBusVariant?>? TryGet { get; }
+        public Func<object, DBusVariant, bool>? TrySet { get; }
+    }
+
+    public readonly struct MethodMetadata
+    {
+        public MethodMetadata(string name, string inSignature, string outSignature);
+        public string Name { get; }
+        public string InSignature { get; }
+        public string OutSignature { get; }
+    }
 }
 
 public sealed class DBusExportedTarget
@@ -584,11 +615,6 @@ public sealed class DBusExportedTarget
     public static DBusExportedTarget Create(
         object target,
         Action<DBusExportedTargetBindingBuilder> configure);
-
-    public static DBusExportedTarget Create<TInterface>(
-        TInterface target,
-        SynchronizationContext? synchronizationContext = null)
-        where TInterface : class;
 }
 
 public readonly struct DBusRegistrationOperation
@@ -599,26 +625,6 @@ public readonly struct DBusRegistrationOperation
     public static DBusRegistrationOperation Add(string fullPath, DBusExportedTarget target);
     public static DBusRegistrationOperation Remove(string fullPath);
     public static DBusRegistrationOperation Replace(string fullPath, DBusExportedTarget target);
-}
-
-public interface IDBusInterfaceCallDispatcher
-{
-    Task<DBusMessage> Handle(DBusMessage message, DBusConnection connection, object target);
-}
-
-public sealed class DBusInterfaceDescriptor
-{
-    public string InterfaceName { get; init; }
-    public Type ClrInterfaceType { get; init; }
-    public string IntrospectionXml { get; init; }
-    public IDBusInterfaceCallDispatcher Dispatcher { get; init; }
-    public IReadOnlyDictionary<string, DBusPropertyDescriptor> Properties { get; init; }
-    public IReadOnlyDictionary<string, DBusMethodDescriptor> Methods { get; init; }
-}
-
-public static class DBusGeneratedMetadata
-{
-    public static void Register(DBusInterfaceDescriptor descriptor);
 }
 
 public interface IDBusSubtreeLifecycle

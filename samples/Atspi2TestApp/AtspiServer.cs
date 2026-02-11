@@ -21,6 +21,7 @@ internal sealed class AtspiServer
     private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
     private readonly object _registryGate = new();
     private readonly SemaphoreSlim _registrySubscriptionGate = new(1, 1);
+    private readonly Dictionary<string, ActivePathRegistration> _pathRegistrations = new(StringComparer.Ordinal);
 
     private DBusConnection? _a11yConnection;
     private string _a11yAddress = string.Empty;
@@ -30,7 +31,6 @@ internal sealed class AtspiServer
     private int _windowToggleCounter;
     private volatile bool _emitObjectEvents;
     private CacheHandler? _cacheHandler;
-    private DBusSubtreeRegistrationHelper? _subtreeRegistrationHelper;
     private OrgA11yAtspiRegistryProxy? _registryProxy;
     private IDisposable? _registryRegisteredSubscription;
     private IDisposable? _registryDeregisteredSubscription;
@@ -269,26 +269,44 @@ internal sealed class AtspiServer
             return;
         }
 
-        _subtreeRegistrationHelper ??= new DBusSubtreeRegistrationHelper(_a11yConnection);
-
-        var registrations = new List<DBusSubtreeRegistration>(_tree.NodesByPath.Count + 1);
+        var desiredRegistrations = new Dictionary<string, (object Owner, Func<IDisposable> Register)>(StringComparer.Ordinal);
         foreach (var node in _tree.NodesByPath.Values.OrderBy(static n => n.Path, StringComparer.Ordinal))
         {
             if (node.Handlers == null)
                 continue;
 
-            registrations.Add(new DBusSubtreeRegistration(node.Path, node.Handlers.CreateExportedTarget()));
+            var handlers = node.Handlers;
+            desiredRegistrations.Add(
+                node.Path,
+                (handlers, () => handlers.Register(_a11yConnection)));
         }
 
         if (_cacheHandler != null)
         {
-            registrations.Add(
-                new DBusSubtreeRegistration(
-                    CachePath,
-                    OrgA11yAtspiCacheExport.CreateTarget(_cacheHandler)));
+            var cacheHandler = _cacheHandler;
+            desiredRegistrations.Add(
+                CachePath,
+                (cacheHandler, () => _a11yConnection.RegisterObject((DBusObjectPath)CachePath, cacheHandler)));
         }
 
-        _subtreeRegistrationHelper.ApplySnapshot(registrations);
+        foreach (var (path, active) in _pathRegistrations.ToArray())
+        {
+            if (!desiredRegistrations.TryGetValue(path, out var desired)
+                || !ReferenceEquals(active.Owner, desired.Owner))
+            {
+                active.Registration.Dispose();
+                _pathRegistrations.Remove(path);
+            }
+        }
+
+        foreach (var (path, desired) in desiredRegistrations)
+        {
+            if (_pathRegistrations.ContainsKey(path))
+                continue;
+
+            var registration = desired.Register();
+            _pathRegistrations.Add(path, new ActivePathRegistration(desired.Owner, registration));
+        }
     }
 
     private async Task<bool> EmbedApplicationAsync()
@@ -603,8 +621,9 @@ internal sealed class AtspiServer
             _toggleTimer = null;
         }
 
-        _subtreeRegistrationHelper?.Clear();
-        _subtreeRegistrationHelper = null;
+        foreach (var registration in _pathRegistrations.Values)
+            registration.Registration.Dispose();
+        _pathRegistrations.Clear();
 
         if (_a11yConnection != null)
         {
@@ -776,6 +795,13 @@ internal sealed class AtspiServer
         }
 
         handlers.EventObjectHandler.EmitPropertyChangeSignal(propertyName, new DBusVariant(value));
+    }
+
+    private sealed class ActivePathRegistration(object owner, IDisposable registration)
+    {
+        public object Owner { get; } = owner;
+
+        public IDisposable Registration { get; } = registration;
     }
 
     internal void SetFocused(AccessibleNode node)

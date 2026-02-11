@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Xml;
-using System.Xml.Serialization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -16,13 +13,10 @@ public partial class DBusSourceGenerator
     {
         var interfaceIdentifier = GetServiceInterfaceIdentifier(dBusInterface);
         var dispatcherIdentifier = GetServiceDispatcherIdentifier(dBusInterface);
-        var descriptorHolderIdentifier = GetServiceDescriptorHolderIdentifier(dBusInterface);
         var exportHelperIdentifier = GetServiceExportHelperIdentifier(dBusInterface);
         var moduleInitializerIdentifier = GetServiceModuleInitializerIdentifier(dBusInterface);
 
         var interfaceNameLiteral = SymbolDisplay.FormatLiteral(dBusInterface.Name!, quote: true);
-        var introspectionLiteral = SymbolDisplay.FormatLiteral(BuildInterfaceIntrospectionXml(dBusInterface), quote: true);
-
         var properties = dBusInterface.Properties ?? Array.Empty<DBusProperty>();
         var methods = dBusInterface.Methods ?? Array.Empty<DBusMethod>();
 
@@ -66,9 +60,9 @@ public partial class DBusSourceGenerator
         sb.AppendLine("    }");
         sb.AppendLine();
 
-        sb.AppendLine($"    internal sealed class {dispatcherIdentifier} : IDBusInterfaceCallDispatcher");
+        sb.AppendLine($"    internal sealed class {dispatcherIdentifier}");
         sb.AppendLine("    {");
-        sb.AppendLine("        public async Task<DBusMessage> Handle(DBusMessage message, DBusConnection connection, object target)");
+        sb.AppendLine("        public async Task<DBusMessage> Handle(DBusMessage message, IDBusConnection connection, object target)");
         sb.AppendLine("        {");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(message);");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(connection);");
@@ -138,106 +132,88 @@ public partial class DBusSourceGenerator
         sb.AppendLine("    }");
         sb.AppendLine();
 
-        sb.AppendLine($"    internal static class {descriptorHolderIdentifier}");
+        sb.AppendLine($"    internal static class {exportHelperIdentifier}");
         sb.AppendLine("    {");
-        sb.AppendLine($"        private static readonly IDBusInterfaceCallDispatcher s_dispatcher = new {dispatcherIdentifier}();");
+        sb.AppendLine($"        private static readonly {dispatcherIdentifier} s_dispatcher = new();");
+        sb.AppendLine("        private static readonly Func<DBusMessage, IDBusConnection, object, Task<DBusMessage>> s_dispatch = s_dispatcher.Handle;");
+        sb.AppendLine($"        public const string InterfaceName = {interfaceNameLiteral};");
         sb.AppendLine();
-        sb.AppendLine("        internal static DBusInterfaceDescriptor Instance { get; } =");
-        sb.AppendLine("            new DBusInterfaceDescriptor");
+        sb.AppendLine("        public static bool TryGetProperty(object target, string propertyName, out DBusVariant value)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            ArgumentNullException.ThrowIfNull(propertyName);");
+        sb.AppendLine($"            if (target is not {interfaceIdentifier} typedTarget)");
         sb.AppendLine("            {");
-        sb.AppendLine($"                InterfaceName = {interfaceNameLiteral},");
-        sb.AppendLine($"                ClrInterfaceType = typeof({interfaceIdentifier}),");
-        sb.AppendLine($"                IntrospectionXml = {introspectionLiteral},");
-        sb.AppendLine("                Dispatcher = s_dispatcher,");
-
-        sb.AppendLine("                Properties = new Dictionary<string, DBusPropertyDescriptor>(StringComparer.Ordinal)");
-        sb.AppendLine("                {");
-        foreach (var property in properties)
+        sb.AppendLine("                value = default!;");
+        sb.AppendLine("                return false;");
+        sb.AppendLine("            }");
+        sb.AppendLine();
+        sb.AppendLine("            switch (propertyName)");
+        sb.AppendLine("            {");
+        foreach (var property in properties.Where(static p => p.Access is null or "read" or "readwrite"))
         {
             var propertyNameLiteral = SymbolDisplay.FormatLiteral(property.Name!, quote: true);
             var propertyIdentifier = GetPropertyIdentifier(property);
-            var signatureLiteral = SymbolDisplay.FormatLiteral(property.DBusDotnetType.DBusTypeSignature, quote: true);
-            var canRead = property.Access is null or "read" or "readwrite";
-            var canWrite = property.Access is null or "write" or "readwrite";
-
-            sb.AppendLine($"                    [{propertyNameLiteral}] = new DBusPropertyDescriptor");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        Name = {propertyNameLiteral},");
-            sb.AppendLine($"                        CanRead = {(canRead ? "true" : "false")},");
-            sb.AppendLine($"                        CanWrite = {(canWrite ? "true" : "false")},");
-            sb.AppendLine($"                        Signature = {signatureLiteral},");
-
-            if (canRead)
-            {
-                var toDbusExpression = MakeToDbusValueExpressionString(property.DBusDotnetType, $"typedTarget.{propertyIdentifier}");
-                sb.AppendLine("                        TryGet = static (object target, out DBusVariant value) =>");
-                sb.AppendLine("                        {");
-                sb.AppendLine($"                            if (target is {interfaceIdentifier} typedTarget)");
-                sb.AppendLine("                            {");
-                sb.AppendLine($"                                value = new DBusVariant({toDbusExpression});");
-                sb.AppendLine("                                return true;");
-                sb.AppendLine("                            }");
-                sb.AppendLine();
-                sb.AppendLine("                            value = null!;");
-                sb.AppendLine("                            return false;");
-                sb.AppendLine("                        },");
-            }
-            else
-            {
-                sb.AppendLine("                        TryGet = null,");
-            }
-
-            if (canWrite)
-            {
-                var fromDbusExpression = MakeFromDbusValueExpressionString(property.DBusDotnetType, "value.Value");
-                sb.AppendLine("                        TrySet = static (object target, DBusVariant value) =>");
-                sb.AppendLine("                        {");
-                sb.AppendLine($"                            if (target is not {interfaceIdentifier} typedTarget)");
-                sb.AppendLine("                                return false;");
-                sb.AppendLine();
-                sb.AppendLine($"                            typedTarget.{propertyIdentifier} = {fromDbusExpression};");
-                sb.AppendLine("                            return true;");
-                sb.AppendLine("                        }");
-            }
-            else
-            {
-                sb.AppendLine("                        TrySet = null");
-            }
-
-            sb.AppendLine("                    },");
+            var toDbusExpression = MakeToDbusValueExpressionString(property.DBusDotnetType, $"typedTarget.{propertyIdentifier}");
+            sb.AppendLine($"                case {propertyNameLiteral}:");
+            sb.AppendLine($"                    value = new DBusVariant({toDbusExpression});");
+            sb.AppendLine("                    return true;");
         }
-        sb.AppendLine("                },");
 
-        sb.AppendLine("                Methods = new Dictionary<string, DBusMethodDescriptor>(StringComparer.Ordinal)");
-        sb.AppendLine("                {");
-        foreach (var method in methods)
-        {
-            var methodNameLiteral = SymbolDisplay.FormatLiteral(method.Name!, quote: true);
-            var inSignatureLiteral = SymbolDisplay.FormatLiteral(GetMethodInSignature(method), quote: true);
-            var outSignatureLiteral = SymbolDisplay.FormatLiteral(GetMethodOutSignature(method), quote: true);
-
-            sb.AppendLine($"                    [{methodNameLiteral}] = new DBusMethodDescriptor");
-            sb.AppendLine("                    {");
-            sb.AppendLine($"                        Name = {methodNameLiteral},");
-            sb.AppendLine($"                        InSignature = {inSignatureLiteral},");
-            sb.AppendLine($"                        OutSignature = {outSignatureLiteral}");
-            sb.AppendLine("                    },");
-        }
-        sb.AppendLine("                }");
-        sb.AppendLine("            }; ");
-        sb.AppendLine("    }");
-        sb.AppendLine();
-
-        sb.AppendLine($"    internal static class {exportHelperIdentifier}");
-        sb.AppendLine("    {");
-        sb.AppendLine($"        public static void Bind(DBusExportedTargetBindingBuilder builder, {interfaceIdentifier} target, SynchronizationContext? synchronizationContext = null)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            ArgumentNullException.ThrowIfNull(builder);");
-        sb.AppendLine($"            builder.Bind<{interfaceIdentifier}>(target, synchronizationContext);");
+        sb.AppendLine("                default:");
+        sb.AppendLine("                    value = default!;");
+        sb.AppendLine("                    return false;");
+        sb.AppendLine("            }");
         sb.AppendLine("        }");
         sb.AppendLine();
-        sb.AppendLine($"        public static DBusExportedTarget CreateTarget({interfaceIdentifier} target, SynchronizationContext? synchronizationContext = null)");
-        sb.AppendLine("            => DBusExportedTarget.Create(target, builder => Bind(builder, target, synchronizationContext));");
+        sb.AppendLine("        public static bool TrySetProperty(object target, string propertyName, DBusVariant value)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            ArgumentNullException.ThrowIfNull(propertyName);");
+        sb.AppendLine($"            if (target is not {interfaceIdentifier} typedTarget)");
+        sb.AppendLine("                return false;");
+        sb.AppendLine();
+        sb.AppendLine("            switch (propertyName)");
+        sb.AppendLine("            {");
+        foreach (var property in properties.Where(static p => p.Access is "write" or "readwrite"))
+        {
+            var propertyNameLiteral = SymbolDisplay.FormatLiteral(property.Name!, quote: true);
+            var propertyIdentifier = GetPropertyIdentifier(property);
+            var fromDbusExpression = MakeFromDbusValueExpressionString(property.DBusDotnetType, "value.Value");
+            sb.AppendLine($"                case {propertyNameLiteral}:");
+            sb.AppendLine($"                    typedTarget.{propertyIdentifier} = {fromDbusExpression};");
+            sb.AppendLine("                    return true;");
+        }
+
+        sb.AppendLine("                default:");
+        sb.AppendLine("                    return false;");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        public static Dictionary<string, DBusVariant> GetAllProperties(object target)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            var values = new Dictionary<string, DBusVariant>(StringComparer.Ordinal);");
+        sb.AppendLine($"            if (target is not {interfaceIdentifier} typedTarget)");
+        sb.AppendLine("                return values;");
+        foreach (var property in properties.Where(static p => p.Access is null or "read" or "readwrite"))
+        {
+            var propertyNameLiteral = SymbolDisplay.FormatLiteral(property.Name!, quote: true);
+            var propertyIdentifier = GetPropertyIdentifier(property);
+            var toDbusExpression = MakeToDbusValueExpressionString(property.DBusDotnetType, $"typedTarget.{propertyIdentifier}");
+            sb.AppendLine($"            values[{propertyNameLiteral}] = new DBusVariant({toDbusExpression});");
+        }
+
+        sb.AppendLine("            return values;");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine($"        public static IDisposable Register(IDBusConnection connection, DBusObjectPath path, {interfaceIdentifier} target, SynchronizationContext? synchronizationContext = null)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            ArgumentNullException.ThrowIfNull(connection);");
+        sb.AppendLine("            ArgumentNullException.ThrowIfNull(target);");
+        sb.AppendLine("            return connection.RegisterObject(");
+        sb.AppendLine("                path,");
+        sb.AppendLine("                InterfaceName,");
+        sb.AppendLine("                (registeredConnection, message) => s_dispatch(message, registeredConnection, target),");
+        sb.AppendLine("                synchronizationContext);");
+        sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine();
 
@@ -246,7 +222,17 @@ public partial class DBusSourceGenerator
         sb.AppendLine("        [ModuleInitializer]");
         sb.AppendLine("        internal static void Register()");
         sb.AppendLine("        {");
-        sb.AppendLine($"            DBusGeneratedMetadata.Register({descriptorHolderIdentifier}.Instance);");
+        sb.AppendLine("            DBusWrapperMetadata.RegisterService(");
+        sb.AppendLine($"                typeof({interfaceIdentifier}),");
+        sb.AppendLine($"                {exportHelperIdentifier}.InterfaceName,");
+        sb.AppendLine(
+            $"                static (connection, path, target, synchronizationContext) => {exportHelperIdentifier}.Register(connection, path, ({interfaceIdentifier})target, synchronizationContext),");
+        sb.AppendLine(
+            $"                static (target, propertyName) => {exportHelperIdentifier}.TryGetProperty(target, propertyName, out var value) ? value : null,");
+        sb.AppendLine(
+            $"                static (target, propertyName, value) => {exportHelperIdentifier}.TrySetProperty(target, propertyName, value),");
+        sb.AppendLine(
+            $"                static target => {exportHelperIdentifier}.GetAllProperties(target));");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
 
@@ -258,45 +244,9 @@ public partial class DBusSourceGenerator
 
     private static string GetServiceDispatcherIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}Dispatcher";
 
-    private static string GetServiceDescriptorHolderIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}Descriptor";
-
     private static string GetServiceExportHelperIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}Export";
 
     private static string GetServiceModuleInitializerIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}ModuleInitializer";
-
-    private static string BuildInterfaceIntrospectionXml(DBusInterface dBusInterface)
-    {
-        XmlSerializer xmlSerializer = new(typeof(DBusInterface));
-        using StringWriter stringWriter = new();
-        using var xmlWriter = XmlWriter.Create(stringWriter, new XmlWriterSettings
-        {
-            OmitXmlDeclaration = true,
-            Indent = true
-        });
-
-        xmlSerializer.Serialize(xmlWriter, dBusInterface);
-        return stringWriter.ToString();
-    }
-
-    private static string GetMethodInSignature(DBusMethod method)
-    {
-        if (method.Arguments == null || method.Arguments.Length == 0)
-            return string.Empty;
-
-        return string.Concat(method.Arguments
-            .Where(static argument => argument.Direction is null or "in")
-            .Select(static argument => argument.DBusDotnetType.DBusTypeSignature));
-    }
-
-    private static string GetMethodOutSignature(DBusMethod method)
-    {
-        if (method.Arguments == null || method.Arguments.Length == 0)
-            return string.Empty;
-
-        return string.Concat(method.Arguments
-            .Where(static argument => argument.Direction == "out")
-            .Select(static argument => argument.DBusDotnetType.DBusTypeSignature));
-    }
 
     private static string GetInterfaceMethodIdentifier(DBusMethod method)
         => $"{Pascalize(method.Name!.AsSpan())}Async";
