@@ -390,14 +390,52 @@ public partial class DBusSourceGenerator
         var introspect = stringWriter.ToString();
 
         cl = cl.AddMembers(
+            FieldDeclaration(
+                    VariableDeclaration(
+                            IdentifierName("XmlDocument"))
+                        .AddVariables(
+                            VariableDeclarator("s_introspectXml")
+                                .WithInitializer(
+                                    EqualsValueClause(
+                                        InvocationExpression(
+                                            IdentifierName("CreateIntrospectXml"))))))
+                .AddModifiers(
+                    Token(SyntaxKind.PrivateKeyword),
+                    Token(SyntaxKind.StaticKeyword),
+                    Token(SyntaxKind.ReadOnlyKeyword)),
+            MethodDeclaration(
+                    IdentifierName("XmlDocument"),
+                    "CreateIntrospectXml")
+                .AddModifiers(
+                    Token(SyntaxKind.PrivateKeyword),
+                    Token(SyntaxKind.StaticKeyword))
+                .WithBody(
+                    Block(
+                        LocalDeclarationStatement(
+                            VariableDeclaration(IdentifierName("var"))
+                                .AddVariables(
+                                    VariableDeclarator("doc")
+                                        .WithInitializer(
+                                            EqualsValueClause(
+                                                ObjectCreationExpression(
+                                                        IdentifierName("XmlDocument"))
+                                                    .WithArgumentList(
+                                                        ArgumentList()))))),
+                        ExpressionStatement(
+                            InvocationExpression(
+                                    MakeMemberAccessExpression("doc", "LoadXml"))
+                                .AddArgumentListArguments(
+                                    Argument(
+                                        MakeLiteralExpression(introspect)))),
+                        ReturnStatement(
+                            IdentifierName("doc")))),
             MakeGetOnlyProperty(
-                    PredefinedType(
-                        Token(SyntaxKind.StringKeyword)),
+                    IdentifierName("XmlDocument"),
                     "IntrospectXml",
                     Token(SyntaxKind.PublicKeyword))
                 .WithInitializer(
                     EqualsValueClause(
-                        MakeLiteralExpression(introspect)))
+                        IdentifierName("s_introspectXml")))
                 .WithSemicolonToken(
                     Token(SyntaxKind.SemicolonToken)));
     }

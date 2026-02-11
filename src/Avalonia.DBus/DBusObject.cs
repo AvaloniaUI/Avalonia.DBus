@@ -74,9 +74,14 @@ public sealed class DBusObject : ICollection<IDBusInterfaceHandler>, IDBusObject
 
         try
         {
-            var doc = new XmlDocument();
-            doc.LoadXml(handler.IntrospectXml);
-            value = doc;
+            var xml = handler.IntrospectXml;
+            if (xml.DocumentElement == null)
+            {
+                value = null!;
+                return false;
+            }
+
+            value = (XmlDocument)xml.CloneNode(deep: true);
             return true;
         }
         catch

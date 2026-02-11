@@ -145,15 +145,17 @@ internal sealed class AtspiServer
 
     private void BuildHandlers()
     {
-        foreach (var child in _a11yConnection.Root.Children.ToArray())
+        var connection = A11yConnection;
+
+        foreach (var child in connection.Root.Children.ToArray())
         {
-            _a11yConnection.Root.RemoveChild(child);
+            connection.Root.RemoveChild(child);
         }
 
         foreach (var node in _tree.NodesByPath.Values)
         {
             var pathHandler = new DBusObject(node.Path);
-            _a11yConnection.Root.AddChild(pathHandler);
+            connection.Root.AddChild(pathHandler);
             
             pathHandler.Clear();
             var handlers = new NodeHandlers(node, pathHandler);
@@ -200,7 +202,7 @@ internal sealed class AtspiServer
         }
 
         var cachePathHandler = new DBusObject(CachePath);
-        _a11yConnection.Root.AddChild(cachePathHandler);
+        connection.Root.AddChild(cachePathHandler);
         cachePathHandler.Clear();
         var cacheHandler = new CacheHandler(this);
         cachePathHandler.Add(cacheHandler);
