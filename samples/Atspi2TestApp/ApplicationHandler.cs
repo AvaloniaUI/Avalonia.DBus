@@ -1,17 +1,15 @@
-using Avalonia.DBus;
 using Avalonia.DBus.SourceGen;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
 
-internal sealed class ApplicationHandler : OrgA11yAtspiApplicationHandler
+internal sealed class ApplicationHandler : IOrgA11yAtspiApplication
 {
-    private readonly AtspiServer _server;
     private readonly AccessibleNode _node;
 
     public ApplicationHandler(AtspiServer server, AccessibleNode node)
     {
-        _server = server;
+        _ = server;
         _node = node;
         var version = ResolveToolkitVersion();
         ToolkitName = "Avalonia";
@@ -21,20 +19,28 @@ internal sealed class ApplicationHandler : OrgA11yAtspiApplicationHandler
         InterfaceVersion = ApplicationVersion;
     }
 
-    public override DBusConnection Connection => _server.A11yConnection;
+    public string ToolkitName { get; }
 
-    public override int Id
+    public string Version { get; }
+
+    public string ToolkitVersion { get; }
+
+    public string AtspiVersion { get; }
+
+    public uint InterfaceVersion { get; }
+
+    public int Id
     {
         get => _node.ApplicationId ?? 0;
         set => _node.ApplicationId = value;
     }
 
-    protected override ValueTask<string> OnGetLocaleAsync(DBusMessage request, uint lctype)
+    public ValueTask<string> GetLocaleAsync(uint lctype)
     {
         return ValueTask.FromResult(ResolveLocale());
     }
 
-    protected override ValueTask<string> OnGetApplicationBusAddressAsync(DBusMessage request)
+    public ValueTask<string> GetApplicationBusAddressAsync()
     {
         return ValueTask.FromResult(string.Empty);
     }

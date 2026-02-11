@@ -4,25 +4,33 @@ using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;
 
-internal sealed class EventObjectHandler : OrgA11yAtspiEventObjectHandler
+internal sealed class EventObjectHandler(AtspiServer server, string path) : IOrgA11yAtspiEventObject
 {
-    private readonly AtspiServer _server;
-
-    public EventObjectHandler(AtspiServer server)
-    {
-        _server = server;
-        Version = EventObjectVersion;
-    }
-
-    public override DBusConnection Connection => _server.A11yConnection;
+    public uint Version => EventObjectVersion;
 
     public void EmitChildrenChangedSignal(string operation, int indexInParent, DBusVariant child)
     {
-        EmitChildrenChanged(operation, indexInParent, 0, child, []);
+        EmitSignal("ChildrenChanged", operation, indexInParent, 0, child, EmptyProperties());
     }
 
     public void EmitPropertyChangeSignal(string propertyName, DBusVariant value)
     {
-        EmitPropertyChange(propertyName, 0, 0, value, []);
+        EmitSignal("PropertyChange", propertyName, 0, 0, value, EmptyProperties());
+    }
+
+    private void EmitSignal(string member, params object[] body)
+    {
+        var message = DBusMessage.CreateSignal(
+            (DBusObjectPath)path,
+            IfaceEventObject,
+            member,
+            body);
+
+        _ = server.A11yConnection.SendMessageAsync(message);
+    }
+
+    private static Dictionary<string, DBusVariant> EmptyProperties()
+    {
+        return new Dictionary<string, DBusVariant>(StringComparer.Ordinal);
     }
 }

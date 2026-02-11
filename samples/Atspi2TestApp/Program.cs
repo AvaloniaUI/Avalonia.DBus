@@ -18,6 +18,8 @@ internal static class Program
     internal const string IfaceComponent = "org.a11y.atspi.Component";
     internal const string IfaceAction = "org.a11y.atspi.Action";
     internal const string IfaceValue = "org.a11y.atspi.Value";
+    internal const string IfaceEventObject = "org.a11y.atspi.Event.Object";
+    internal const string IfaceCache = "org.a11y.atspi.Cache";
 
     internal const string BusNameRegistry = "org.a11y.atspi.Registry";
     internal const string BusNameA11y = "org.a11y.Bus";

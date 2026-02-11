@@ -11,6 +11,7 @@
         <IsRosylnComponent>true</IsRosylnComponent>
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+        <IsPublishable>false</IsPublishable>
     </PropertyGroup>
 
     <PropertyGroup>

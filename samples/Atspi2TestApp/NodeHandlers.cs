@@ -1,11 +1,11 @@
 using Avalonia.DBus;
+using Avalonia.DBus.SourceGen;
 
 namespace Atspi2TestApp;
 
-internal sealed class NodeHandlers(AccessibleNode node, DBusObject dbusObject)
+internal sealed class NodeHandlers(AccessibleNode node)
 {
     public AccessibleNode Node { get; } = node;
-    public DBusObject DbusObject { get; } = dbusObject;
 
     public AccessibleHandler? AccessibleHandler { get; set; }
     public ApplicationHandler? ApplicationHandler { get; set; }
@@ -14,8 +14,29 @@ internal sealed class NodeHandlers(AccessibleNode node, DBusObject dbusObject)
     public ValueHandler? ValueHandler { get; set; }
     public EventObjectHandler? EventObjectHandler { get; set; }
 
-    public void Add(IDBusInterfaceHandler handler)
+    public DBusExportedTarget CreateExportedTarget()
     {
-        DbusObject.AddInterfaceHandler(handler);
+        return DBusExportedTarget.Create(
+            Node,
+            builder =>
+            {
+                if (AccessibleHandler != null)
+                    OrgA11yAtspiAccessibleExport.Bind(builder, AccessibleHandler);
+
+                if (ApplicationHandler != null)
+                    OrgA11yAtspiApplicationExport.Bind(builder, ApplicationHandler);
+
+                if (ComponentHandler != null)
+                    OrgA11yAtspiComponentExport.Bind(builder, ComponentHandler);
+
+                if (ActionHandler != null)
+                    OrgA11yAtspiActionExport.Bind(builder, ActionHandler);
+
+                if (ValueHandler != null)
+                    OrgA11yAtspiValueExport.Bind(builder, ValueHandler);
+
+                if (EventObjectHandler != null)
+                    OrgA11yAtspiEventObjectExport.Bind(builder, EventObjectHandler);
+            });
     }
 }
