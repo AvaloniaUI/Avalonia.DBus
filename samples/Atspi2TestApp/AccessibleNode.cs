@@ -19,4 +19,5 @@ internal sealed class AccessibleNode(string path, string name, int role)
     public Rect Extents { get; set; } = new Rect(0, 0, 0, 0);
     public AtSpiAction? Action { get; set; }
     public ValueInfo? Value { get; set; }
+    public NodeHandlers? Handlers { get; set; }
 }
