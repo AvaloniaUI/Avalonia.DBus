@@ -18,7 +18,8 @@ public partial class DBusSourceGenerator
         var cl = ClassDeclaration(identifier)
             .AddModifiers(Token(SyntaxKind.InternalKeyword));
 
-        var interfaceConst = MakePrivateStringConst("Interface", dBusInterface.Name!, PredefinedType(Token(SyntaxKind.StringKeyword)));
+        var interfaceConst = MakePrivateStringConst("DefaultInterface", dBusInterface.Name!, PredefinedType(Token(SyntaxKind.StringKeyword)));
+        var interfaceField = MakePrivateReadOnlyField("_interface", PredefinedType(Token(SyntaxKind.StringKeyword)));
         var connectionField = MakePrivateReadOnlyField("_connection", IdentifierName("IDBusConnection"));
         var destinationField = MakePrivateReadOnlyField("_destination", PredefinedType(Token(SyntaxKind.StringKeyword)));
         var pathField = MakePrivateReadOnlyField("_path", IdentifierName("DBusObjectPath"));
@@ -40,13 +41,50 @@ public partial class DBusSourceGenerator
                         Identifier("path"))
                     .WithType(
                         IdentifierName("DBusObjectPath")))
+            .WithInitializer(
+                ConstructorInitializer(
+                    SyntaxKind.ThisConstructorInitializer,
+                    ArgumentList(
+                        SeparatedList(
+                        [
+                            Argument(IdentifierName("connection")),
+                                Argument(IdentifierName("destination")),
+                                Argument(IdentifierName("path")),
+                                Argument(IdentifierName("DefaultInterface"))
+                        ]))))
+            .WithBody(
+                Block());
+
+        var ctorWithInterface = ConstructorDeclaration(identifier)
+            .AddModifiers(
+                Token(SyntaxKind.PublicKeyword))
+            .AddParameterListParameters(
+                Parameter(
+                        Identifier("connection"))
+                    .WithType(
+                        IdentifierName("IDBusConnection")),
+                Parameter(
+                        Identifier("destination"))
+                    .WithType(
+                        PredefinedType(
+                            Token(SyntaxKind.StringKeyword))),
+                Parameter(
+                        Identifier("path"))
+                    .WithType(
+                        IdentifierName("DBusObjectPath")),
+                Parameter(
+                        Identifier("iface"))
+                    .WithType(
+                        PredefinedType(
+                            Token(SyntaxKind.StringKeyword))))
             .WithBody(
                 Block(
                     MakeAssignmentExpressionStatement("_connection", "connection"),
                     MakeAssignmentExpressionStatement("_destination", "destination"),
-                    MakeAssignmentExpressionStatement("_path", "path")));
+                    MakeAssignmentExpressionStatement("_path", "path"),
+                    MakeAssignmentExpressionStatement("_interface", "iface")));
 
-        cl = cl.AddMembers(interfaceConst, connectionField, destinationField, pathField, ctor);
+        cl = cl.AddMembers(interfaceConst, interfaceField, connectionField, destinationField, pathField, ctor, ctorWithInterface);
 
         AddProperties(ref cl, dBusInterface);
         AddProxyMethods(ref cl, dBusInterface);
@@ -87,7 +125,7 @@ public partial class DBusSourceGenerator
             var call = InvocationExpression(
                     MakeMemberAccessExpression("_connection", "CallMethodAsync"))
                 .WithArgumentList(
-                    MakeCallArguments(IdentifierName("Interface"), dBusMethod.Name!, extraArgs));
+                    MakeCallArguments(IdentifierName("_interface"), dBusMethod.Name!, extraArgs));
 
             var body = Block();
 
@@ -197,7 +235,7 @@ public partial class DBusSourceGenerator
                                     Argument(
                                         IdentifierName("_path")),
                                     Argument(
-                                        IdentifierName("Interface")),
+                                        IdentifierName("_interface")),
                                     Argument(
                                         MakeLiteralExpression(dBusSignal.Name!)),
                                     Argument(MakeSignalHandlerLambda(outArgs)),
@@ -345,7 +383,7 @@ public partial class DBusSourceGenerator
                     MakeLiteralExpression("org.freedesktop.DBus.Properties"),
                     "Get",
                     [
-                        IdentifierName("Interface"),
+                        IdentifierName("_interface"),
                         MakeLiteralExpression(dBusProperty.Name!)
                     ]));
 
@@ -391,7 +429,7 @@ public partial class DBusSourceGenerator
                     MakeLiteralExpression("org.freedesktop.DBus.Properties"),
                     "Set",
                     [
-                        IdentifierName("Interface"),
+                        IdentifierName("_interface"),
                         MakeLiteralExpression(dBusProperty.Name!),
                         ObjectCreationExpression(IdentifierName("DBusVariant"))
                             .AddArgumentListArguments(
@@ -426,7 +464,7 @@ public partial class DBusSourceGenerator
                 MakeCallArguments(
                     MakeLiteralExpression("org.freedesktop.DBus.Properties"),
                     "GetAll",
-                    [IdentifierName("Interface")]));
+                    [IdentifierName("_interface")]));
 
         var body = Block(
             LocalDeclarationStatement(
@@ -652,7 +690,7 @@ public partial class DBusSourceGenerator
 
         var statements = new[]
         {
-            ParseStatement("if (!string.Equals((string)message.Body[0], Interface, StringComparison.Ordinal))\n{\n    return Task.CompletedTask;\n}\n"),
+            ParseStatement("if (!string.Equals((string)message.Body[0], _interface, StringComparison.Ordinal))\n{\n    return Task.CompletedTask;\n}\n"),
             ParseStatement("var changed = new List<string>();"),
             ParseStatement("var props = ReadProperties((Dictionary<string, DBusVariant>)message.Body[1], changed);"),
             ParseStatement("var invalidated = (List<string>)message.Body[2];"),
@@ -667,33 +705,64 @@ public partial class DBusSourceGenerator
             .WithBlock(Block(statements));
     }
 
-    private static string BuildProxyMetadataSource(DBusInterface dBusInterface)
+    private static string BuildGeneratedPrivateImplementationSource(
+        IEnumerable<ProxyRegistration> proxyRegistrations,
+        IEnumerable<HandlerRegistration> handlerRegistrations)
     {
-        var proxyIdentifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
-        var moduleInitializerIdentifier = $"{Pascalize(dBusInterface.Name.AsSpan())}ProxyModuleInitializer";
-        var interfaceNameLiteral = SymbolDisplay.FormatLiteral(dBusInterface.Name!, quote: true);
+        var proxyRegistrationArray = proxyRegistrations
+            .OrderBy(static registration => registration.ProxyIdentifier, StringComparer.Ordinal)
+            .ToArray();
+        var handlerRegistrationArray = handlerRegistrations
+            .OrderBy(static registration => registration.HandlerRegistrationHelperIdentifier, StringComparer.Ordinal)
+            .ToArray();
+        if (proxyRegistrationArray.Length == 0 && handlerRegistrationArray.Length == 0)
+            return string.Empty;
 
         StringBuilder sb = new();
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine("using System.Runtime.CompilerServices;");
         sb.AppendLine("using Avalonia.DBus;");
+        sb.AppendLine("using Avalonia.DBus.SourceGen;");
         sb.AppendLine();
         sb.AppendLine("#pragma warning disable");
         sb.AppendLine("#nullable enable");
-        sb.AppendLine("namespace Avalonia.DBus.SourceGen");
+        sb.AppendLine("namespace Avalonia.DBus");
         sb.AppendLine("{");
-        sb.AppendLine($"    internal static class {moduleInitializerIdentifier}");
+        sb.AppendLine("    internal static class GeneratedPrivateImplementationDoNotTouch");
         sb.AppendLine("    {");
         sb.AppendLine("        [ModuleInitializer]");
-        sb.AppendLine("        internal static void Register()");
+        sb.AppendLine("        public static void Register()");
         sb.AppendLine("        {");
-        sb.AppendLine("            DBusWrapperMetadata.Register(");
-        sb.AppendLine($"                typeof({proxyIdentifier}),");
-        sb.AppendLine($"                {interfaceNameLiteral},");
-        sb.AppendLine($"                static (connection, destination, path, iface) => new {proxyIdentifier}(connection, destination, path));");
+        foreach (var registration in proxyRegistrationArray)
+        {
+            var interfaceNameLiteral = SymbolDisplay.FormatLiteral(registration.InterfaceName, quote: true);
+            sb.AppendLine("            DBusInteropMetadataRegistry.Register(");
+            sb.AppendLine("                new DBusInteropMetadata");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    ClrType = typeof({registration.ProxyIdentifier}),");
+            sb.AppendLine($"                    InterfaceName = {interfaceNameLiteral},");
+            sb.AppendLine($"                    CreateProxy = static (connection, destination, path, iface) => new {registration.ProxyIdentifier}(connection, destination, path, iface)");
+            sb.AppendLine("                });");
+        }
+        foreach (var registration in handlerRegistrationArray)
+        {
+            sb.AppendLine($"            {registration.HandlerRegistrationHelperIdentifier}.Register();");
+        }
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private readonly struct ProxyRegistration(string proxyIdentifier, string interfaceName)
+    {
+        public string ProxyIdentifier { get; } = proxyIdentifier;
+
+        public string InterfaceName { get; } = interfaceName;
+    }
+
+    private readonly struct HandlerRegistration(string handlerRegistrationHelperIdentifier)
+    {
+        public string HandlerRegistrationHelperIdentifier { get; } = handlerRegistrationHelperIdentifier;
     }
 }

@@ -99,7 +99,7 @@ public sealed class DBusConnection : IDBusConnection
         DBusObjectPath path,
         string? iface = null)
     {
-        return DBusWrapperMetadata.CreateProxy(interfaceType, this, destination, path, iface);
+        return DBusInteropMetadataRegistry.CreateProxy(interfaceType, this, destination, path, iface);
     }
 
     /// <summary>
@@ -111,12 +111,36 @@ public sealed class DBusConnection : IDBusConnection
         SynchronizationContext? synchronizationContext = null)
     {
         ArgumentNullException.ThrowIfNull(target);
+        return RegisterObjects(path, [target], synchronizationContext);
+    }
 
-        var registrations = DBusWrapperMetadata.ResolveServiceRegistrations(target.GetType());
-        if (registrations.Count == 0)
+    /// <summary>
+    /// Registers all generated D-Bus interfaces implemented by the provided <paramref name="targets"/> at the specified object path.
+    /// </summary>
+    public IDisposable RegisterObjects(
+        DBusObjectPath path,
+        IEnumerable<object> targets,
+        SynchronizationContext? synchronizationContext = null)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+
+        var targetArray = targets.ToArray();
+        if (targetArray.Length == 0)
+            throw new InvalidOperationException("At least one target is required.");
+
+        List<(object Target, DBusInteropMetadata Registration)> registrations = [];
+        foreach (var target in targetArray)
         {
-            throw new InvalidOperationException(
-                $"No generated service registration exists for CLR type '{target.GetType().FullName}'.");
+            ArgumentNullException.ThrowIfNull(target);
+
+            var targetRegistrations = DBusInteropMetadataRegistry.ResolveHandlerRegistrations(target.GetType());
+            if (targetRegistrations.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"No generated handler registration exists for CLR type '{target.GetType().FullName}'.");
+            }
+
+            registrations.AddRange(targetRegistrations.Select(t => (target, t)));
         }
 
         List<IDisposable> handles = [];
@@ -124,18 +148,21 @@ public sealed class DBusConnection : IDBusConnection
 
         try
         {
-            for (var i = 0; i < registrations.Count; i++)
+            foreach (var (target, registration) in registrations)
             {
-                var registration = registrations[i];
-                var registerObject = registration.RegisterObject
+                var createDispatcher = registration.CreateCallDispatcher
                                      ?? throw new InvalidOperationException(
-                                         $"Generated service registration for '{registration.InterfaceName}' is missing RegisterObject delegate.");
+                                         $"Generated handler registration for '{registration.InterfaceName}' is missing CreateCallDispatcher delegate.");
+                var dispatcher = createDispatcher(target);
+                handles.Add(
+                    RegisterObject(
+                        path,
+                        registration.InterfaceName,
+                        (registeredConnection, message) => dispatcher.Handle(registeredConnection, message, target),
+                        synchronizationContext));
 
-                handles.Add(registerObject(this, path, target, synchronizationContext));
-
-                if (registration.TryGetProperty == null
-                    && registration.TrySetProperty == null
-                    && registration.GetAllProperties == null)
+                if (registration.TrySetProperty == null
+                    && registration.GetAllPropertiesFactory == null)
                 {
                     continue;
                 }
@@ -143,18 +170,24 @@ public sealed class DBusConnection : IDBusConnection
                 if (!boundPropertiesByInterface.TryAdd(
                         registration.InterfaceName,
                         new BoundProperties(
-                            registration.TryGetProperty == null
+                            registration.GetAllPropertiesFactory == null
                                 ? null
-                                : propertyName => registration.TryGetProperty(target, propertyName),
+                                : propertyName =>
+                                {
+                                    var values = registration.GetAllPropertiesFactory(target);
+                                    return values.TryGetValue(propertyName, out var value)
+                                        ? value
+                                        : null;
+                                },
                             registration.TrySetProperty == null
                                 ? null
                                 : (propertyName, value) => registration.TrySetProperty(target, propertyName, value),
-                            registration.GetAllProperties == null
+                            registration.GetAllPropertiesFactory == null
                                 ? null
-                                : () => registration.GetAllProperties(target))))
+                                : () => registration.GetAllPropertiesFactory(target))))
                 {
                     throw new InvalidOperationException(
-                        $"Duplicate generated service registration for interface '{registration.InterfaceName}'.");
+                        $"Duplicate generated handler registration for interface '{registration.InterfaceName}'.");
                 }
             }
 
@@ -173,9 +206,8 @@ public sealed class DBusConnection : IDBusConnection
         }
         catch
         {
-            for (var i = 0; i < handles.Count; i++)
-                handles[i].Dispose();
-
+            foreach (var t in handles)
+                t.Dispose();
             throw;
         }
     }

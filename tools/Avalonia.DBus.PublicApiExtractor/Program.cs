@@ -272,7 +272,7 @@ internal static class Program
         }
         catch
         {
-            return Array.Empty<string>();
+            return [];
         }
     }
 
@@ -335,7 +335,7 @@ internal static class Program
     {
         var tpa = (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES");
         if (string.IsNullOrWhiteSpace(tpa))
-            return Array.Empty<MetadataReference>();
+            return [];
 
         return tpa.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Distinct(StringComparer.Ordinal)

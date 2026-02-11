@@ -373,7 +373,7 @@ public partial class DBusSourceGenerator
         if (definition.Flags is { Length: > 0 })
             return definition.Flags;
 
-        return Array.Empty<AvBitFlagDefinition>();
+        return [];
     }
 
     private static string FormatEnumValue(string? rawValue, string underlyingType)

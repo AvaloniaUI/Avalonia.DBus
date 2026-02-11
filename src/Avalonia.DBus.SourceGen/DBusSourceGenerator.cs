@@ -116,6 +116,8 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 }
             }
 
+            var proxyRegistrations = new Dictionary<string, ProxyRegistration>(StringComparer.Ordinal);
+            var handlerRegistrations = new Dictionary<string, HandlerRegistration>(StringComparer.Ordinal);
             foreach ((DBusNode Node, string GeneratorMode, string Path) value in provider)
             {
                 switch (value.GeneratorMode)
@@ -129,24 +131,36 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                                 .AddMembers(typeDeclarationSyntax);
                             var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
                             productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs", compilationUnit.GetText(Encoding.UTF8));
-
-                            var metadataSource = BuildProxyMetadataSource(dBusInterface);
-                            productionContext.AddSource(
-                                $"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.Metadata.g.cs",
-                                metadataSource);
+                            var proxyIdentifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
+                            proxyRegistrations[proxyIdentifier] = new ProxyRegistration(proxyIdentifier, dBusInterface.Name!);
                         }
 
                         break;
-                    case "Service":
+                    case "Handler":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            var source = BuildServiceSource(dBusInterface);
+                            var source = BuildHandlerSource(dBusInterface);
                             productionContext.AddSource(
-                                $"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Service.g.cs",
+                                $"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs",
                                 source);
+                            var handlerHelperIdentifier = GetHandlerRegistrationHelperIdentifier(dBusInterface);
+                            handlerRegistrations[handlerHelperIdentifier] = new HandlerRegistration(handlerHelperIdentifier);
                         }
 
                         break;
+                }
+            }
+
+            if (proxyRegistrations.Count > 0 || handlerRegistrations.Count > 0)
+            {
+                var metadataSource = BuildGeneratedPrivateImplementationSource(
+                    proxyRegistrations.Values,
+                    handlerRegistrations.Values);
+                if (!string.IsNullOrWhiteSpace(metadataSource))
+                {
+                    productionContext.AddSource(
+                        "Avalonia.DBus.SourceGen.GeneratedPrivateImplementationDoNotTouch.Metadata.g.cs",
+                        metadataSource);
                 }
             }
 
