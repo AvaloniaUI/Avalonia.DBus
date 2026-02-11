@@ -25,13 +25,4 @@ public sealed class DBusVariant
         Value = value ?? throw new ArgumentNullException(nameof(value));
         Signature = new DBusSignature(DBusSignatureInference.InferSignatureFromValue(value));
     }
-
-    /// <summary>
-    /// Creates a variant with an explicit signature.
-    /// </summary>
-    public DBusVariant(DBusSignature signature, object value)
-    {
-        Value = value ?? throw new ArgumentNullException(nameof(value));
-        Signature = signature;
-    }
 }

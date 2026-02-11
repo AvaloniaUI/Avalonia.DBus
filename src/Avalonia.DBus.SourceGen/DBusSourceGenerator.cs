@@ -29,11 +29,6 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
         context.RegisterPostInitializationOutput(initializationContext =>
         {
             initializationContext.AddSource("Avalonia.DBus.SourceGen.PropertyChanges.cs", PropertyChangesClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.DBusObjectTree.cs", DBusObjectTreeClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.DBusObject.cs", DBusObjectClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.IDBusObject.cs", IDBusObjectClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.DBusBuiltIns.cs", DBusBuiltInsClass);
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.DBusConnectionObjectExtensions.cs", DBusConnectionObjectExtensionsClass);
         });
 
         IncrementalValuesProvider<(DBusNode, string, string)> generatorProvider = context.AdditionalTextsProvider

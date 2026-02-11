@@ -5,4 +5,5 @@
   </Folder>
   <Project Path="src/Avalonia.DBus/Avalonia.DBus.csproj" />
   <Project Path="src/Avalonia.DBus.SourceGen/Avalonia.DBus.SourceGen.csproj" />
+  <Project Path="tools/Avalonia.DBus.PublicApiExtractor/Avalonia.DBus.PublicApiExtractor.csproj" />
 </Solution>

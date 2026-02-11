@@ -24,33 +24,15 @@ public sealed class DBusLogger
     /// </summary>
     public Action<string>? Error { get; init; }
 
-    /// <summary>
-    /// Wire-level verbose/debug logging hook.
-    /// </summary>
-    public Action<string>? WireVerbose { get; init; }
-
-    /// <summary>
-    /// Wire-level informational logging hook.
-    /// </summary>
-    public Action<string>? WireInfo { get; init; }
-
-    /// <summary>
-    /// Wire-level warning logging hook.
-    /// </summary>
-    public Action<string>? WireWarning { get; init; }
-
-    /// <summary>
-    /// Wire-level error logging hook.
-    /// </summary>
-    public Action<string>? WireError { get; init; }
-
     internal static DBusLogger CreateDefault()
     {
 #if DEBUG
         return new DBusLogger
         {
             Verbose = static message => Console.Error.WriteLine(message),
-            WireVerbose = static message => Console.Error.WriteLine(message),
+            Info = static message => Console.Error.WriteLine(message),
+            Warning = static message => Console.Error.WriteLine(message),
+            Error = static message => Console.Error.WriteLine(message),
         };
 #else
         return new DBusLogger();

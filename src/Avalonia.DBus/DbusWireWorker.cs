@@ -768,14 +768,12 @@ internal sealed partial class DbusWireWorker
 
     private void LogVerbose(string message)
     {
-        var sink = _loggers?.WireVerbose;
-        if (sink == null)
-            return;
-
+        var sink = _loggers?.Verbose;
+        
 #if DEBUG
-        sink($"[DBusWire {Environment.CurrentManagedThreadId}] {message}");
+        sink?.Invoke($"[DBusWire {Environment.CurrentManagedThreadId}] {message}");
 #else
-        sink(message);
+        sink?.Invoke(message);
 #endif
     }
 
@@ -783,15 +781,12 @@ internal sealed partial class DbusWireWorker
     {
         var name = error.name != null ? DbusHelpers.PtrToString(error.name) : "DBus error";
         var message = error.message != null ? DbusHelpers.PtrToString(error.message) : fallbackMessage;
-        var sink = loggers?.WireVerbose;
-        if (sink != null)
-        {
+        var sink = loggers?.Verbose;
 #if DEBUG
-            sink($"[DBusWire {Environment.CurrentManagedThreadId}] libdbus error: {name}: {message}");
+        sink?.Invoke($"[DBusWire {Environment.CurrentManagedThreadId}]  libdbus error: {message}");
 #else
-            sink($"libdbus error: {name}: {message}");
+        sink?.Invoke($"libdbus error: {name}: {message}");
 #endif
-        }
 
         fixed (DBusError* errorPtr = &error)
             if (dbus_error_is_set(errorPtr) != 0)

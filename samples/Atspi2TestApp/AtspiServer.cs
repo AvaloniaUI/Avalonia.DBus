@@ -16,9 +16,7 @@ internal sealed class AtspiServer
 
     private readonly AtspiTree _tree;
     private readonly Dictionary<int, string> _roleNames = new();
-    private readonly object _treeGate = new();
-    private readonly Dictionary<string, NodeHandlers> _handlersByPath = new(StringComparer.Ordinal);
-    private readonly DBusObjectTree _pathTree;
+    private readonly object _treeGate = new(); 
     private readonly object _eventGate = new();
     private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
     private readonly object _registryGate = new();
@@ -33,7 +31,6 @@ internal sealed class AtspiServer
     private volatile bool _emitObjectEvents;
     private CacheHandler? _cacheHandler;
     private OrgA11yAtspiRegistryProxy? _registryProxy;
-    private IDisposable? _pathTreeRegistration;
     private IDisposable? _registryRegisteredSubscription;
     private IDisposable? _registryDeregisteredSubscription;
     private IDisposable? _registryOwnerChangedSubscription;
@@ -45,8 +42,7 @@ internal sealed class AtspiServer
 
     public AtspiServer(AtspiTree tree)
     {
-        _tree = tree;
-        _pathTree = new DBusObjectTree("/");
+        _tree = tree; 
         _roleNames[RoleApplication] = "application";
         _roleNames[RoleFrame] = "frame";
         _roleNames[RoleLabel] = "label";
@@ -149,11 +145,19 @@ internal sealed class AtspiServer
 
     private void BuildHandlers()
     {
-        _handlersByPath.Clear();
+        var connection = A11yConnection;
+
+        foreach (var child in connection.Root.Children.ToArray())
+        {
+            connection.Root.RemoveChild(child);
+        }
+
         foreach (var node in _tree.NodesByPath.Values)
         {
-            var pathHandler = _pathTree.AddPath(node.Path);
-            pathHandler.Clear();
+            var pathHandler = new DBusObject(node.Path);
+            connection.Root.AddChild(pathHandler);
+            
+            pathHandler.ClearInterfaceHandlers();
             var handlers = new NodeHandlers(node, pathHandler);
 
             if (node.Interfaces.Contains(IfaceAccessible))
@@ -194,13 +198,14 @@ internal sealed class AtspiServer
             handlers.EventObjectHandler = new EventObjectHandler(this);
             handlers.Add(handlers.EventObjectHandler);
 
-            _handlersByPath[node.Path] = handlers;
+            node.Handlers = handlers;
         }
 
-        var cachePathHandler = _pathTree.AddPath(CachePath);
-        cachePathHandler.Clear();
+        var cachePathHandler = new DBusObject(CachePath);
+        connection.Root.AddChild(cachePathHandler);
+        cachePathHandler.ClearInterfaceHandlers();
         var cacheHandler = new CacheHandler(this);
-        cachePathHandler.Add(cacheHandler);
+        cachePathHandler.AddInterfaceHandler(cacheHandler);
         _cacheHandler = cacheHandler;
 
         RefreshAllAccessibleHandlers();
@@ -208,18 +213,15 @@ internal sealed class AtspiServer
 
     private void RefreshAllAccessibleHandlers()
     {
-        foreach (var handler in _handlersByPath.Values)
+        foreach (var node in _tree.NodesByPath.Values)
         {
-            handler.AccessibleHandler?.RefreshProperties();
+            node.Handlers?.AccessibleHandler?.RefreshProperties();
         }
     }
 
     private void RefreshAccessibleHandler(AccessibleNode node)
     {
-        if (_handlersByPath.TryGetValue(node.Path, out var handler))
-        {
-            handler.AccessibleHandler?.RefreshProperties();
-        }
+        node.Handlers?.AccessibleHandler?.RefreshProperties();
     }
 
     private async Task<bool> TryConnectAsync()
@@ -302,9 +304,6 @@ internal sealed class AtspiServer
         {
             return;
         }
-
-        _pathTreeRegistration?.Dispose();
-        _pathTreeRegistration = _pathTree.Register(_a11yConnection);
     }
 
     private async Task<bool> EmbedApplicationAsync()
@@ -619,9 +618,6 @@ internal sealed class AtspiServer
             _toggleTimer = null;
         }
 
-        _pathTreeRegistration?.Dispose();
-        _pathTreeRegistration = null;
-
         if (_a11yConnection != null)
         {
             await _a11yConnection.DisposeAsync();
@@ -724,8 +720,9 @@ internal sealed class AtspiServer
             {
                 var index = _tree.GetToggleWindowIndex();
                 _tree.RemoveToggleWindow();
-                _pathTree.RemovePath(_tree.ToggleWindow.Path);
-                RefreshPathRegistrations();
+                var toggleObj = _a11yConnection.Query(_tree.ToggleWindow.Path).FirstOrDefault();
+                if (toggleObj != null)
+                    _a11yConnection.Root.RemoveChild(toggleObj);
                 RefreshAccessibleHandler(_tree.Root);
                 RefreshAccessibleHandler(_tree.ToggleWindow);
                 EmitChildrenChanged(_tree.Root, "remove", index < 0 ? 0 : index, _tree.ToggleWindow);
@@ -736,8 +733,9 @@ internal sealed class AtspiServer
                 _windowToggleCounter++;
                 _tree.ToggleWindow.Description = $"Recurring window (cycle {_windowToggleCounter})";
                 _tree.AddToggleWindow();
-                _pathTree.AddPath(_tree.ToggleWindow.Path);
-                RefreshPathRegistrations();
+                var toggleHandlers = _tree.ToggleWindow.Handlers;
+                if (toggleHandlers != null)
+                    _a11yConnection.Root.AddChild(toggleHandlers.DbusObject);
                 RefreshAccessibleHandler(_tree.Root);
                 RefreshAccessibleHandler(_tree.ToggleWindow);
                 var index = _tree.GetToggleWindowIndex();
@@ -769,7 +767,8 @@ internal sealed class AtspiServer
             return;
         }
 
-        if (!_handlersByPath.TryGetValue(parent.Path, out var handlers) || handlers.EventObjectHandler == null)
+        var handlers = parent.Handlers;
+        if (handlers?.EventObjectHandler == null)
         {
             return;
         }
@@ -790,7 +789,8 @@ internal sealed class AtspiServer
             return;
         }
 
-        if (!_handlersByPath.TryGetValue(node.Path, out var handlers) || handlers.EventObjectHandler == null)
+        var handlers = node.Handlers;
+        if (handlers?.EventObjectHandler == null)
         {
             return;
         }

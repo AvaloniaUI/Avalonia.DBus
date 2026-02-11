@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace Avalonia.DBus;
 
@@ -11,7 +12,7 @@ public interface IDBusInterfaceHandler
 
     string InterfaceName { get; }
 
-    string IntrospectXml { get; }
+    XmlDocument IntrospectXml { get; }
 
     Task<DBusMessage> HandleMethodAsync(DBusMessage request);
 
