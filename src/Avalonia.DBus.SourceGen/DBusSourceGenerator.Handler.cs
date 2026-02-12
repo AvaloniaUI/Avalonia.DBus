@@ -1,10 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-
 namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
@@ -63,13 +56,19 @@ public partial class DBusSourceGenerator
         sb.AppendLine("{");
         sb.AppendLine($"    internal sealed class {dispatcherIdentifier} : IDBusInterfaceCallDispatcher");
         sb.AppendLine("    {");
-        sb.AppendLine("        public async Task<DBusMessage> Handle(IDBusConnection connection, DBusMessage message, object target)");
+        sb.AppendLine("        private readonly object _target;");
+        sb.AppendLine();
+        sb.AppendLine($"        internal {dispatcherIdentifier}(object target)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            _target = target ?? throw new ArgumentNullException(nameof(target));");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        public async Task<DBusMessage> Handle(IDBusConnection connection, DBusMessage message)");
         sb.AppendLine("        {");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(message);");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(connection);");
-        sb.AppendLine("            ArgumentNullException.ThrowIfNull(target);");
         sb.AppendLine();
-        sb.AppendLine($"            if (target is not {interfaceTypeName} typedTarget)");
+        sb.AppendLine($"            if (_target is not {interfaceTypeName} typedTarget)");
         sb.AppendLine("            {");
         sb.AppendLine($"                return message.CreateError(\"org.freedesktop.DBus.Error.UnknownInterface\", \"Target does not implement interface {dBusInterface.Name}.\");");
         sb.AppendLine("            }");
@@ -135,8 +134,8 @@ public partial class DBusSourceGenerator
 
         sb.AppendLine($"    internal static class {registrationHelperIdentifier}");
         sb.AppendLine("    {");
-        sb.AppendLine($"        internal static readonly {dispatcherIdentifier} Dispatcher = new();");
         sb.AppendLine($"        internal const string InterfaceName = {interfaceNameLiteral};");
+        sb.AppendLine($"        internal static IDBusInterfaceCallDispatcher CreateHandler(object target) => new {dispatcherIdentifier}(target);");
         sb.AppendLine();
         sb.AppendLine("        private static DBusVariant? TryGetProperty(object target, string propertyName)");
         sb.AppendLine("        {");

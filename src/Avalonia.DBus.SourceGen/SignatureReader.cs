@@ -1,6 +1,3 @@
-using System;
-using System.Text;
-
 namespace Avalonia.DBus.SourceGen;
 
 internal ref struct SignatureReader

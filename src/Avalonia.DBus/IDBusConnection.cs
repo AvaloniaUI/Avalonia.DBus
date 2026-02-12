@@ -33,4 +33,7 @@ public interface IDBusConnection : IAsyncDisposable
         string member,
         Func<DBusMessage, Task> handler,
         SynchronizationContext? synchronizationContext = null);
+
+    public Task<string?> GetUniqueNameAsync();
+
 }

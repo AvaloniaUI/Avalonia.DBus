@@ -1,7 +1,3 @@
-using System;
-using System.ComponentModel;
-using System.Xml.Serialization;
-
 namespace Avalonia.DBus.SourceGen;
 
 [Serializable]

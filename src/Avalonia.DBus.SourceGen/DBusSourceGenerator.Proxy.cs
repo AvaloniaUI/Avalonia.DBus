@@ -1,13 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-
-
 namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
@@ -750,7 +740,7 @@ public partial class DBusSourceGenerator
             sb.AppendLine("                {");
             sb.AppendLine($"                    ClrType = typeof({registration.HandlerInterfaceTypeName}),");
             sb.AppendLine($"                    InterfaceName = {registration.HandlerMetadataTypeName}.InterfaceName,");
-            sb.AppendLine($"                    CreateCallDispatcher = static _ => {registration.HandlerMetadataTypeName}.Dispatcher,");
+            sb.AppendLine($"                    CreateHandler = {registration.HandlerMetadataTypeName}.CreateHandler,");
             sb.AppendLine($"                    TrySetProperty = {registration.HandlerMetadataTypeName}.TrySetProperty,");
             sb.AppendLine($"                    GetAllPropertiesFactory = {registration.HandlerMetadataTypeName}.GetAllProperties");
             sb.AppendLine("                });");

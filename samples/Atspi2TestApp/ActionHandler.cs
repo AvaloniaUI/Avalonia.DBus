@@ -1,6 +1,6 @@
-using Atspi2TestApp.DBusXml;
 using static Atspi2TestApp.Program;
 
+using Atspi2TestApp.DBusXml;
 namespace Atspi2TestApp;
 
 internal sealed class ActionHandler : IOrgA11yAtspiAction

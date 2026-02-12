@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia.DBus;
-using Atspi2TestApp.DBusXml;
 using static Atspi2TestApp.Program;
 
+using Atspi2TestApp.DBusXml;
 namespace Atspi2TestApp;
 
 internal sealed class AtspiServer
@@ -286,7 +286,7 @@ internal sealed class AtspiServer
             var cacheHandler = _cacheHandler;
             desiredRegistrations.Add(
                 CachePath,
-                (cacheHandler, () => _a11yConnection.RegisterObject((DBusObjectPath)CachePath, cacheHandler)));
+                (cacheHandler, () => _a11yConnection.RegisterObjects((DBusObjectPath)CachePath, [cacheHandler])));
         }
 
         foreach (var (path, active) in _pathRegistrations.ToArray())

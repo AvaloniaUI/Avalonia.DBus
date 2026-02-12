@@ -34,7 +34,7 @@ public static class DBusInteropMetadataRegistry
                     ClrType = existing.ClrType,
                     InterfaceName = existing.InterfaceName,
                     CreateProxy = existing.CreateProxy ?? metadata.CreateProxy,
-                    CreateCallDispatcher = existing.CreateCallDispatcher ?? metadata.CreateCallDispatcher,
+                    CreateHandler = existing.CreateHandler ?? metadata.CreateHandler,
                     TrySetProperty = existing.TrySetProperty ?? metadata.TrySetProperty,
                     GetAllPropertiesFactory = existing.GetAllPropertiesFactory ?? metadata.GetAllPropertiesFactory
                 };
@@ -91,7 +91,7 @@ public static class DBusInteropMetadataRegistry
         List<DBusInteropMetadata>? registrations = null;
         foreach (var metadata in snapshot.ByClrType.Values)
         {
-            if (metadata.CreateCallDispatcher == null)
+            if (metadata.CreateHandler == null)
                 continue;
 
             if (!metadata.ClrType.IsAssignableFrom(targetType))
@@ -131,13 +131,13 @@ public sealed record DBusInteropMetadata
     public required string InterfaceName { get; init; }
 
     public CreateProxyFactory? CreateProxy { get; init; }
-    public CreateCallDispatcherFactory? CreateCallDispatcher { get; init; }
+    public CreateHandlerFactory? CreateHandler { get; init; }
     public TrySetPropertyFactory? TrySetProperty { get; init; }
 
     public GetAllPropertiesFactory? GetAllPropertiesFactory { get; init; }
 }
 
-public delegate IDBusInterfaceCallDispatcher CreateCallDispatcherFactory(object target);
+public delegate IDBusInterfaceCallDispatcher CreateHandlerFactory(object target);
 
 public delegate IReadOnlyDictionary<string, DBusVariant> GetAllPropertiesFactory(object target);
 

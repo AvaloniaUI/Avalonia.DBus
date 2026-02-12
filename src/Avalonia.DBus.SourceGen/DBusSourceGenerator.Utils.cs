@@ -1,12 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-
-
 namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
@@ -49,6 +40,9 @@ public partial class DBusSourceGenerator
             var baseUri = new Uri(normalizedBasePath, UriKind.Absolute);
             var targetUri = new Uri(normalizedTargetPath, UriKind.Absolute);
             var relativeUri = baseUri.MakeRelativeUri(targetUri);
+            if (relativeUri.IsAbsoluteUri)
+                return Path.GetFileName(targetPath) ?? string.Empty;
+
             return Uri.UnescapeDataString(relativeUri.ToString())
                 .Replace('/', Path.DirectorySeparatorChar);
         }

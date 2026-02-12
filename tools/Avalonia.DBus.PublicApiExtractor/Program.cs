@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -882,11 +883,11 @@ internal static class Program
             string s => "@\"" + s.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"",
             char c => "'" + (c == '\'' ? "\\'" : c.ToString()) + "'",
             bool b => b ? "true" : "false",
-            float f => f.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "f",
-            double d => d.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "d",
-            decimal m => m.ToString(System.Globalization.CultureInfo.InvariantCulture) + "m",
+            float f => f.ToString("R", CultureInfo.InvariantCulture) + "f",
+            double d => d.ToString("R", CultureInfo.InvariantCulture) + "d",
+            decimal m => m.ToString(CultureInfo.InvariantCulture) + "m",
             sbyte or byte or short or ushort or int or uint or long or ulong =>
-                Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "0",
+                Convert.ToString(value, CultureInfo.InvariantCulture) ?? "0",
             _ => "default",
         };
     }

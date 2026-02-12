@@ -1,15 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Xml;
-using System.Xml.Serialization;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-
-
 namespace Avalonia.DBus.SourceGen;
 
 [Generator]
@@ -27,6 +15,13 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             IgnoreWhitespace = true,
             IgnoreComments = true
         };
+
+        context.RegisterPostInitializationOutput(initializationContext =>
+        {
+            initializationContext.AddSource(
+                "Avalonia.DBus.SourceGen.BuiltInFreedesktopDBus.g.cs",
+                BuiltInFreedesktopDbusSource);
+        });
 
         IncrementalValuesProvider<(DBusNode, string, string, string)> generatorProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
