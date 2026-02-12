@@ -13,25 +13,10 @@ public interface IDBusConnection : IAsyncDisposable
         DBusObjectPath path,
         string? iface = null);
 
-    IDisposable RegisterObject(
-        DBusObjectPath path,
-        object target,
-        SynchronizationContext? synchronizationContext = null);
-
     IDisposable RegisterObjects(
         DBusObjectPath path,
         IEnumerable<object> targets,
         SynchronizationContext? synchronizationContext = null);
-
-    IDisposable RegisterObject(
-        DBusObjectPath path,
-        string iface,
-        Func<IDBusConnection, DBusMessage, Task<DBusMessage>> handler,
-        SynchronizationContext? synchronizationContext = null);
- 
-    Task SendMessageAsync(
-        DBusMessage message,
-        CancellationToken cancellationToken = default);
 
     Task<DBusMessage> CallMethodAsync(
         string destination,

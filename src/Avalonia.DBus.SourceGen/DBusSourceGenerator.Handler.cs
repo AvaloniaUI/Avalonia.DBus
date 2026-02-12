@@ -9,9 +9,10 @@ namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
 {
-    private static string BuildHandlerSource(DBusInterface dBusInterface)
+    private static string BuildHandlerSource(DBusInterface dBusInterface, string userFacingNamespace)
     {
         var interfaceIdentifier = GetHandlerInterfaceIdentifier(dBusInterface);
+        var interfaceTypeName = GetGlobalQualifiedTypeName(userFacingNamespace, interfaceIdentifier);
         var dispatcherIdentifier = GetHandlerDispatcherIdentifier(dBusInterface);
         var registrationHelperIdentifier = GetHandlerRegistrationHelperIdentifier(dBusInterface);
 
@@ -27,12 +28,11 @@ public partial class DBusSourceGenerator
         sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using Avalonia.DBus;");
         sb.AppendLine();
-        sb.AppendLine("#pragma warning disable");
         sb.AppendLine("#nullable enable");
-        sb.AppendLine("namespace Avalonia.DBus.SourceGen");
+        sb.AppendLine($"namespace {userFacingNamespace}");
         sb.AppendLine("{");
 
-        sb.AppendLine($"    internal interface {interfaceIdentifier}");
+        sb.AppendLine($"    public interface {interfaceIdentifier}");
         sb.AppendLine("    {");
         foreach (var property in properties)
         {
@@ -56,8 +56,11 @@ public partial class DBusSourceGenerator
         }
 
         sb.AppendLine("    }");
+        sb.AppendLine("}");
         sb.AppendLine();
 
+        sb.AppendLine($"namespace {PrivateImplementationNamespace}");
+        sb.AppendLine("{");
         sb.AppendLine($"    internal sealed class {dispatcherIdentifier} : IDBusInterfaceCallDispatcher");
         sb.AppendLine("    {");
         sb.AppendLine("        public async Task<DBusMessage> Handle(IDBusConnection connection, DBusMessage message, object target)");
@@ -66,7 +69,7 @@ public partial class DBusSourceGenerator
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(connection);");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(target);");
         sb.AppendLine();
-        sb.AppendLine($"            if (target is not {interfaceIdentifier} typedTarget)");
+        sb.AppendLine($"            if (target is not {interfaceTypeName} typedTarget)");
         sb.AppendLine("            {");
         sb.AppendLine($"                return message.CreateError(\"org.freedesktop.DBus.Error.UnknownInterface\", \"Target does not implement interface {dBusInterface.Name}.\");");
         sb.AppendLine("            }");
@@ -132,13 +135,13 @@ public partial class DBusSourceGenerator
 
         sb.AppendLine($"    internal static class {registrationHelperIdentifier}");
         sb.AppendLine("    {");
-        sb.AppendLine($"        private static readonly {dispatcherIdentifier} s_dispatcher = new();");
-        sb.AppendLine($"        private const string InterfaceName = {interfaceNameLiteral};");
+        sb.AppendLine($"        internal static readonly {dispatcherIdentifier} Dispatcher = new();");
+        sb.AppendLine($"        internal const string InterfaceName = {interfaceNameLiteral};");
         sb.AppendLine();
         sb.AppendLine("        private static DBusVariant? TryGetProperty(object target, string propertyName)");
         sb.AppendLine("        {");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(propertyName);");
-        sb.AppendLine($"            if (target is not {interfaceIdentifier} typedTarget)");
+        sb.AppendLine($"            if (target is not {interfaceTypeName} typedTarget)");
         sb.AppendLine("                return null;");
         sb.AppendLine();
         sb.AppendLine("            switch (propertyName)");
@@ -157,10 +160,10 @@ public partial class DBusSourceGenerator
         sb.AppendLine("            }");
         sb.AppendLine("        }");
         sb.AppendLine();
-        sb.AppendLine("        private static bool TrySetProperty(object target, string propertyName, object propertyValue)");
+        sb.AppendLine("        internal static bool TrySetProperty(object target, string propertyName, object propertyValue)");
         sb.AppendLine("        {");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(propertyName);");
-        sb.AppendLine($"            if (target is not {interfaceIdentifier} typedTarget)");
+        sb.AppendLine($"            if (target is not {interfaceTypeName} typedTarget)");
         sb.AppendLine("                return false;");
         sb.AppendLine("            if (propertyValue is not DBusVariant value)");
         sb.AppendLine("                return false;");
@@ -182,10 +185,10 @@ public partial class DBusSourceGenerator
         sb.AppendLine("            }");
         sb.AppendLine("        }");
         sb.AppendLine();
-        sb.AppendLine("        private static IReadOnlyDictionary<string, DBusVariant> GetAllProperties(object target)");
+        sb.AppendLine("        internal static IReadOnlyDictionary<string, DBusVariant> GetAllProperties(object target)");
         sb.AppendLine("        {");
         sb.AppendLine("            var values = new Dictionary<string, DBusVariant>(StringComparer.Ordinal);");
-        sb.AppendLine($"            if (target is not {interfaceIdentifier} typedTarget)");
+        sb.AppendLine($"            if (target is not {interfaceTypeName} typedTarget)");
         sb.AppendLine("                return values;");
         foreach (var property in properties.Where(static p => p.Access is null or "read" or "readwrite"))
         {
@@ -197,19 +200,6 @@ public partial class DBusSourceGenerator
 
         sb.AppendLine("            return values;");
         sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        internal static void Register()");
-        sb.AppendLine("        {");
-        sb.AppendLine("            DBusInteropMetadataRegistry.Register(");
-        sb.AppendLine("                new DBusInteropMetadata");
-        sb.AppendLine("                {");
-        sb.AppendLine($"                    ClrType = typeof({interfaceIdentifier}),");
-        sb.AppendLine("                    InterfaceName = InterfaceName,");
-        sb.AppendLine("                    CreateCallDispatcher = static _ => s_dispatcher,");
-        sb.AppendLine("                    TrySetProperty = TrySetProperty,");
-        sb.AppendLine("                    GetAllPropertiesFactory = GetAllProperties");
-        sb.AppendLine("                });");
-        sb.AppendLine("        }");
         sb.AppendLine("    }");
 
         sb.AppendLine("}");
@@ -220,7 +210,7 @@ public partial class DBusSourceGenerator
 
     private static string GetHandlerDispatcherIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}Dispatcher";
 
-    private static string GetHandlerRegistrationHelperIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}HandlerRegistration";
+    private static string GetHandlerRegistrationHelperIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}HandlerMetadata";
 
     private static string GetInterfaceMethodIdentifier(DBusMethod method)
         => $"{Pascalize(method.Name!.AsSpan())}Async";

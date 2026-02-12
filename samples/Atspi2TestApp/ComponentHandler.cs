@@ -1,4 +1,4 @@
-using Avalonia.DBus.SourceGen;
+using Atspi2TestApp.DBusXml;
 using static Atspi2TestApp.Program;
 
 namespace Atspi2TestApp;

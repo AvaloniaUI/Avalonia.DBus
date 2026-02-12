@@ -15,6 +15,8 @@ namespace Avalonia.DBus.SourceGen;
 [Generator]
 public partial class DBusSourceGenerator : IIncrementalGenerator
 {
+    private const string PrivateImplementationNamespace = "Avalonia.DBus.SourceGen.PrivateImplementationDoNoTouch";
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         XmlSerializer xmlSerializer = new(typeof(DBusNode));
@@ -26,12 +28,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             IgnoreComments = true
         };
 
-        context.RegisterPostInitializationOutput(initializationContext =>
-        {
-            initializationContext.AddSource("Avalonia.DBus.SourceGen.PropertyChanges.cs", PropertyChangesClass);
-        });
-
-        IncrementalValuesProvider<(DBusNode, string, string)> generatorProvider = context.AdditionalTextsProvider
+        IncrementalValuesProvider<(DBusNode, string, string, string)> generatorProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select((x, _) =>
@@ -43,14 +40,20 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     if (xmlSerializer.Deserialize(XmlReader.Create(new StringReader(x.Left.GetText()!.ToString()), xmlReaderSettings)) is not DBusNode dBusNode)
                         return default;
 
-                    return dBusNode.Interfaces is null ? default : ValueTuple.Create(dBusNode, generatorMode, x.Left.Path);
+                    if (dBusNode.Interfaces is null)
+                        return default;
+
+                    x.Right.GlobalOptions.TryGetValue("build_property.ProjectDir", out var projectDir);
+                    x.Right.GlobalOptions.TryGetValue("build_property.RootNamespace", out var rootNamespace);
+                    var userFacingNamespace = GetUserFacingNamespace(x.Left.Path, projectDir, rootNamespace);
+                    return ValueTuple.Create(dBusNode, generatorMode, x.Left.Path, userFacingNamespace);
                 }
                 catch
                 {
                     return default;
                 }
             })
-            .Where(static x => x is { Item1: not null, Item2: not null, Item3: not null });
+            .Where(static x => x is { Item1: not null, Item2: not null, Item3: not null, Item4: not null });
 
         var xmlTextProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
@@ -90,35 +93,39 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 }
             }
 
-            var interfaces = provider.Select(static value => value.Item1).SelectMany(static node => node.Interfaces!);
-            var dBusInterfaces = interfaces as DBusInterface[] ?? interfaces.ToArray();
+            var interfaceContexts = provider
+                .SelectMany(value => value.Item1.Interfaces!.Select(dBusInterface => (Interface: dBusInterface, UserFacingNamespace: value.Item4)))
+                .ToArray();
+            var dBusInterfaces = interfaceContexts.Select(static context => context.Interface).ToArray();
             var structAliases = CollectStructAliases(dBusInterfaces);
             ApplyStructAliases(dBusInterfaces, structAliases);
 
             var structMetadata = LoadStructDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
-            var structDefinitions = CollectStructDefinitions(dBusInterfaces, structMetadata);
-            if (structDefinitions.Count > 0)
+            foreach (var group in interfaceContexts.GroupBy(static context => context.UserFacingNamespace, StringComparer.Ordinal))
             {
+                var structDefinitions = CollectStructDefinitions(group.Select(static context => context.Interface), structMetadata);
+                if (structDefinitions.Count == 0)
+                    continue;
+
                 productionContext.AddSource(
-                    "Avalonia.DBus.SourceGen.DBusStructs.g.cs",
-                    BuildStructsSource(structDefinitions.Values));
+                    $"{GetHintPrefix(group.Key)}.DBusStructs.g.cs",
+                    BuildStructsSource(structDefinitions.Values, group.Key));
             }
 
-            var (dictionaryAliases, bitFlagsAliases) = CollectTypeAliases(dBusInterfaces);
-
-            if (dictionaryAliases.Count > 0 || bitFlagsAliases.Count > 0)
+            var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
+            foreach (var group in interfaceContexts.GroupBy(static context => context.UserFacingNamespace, StringComparer.Ordinal))
             {
-                var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
-                var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions);
+                var (dictionaryAliases, bitFlagsAliases) = CollectTypeAliases(group.Select(static context => context.Interface));
+                var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions, group.Key);
                 if (!string.IsNullOrWhiteSpace(aliasesSource))
                 {
-                    productionContext.AddSource("Avalonia.DBus.SourceGen.DBusTypeAliases.g.cs", aliasesSource);
+                    productionContext.AddSource($"{GetHintPrefix(group.Key)}.DBusTypeAliases.g.cs", aliasesSource);
                 }
             }
 
             var proxyRegistrations = new Dictionary<string, ProxyRegistration>(StringComparer.Ordinal);
             var handlerRegistrations = new Dictionary<string, HandlerRegistration>(StringComparer.Ordinal);
-            foreach ((DBusNode Node, string GeneratorMode, string Path) value in provider)
+            foreach ((DBusNode Node, string GeneratorMode, string Path, string UserFacingNamespace) value in provider)
             {
                 switch (value.GeneratorMode)
                 {
@@ -127,24 +134,30 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                         {
                             TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface);
                             var namespaceDeclaration = NamespaceDeclaration(
-                                    IdentifierName("Avalonia.DBus.SourceGen"))
+                                    ParseName(value.UserFacingNamespace))
                                 .AddMembers(typeDeclarationSyntax);
                             var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
-                            productionContext.AddSource($"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs", compilationUnit.GetText(Encoding.UTF8));
+                            productionContext.AddSource(
+                                $"{GetHintPrefix(value.UserFacingNamespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs",
+                                compilationUnit.GetText(Encoding.UTF8));
                             var proxyIdentifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
-                            proxyRegistrations[proxyIdentifier] = new ProxyRegistration(proxyIdentifier, dBusInterface.Name!);
+                            var proxyTypeName = GetGlobalQualifiedTypeName(value.UserFacingNamespace, proxyIdentifier);
+                            proxyRegistrations[proxyTypeName] = new ProxyRegistration(proxyTypeName, dBusInterface.Name!);
                         }
 
                         break;
                     case "Handler":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            var source = BuildHandlerSource(dBusInterface);
+                            var source = BuildHandlerSource(dBusInterface, value.UserFacingNamespace);
                             productionContext.AddSource(
-                                $"Avalonia.DBus.SourceGen.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs",
+                                $"{GetHintPrefix(value.UserFacingNamespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs",
                                 source);
                             var handlerHelperIdentifier = GetHandlerRegistrationHelperIdentifier(dBusInterface);
-                            handlerRegistrations[handlerHelperIdentifier] = new HandlerRegistration(handlerHelperIdentifier);
+                            var handlerInterfaceIdentifier = GetHandlerInterfaceIdentifier(dBusInterface);
+                            var helperTypeName = GetGlobalQualifiedTypeName(PrivateImplementationNamespace, handlerHelperIdentifier);
+                            var interfaceTypeName = GetGlobalQualifiedTypeName(value.UserFacingNamespace, handlerInterfaceIdentifier);
+                            handlerRegistrations[helperTypeName] = new HandlerRegistration(interfaceTypeName, helperTypeName);
                         }
 
                         break;

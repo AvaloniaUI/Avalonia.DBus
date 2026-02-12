@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -8,6 +11,106 @@ namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
 {
+    private static string GetUserFacingNamespace(string xmlPath, string? projectDir, string? rootNamespace)
+    {
+        var xmlDirectory = Path.GetDirectoryName(xmlPath);
+        if (string.IsNullOrWhiteSpace(xmlDirectory))
+            return NormalizeNamespace(rootNamespace, "Generated");
+
+        var relativeDirectory = string.IsNullOrWhiteSpace(projectDir)
+            ? Path.GetFileName(xmlDirectory)
+            : MakeRelativePath(projectDir!, xmlDirectory);
+
+        if (string.IsNullOrWhiteSpace(relativeDirectory) || relativeDirectory == ".")
+            return NormalizeNamespace(rootNamespace, "Generated");
+
+        var segments = relativeDirectory
+            .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+            .Select(SanitizeNamespaceSegment)
+            .Where(static segment => !string.IsNullOrWhiteSpace(segment))
+            .ToArray();
+
+        var directoryNamespace = segments.Length == 0 ? "Generated" : string.Join(".", segments);
+        return NormalizeNamespace(rootNamespace, directoryNamespace);
+    }
+
+    private static string GetHintPrefix(string ns)
+        => string.Join("_", ns.Split('.').Select(SanitizeNamespaceSegment));
+
+    private static string GetGlobalQualifiedTypeName(string ns, string typeName)
+        => $"global::{ns}.{typeName}";
+
+    private static string MakeRelativePath(string basePath, string targetPath)
+    {
+        try
+        {
+            var normalizedBasePath = EnsureTrailingSeparator(basePath);
+            var normalizedTargetPath = EnsureTrailingSeparator(targetPath);
+            var baseUri = new Uri(normalizedBasePath, UriKind.Absolute);
+            var targetUri = new Uri(normalizedTargetPath, UriKind.Absolute);
+            var relativeUri = baseUri.MakeRelativeUri(targetUri);
+            return Uri.UnescapeDataString(relativeUri.ToString())
+                .Replace('/', Path.DirectorySeparatorChar);
+        }
+        catch
+        {
+            return Path.GetFileName(targetPath) ?? string.Empty;
+        }
+    }
+
+    private static string EnsureTrailingSeparator(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return path;
+
+        var lastIndex = path.Length - 1;
+        if (path[lastIndex] == Path.DirectorySeparatorChar || path[lastIndex] == Path.AltDirectorySeparatorChar)
+            return path;
+
+        return path + Path.DirectorySeparatorChar;
+    }
+
+    private static string SanitizeNamespaceSegment(string segment)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
+            return string.Empty;
+
+        var filtered = new string(segment.Select(static ch => char.IsLetterOrDigit(ch) || ch == '_' ? ch : '_').ToArray());
+        if (string.IsNullOrWhiteSpace(filtered))
+            return "_";
+
+        if (!char.IsLetter(filtered[0]) && filtered[0] != '_')
+            filtered = "_" + filtered;
+
+        var keywordKind = SyntaxFacts.GetKeywordKind(filtered);
+        var contextualKind = SyntaxFacts.GetContextualKeywordKind(filtered);
+        return keywordKind != SyntaxKind.None || contextualKind != SyntaxKind.None
+            ? filtered + "_"
+            : filtered;
+    }
+
+    private static string NormalizeNamespace(string? rootNamespace, string suffixNamespace)
+    {
+        var rootSegments = string.IsNullOrWhiteSpace(rootNamespace)
+            ? Array.Empty<string>()
+            : rootNamespace!
+                .Split('.')
+                .Select(SanitizeNamespaceSegment)
+                .Where(static segment => !string.IsNullOrWhiteSpace(segment))
+                .ToArray();
+
+        var suffixSegments = string.IsNullOrWhiteSpace(suffixNamespace)
+            ? Array.Empty<string>()
+            : suffixNamespace
+                .Split('.')
+                .Select(SanitizeNamespaceSegment)
+                .Where(static segment => !string.IsNullOrWhiteSpace(segment))
+                .ToArray();
+
+        var allSegments = rootSegments.Concat(suffixSegments).ToArray();
+        return allSegments.Length == 0 ? "Generated" : string.Join(".", allSegments);
+    }
+
     private static CompilationUnitSyntax MakeCompilationUnit(NamespaceDeclarationSyntax namespaceDeclaration) =>
         CompilationUnit()
             .AddUsings(
@@ -24,7 +127,9 @@ public partial class DBusSourceGenerator
                 UsingDirective(
                     IdentifierName("System.Xml")),
                 UsingDirective(
-                    IdentifierName("Avalonia.DBus")))
+                    IdentifierName("Avalonia.DBus")),
+                UsingDirective(
+                    ParseName(PrivateImplementationNamespace)))
             .WithLeadingTrivia(
                 Comment("// <auto-generated>"))
             .AddMembers(namespaceDeclaration

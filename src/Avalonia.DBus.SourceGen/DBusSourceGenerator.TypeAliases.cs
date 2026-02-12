@@ -289,7 +289,8 @@ public partial class DBusSourceGenerator
     private static string BuildTypeAliasesSource(
         IReadOnlyDictionary<string, DBusDotnetType> dictionaryAliases,
         IReadOnlyDictionary<string, DBusDotnetType> bitFlagsAliases,
-        IReadOnlyDictionary<string, AvBitFlagsDefinition> bitFlagDefinitions)
+        IReadOnlyDictionary<string, AvBitFlagsDefinition> bitFlagDefinitions,
+        string userFacingNamespace)
     {
         if (dictionaryAliases.Count == 0 && bitFlagsAliases.Count == 0)
             return string.Empty;
@@ -300,9 +301,8 @@ public partial class DBusSourceGenerator
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using Avalonia.DBus;");
         sb.AppendLine();
-        sb.AppendLine("#pragma warning disable");
         sb.AppendLine("#nullable enable");
-        sb.AppendLine("namespace Avalonia.DBus.SourceGen");
+        sb.AppendLine($"namespace {userFacingNamespace}");
         sb.AppendLine("{");
 
         foreach (var alias in dictionaryAliases.OrderBy(static entry => entry.Key, StringComparer.Ordinal))
@@ -310,7 +310,7 @@ public partial class DBusSourceGenerator
             var aliasName = SanitizeIdentifier(alias.Key);
             var keyType = GetTypeName(alias.Value.InnerTypes[0]);
             var valueType = GetTypeName(alias.Value.InnerTypes[1]);
-            sb.AppendLine($"    internal sealed class {aliasName} : Dictionary<{keyType}, {valueType}>");
+            sb.AppendLine($"    public sealed class {aliasName} : Dictionary<{keyType}, {valueType}>");
             sb.AppendLine("    {");
             sb.AppendLine($"        public {aliasName}()");
             sb.AppendLine("        {");
@@ -329,7 +329,7 @@ public partial class DBusSourceGenerator
             var aliasName = SanitizeIdentifier(alias.Key);
             var underlyingType = GetUnderlyingTypeName(alias.Value);
             sb.AppendLine("    [Flags]");
-            sb.AppendLine($"    internal enum {aliasName} : {underlyingType}");
+            sb.AppendLine($"    public enum {aliasName} : {underlyingType}");
             sb.AppendLine("    {");
 
             if (bitFlagDefinitions.TryGetValue(alias.Key, out var definition))
