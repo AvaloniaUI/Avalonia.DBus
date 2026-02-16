@@ -15,6 +15,7 @@ internal sealed class AtspiServer
     internal static readonly List<AtSpiRelationEntry> EmptyRelations = [];
 
     private readonly AtspiTree _tree;
+    private readonly IDBusDiagnostics? _diagnostics;
     private readonly Dictionary<int, string> _roleNames = new();
     private readonly object _treeGate = new(); 
     private readonly object _eventGate = new();
@@ -224,7 +225,7 @@ internal sealed class AtspiServer
         try
         {
             LogVerbose("Connecting to session bus for org.a11y.Bus");
-            await using var connection = await DBusConnection.ConnectSessionAsync();
+            await using var connection = await DBusConnection.ConnectSessionAsync(_diagnostics);
             var proxy = new OrgA11yBusProxy(connection, BusNameA11y, new DBusObjectPath(PathA11y));
             LogVerbose("Calling org.a11y.Bus.GetAddress");
             return await proxy.GetAddressAsync();

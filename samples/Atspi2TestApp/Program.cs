@@ -94,8 +94,9 @@ internal static class Program
 
     public static async Task Main(string[] args)
     {
+        var diagnostics = new DBusConsoleDiagnostics();
         var tree = new AtspiTree();
-        var server = new AtspiServer(tree);
+        var server = new AtspiServer(tree, diagnostics);
         Environment.ExitCode = await server.RunAsync();
     }
 
