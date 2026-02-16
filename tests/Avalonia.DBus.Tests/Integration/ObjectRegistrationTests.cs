@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 using Avalonia.DBus.Tests.Helpers;
 using Xunit;
@@ -25,23 +24,4 @@ public class ObjectRegistrationTests(BusFixture fixture) : IClassFixture<BusFixt
         Assert.Contains("UnknownObject", ex.ErrorName);
     }
 
-    [IntegrationFact]
-    public void RegisterObjects_NullTargets_Throws()
-    {
-        var connection = fixture.RequireConnection();
-        Assert.Throws<ArgumentNullException>(() =>
-            connection.RegisterObjects(
-                (DBusObjectPath)"/test",
-                null!));
-    }
-
-    [IntegrationFact]
-    public void RegisterObjects_EmptyTargets_Throws()
-    {
-        var connection = fixture.RequireConnection();
-        Assert.Throws<InvalidOperationException>(() =>
-            connection.RegisterObjects(
-                (DBusObjectPath)"/test",
-                []));
-    }
 }

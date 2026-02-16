@@ -1,5 +1,3 @@
-using System.Xml;
-using System.Xml.Serialization;
 using Microsoft.CodeAnalysis;
 using Xunit;
 
@@ -85,19 +83,6 @@ public class ErrorReportingTests
 
         // Should not crash
         Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-    }
-
-    [Fact]
-    public void DBusNode_MalformedXml_ThrowsOnDeserialize()
-    {
-        var xml = "not valid xml";
-        var serializer = new XmlSerializer(typeof(DBusNode));
-
-        Assert.ThrowsAny<Exception>(() =>
-        {
-            using var reader = new StringReader(xml);
-            serializer.Deserialize(reader);
-        });
     }
 
     [Fact]

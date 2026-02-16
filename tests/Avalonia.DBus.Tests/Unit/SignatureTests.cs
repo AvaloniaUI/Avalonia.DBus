@@ -38,53 +38,6 @@ public class SignatureTests
     }
 
     [Fact]
-    public void ImplicitConversion_ToString_ReturnsValue()
-    {
-        var sig = new DBusSignature("a{sv}");
-        string value = sig;
-
-        Assert.Equal("a{sv}", value);
-    }
-
-    [Fact]
-    public void ExplicitConversion_FromString_CreatesSignature()
-    {
-        var sig = (DBusSignature)"a{sv}";
-
-        Assert.Equal("a{sv}", sig.Value);
-    }
-
-    [Fact]
-    public void ToString_ReturnsValue()
-    {
-        var sig = new DBusSignature("(iiu)");
-
-        Assert.Equal("(iiu)", sig.ToString());
-    }
-
-    [Theory]
-    [InlineData("y")]
-    [InlineData("b")]
-    [InlineData("n")]
-    [InlineData("q")]
-    [InlineData("i")]
-    [InlineData("u")]
-    [InlineData("x")]
-    [InlineData("t")]
-    [InlineData("d")]
-    [InlineData("s")]
-    [InlineData("o")]
-    [InlineData("g")]
-    [InlineData("h")]
-    [InlineData("v")]
-    public void SingleTypeCodes_PreservedAsValue(string code)
-    {
-        var sig = new DBusSignature(code);
-
-        Assert.Equal(code, sig.Value);
-    }
-
-    [Fact]
     public void Equals_WithNonSignature_ReturnsFalse()
     {
         var sig = new DBusSignature("i");

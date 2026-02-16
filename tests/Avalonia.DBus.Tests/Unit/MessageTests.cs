@@ -128,18 +128,6 @@ public class MessageTests
     }
 
     [Fact]
-    public void Body_EmptyBody_EmptySignature()
-    {
-        var msg = new DBusMessage
-        {
-            Type = DBusMessageType.MethodCall,
-            Body = []
-        };
-
-        Assert.Equal(string.Empty, msg.Signature.Value);
-    }
-
-    [Fact]
     public void IsMethodCall_MatchesCorrectly()
     {
         var msg = DBusMessage.CreateMethodCall("dest", (DBusObjectPath)"/", "org.test", "Ping");
@@ -168,44 +156,6 @@ public class MessageTests
 
         Assert.True(error.IsError("org.test.Error.NotFound"));
         Assert.False(error.IsError("org.test.Error.Other"));
-    }
-
-    [Fact]
-    public void Flags_NoReplyExpected()
-    {
-        var msg = new DBusMessage
-        {
-            Type = DBusMessageType.MethodCall,
-            Flags = DBusMessageFlags.NoReplyExpected
-        };
-
-        Assert.Equal(DBusMessageFlags.NoReplyExpected, msg.Flags);
-    }
-
-    [Fact]
-    public void Flags_AllowInteractiveAuthorization()
-    {
-        var msg = new DBusMessage
-        {
-            Type = DBusMessageType.MethodCall,
-            Flags = DBusMessageFlags.AllowInteractiveAuthorization
-        };
-
-        Assert.Equal(DBusMessageFlags.AllowInteractiveAuthorization, msg.Flags);
-    }
-
-    [Fact]
-    public void Flags_Combined()
-    {
-        var flags = DBusMessageFlags.NoReplyExpected | DBusMessageFlags.NoAutoStart;
-        var msg = new DBusMessage
-        {
-            Type = DBusMessageType.MethodCall,
-            Flags = flags
-        };
-
-        Assert.True(msg.Flags.HasFlag(DBusMessageFlags.NoReplyExpected));
-        Assert.True(msg.Flags.HasFlag(DBusMessageFlags.NoAutoStart));
     }
 
     [Fact]

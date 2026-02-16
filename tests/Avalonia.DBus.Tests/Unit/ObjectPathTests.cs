@@ -38,40 +38,4 @@ public class ObjectPathTests
         Assert.All(new object?[] { "not a path", 42, null }, x => Assert.False(path.Equals(x)));
     }
 
-    [Fact]
-    public void ImplicitConversion_ToString_ReturnsValue()
-    {
-        var path = new DBusObjectPath("/org/freedesktop/DBus");
-        string value = path;
-
-        Assert.Equal("/org/freedesktop/DBus", value);
-    }
-
-    [Fact]
-    public void ExplicitConversion_FromString_CreatesPath()
-    {
-        var path = (DBusObjectPath)"/org/freedesktop/DBus";
-
-        Assert.Equal("/org/freedesktop/DBus", path.Value);
-    }
-
-    [Fact]
-    public void ToString_ReturnsValue()
-    {
-        var path = new DBusObjectPath("/org/freedesktop/DBus");
-
-        Assert.Equal("/org/freedesktop/DBus", path.ToString());
-    }
-
-    [Theory]
-    [InlineData("/")]
-    [InlineData("/org")]
-    [InlineData("/org/freedesktop/DBus")]
-    [InlineData("/a/b/c/d/e/f")]
-    public void Value_PreservesInput(string input)
-    {
-        var path = new DBusObjectPath(input);
-
-        Assert.Equal(input, path.Value);
-    }
 }

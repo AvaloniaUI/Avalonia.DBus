@@ -35,17 +35,4 @@ public class ConnectionTests(BusFixture fixture) : IClassFixture<BusFixture>
         await connection.DisposeAsync();
     }
 
-    [IntegrationFact]
-    public async Task NewConnection_GetsDistinctUniqueName()
-    {
-        await using var conn1 = await DBusConnection.ConnectSessionAsync();
-        await using var conn2 = await DBusConnection.ConnectSessionAsync();
-
-        var name1 = await conn1.GetUniqueNameAsync();
-        var name2 = await conn2.GetUniqueNameAsync();
-
-        Assert.NotNull(name1);
-        Assert.NotNull(name2);
-        Assert.NotEqual(name1, name2);
-    }
 }

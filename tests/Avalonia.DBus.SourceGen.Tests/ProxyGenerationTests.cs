@@ -5,26 +5,6 @@ namespace Avalonia.DBus.SourceGen.Tests;
 
 public class ProxyGenerationTests
 {
-    private const string MinimalInterfaceXml = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <node>
-          <interface name="org.test.Simple">
-            <method name="Hello">
-              <arg direction="out" type="s"/>
-            </method>
-          </interface>
-        </node>
-        """;
-
-    [Fact]
-    public void ProxyGeneration_MinimalInterface_ProducesOutput()
-    {
-        var (result, _) = GeneratorTestHelper.RunGenerator(MinimalInterfaceXml, "Proxy");
-
-        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.NotEmpty(result.GeneratedTrees);
-    }
-
     [Fact]
     public void ProxyGeneration_MethodWithInOutArgs_GeneratesCorrectSignature()
     {

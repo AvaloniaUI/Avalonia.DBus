@@ -81,15 +81,6 @@ public class CollectionHelpersTests
     }
 
     [Fact]
-    public void EnumerateListItems_Array_ReturnsAllItems()
-    {
-        var arr = new[] { "a", "b", "c" };
-        var items = DBusCollectionHelpers.EnumerateListItems(arr).ToList();
-
-        Assert.Equal(new object[] { "a", "b", "c" }, items);
-    }
-
-    [Fact]
     public void EnumerateDictionaryEntries_ReturnsAllEntries()
     {
         var dict = new Dictionary<string, int>

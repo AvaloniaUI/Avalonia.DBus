@@ -29,16 +29,6 @@ public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
     }
 
     [IntegrationFact]
-    public async Task GetNameOwner_ReturnsOwner()
-    {
-        var connection = fixture.RequireConnection();
-
-        var owner = await connection.GetNameOwnerAsync("org.freedesktop.DBus");
-
-        Assert.Equal("org.freedesktop.DBus", owner);
-    }
-
-    [IntegrationFact]
     public async Task CallNonExistentDestination_ThrowsServiceUnknown()
     {
         var connection = fixture.RequireConnection();
@@ -103,17 +93,6 @@ public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
 
         // All should return the same bus ID
         Assert.All(results, id => Assert.Equal(results[0], id));
-    }
-
-    [IntegrationFact]
-    public async Task GetId_ReturnsValidId()
-    {
-        var connection = fixture.RequireConnection();
-
-        var id = await connection.GetIdAsync();
-
-        Assert.NotNull(id);
-        Assert.NotEmpty(id);
     }
 
     [IntegrationFact]

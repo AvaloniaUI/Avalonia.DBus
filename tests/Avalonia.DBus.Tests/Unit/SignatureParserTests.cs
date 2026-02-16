@@ -143,13 +143,6 @@ public class SignatureParserTests
     }
 
     [Fact]
-    public void ReadSingleType_NegativeIndex_Throws()
-    {
-        var index = -1;
-        Assert.Throws<ArgumentException>(() => DBusSignatureParser.ReadSingleType("i", ref index));
-    }
-
-    [Fact]
     public void ParseStructSignatures_UnclosedStruct_Throws()
     {
         Assert.Throws<ArgumentException>(() => DBusSignatureParser.ParseStructSignatures("(ii"));

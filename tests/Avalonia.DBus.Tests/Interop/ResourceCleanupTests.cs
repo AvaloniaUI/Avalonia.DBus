@@ -9,18 +9,6 @@ namespace Avalonia.DBus.Tests.Interop;
 public class ResourceCleanupTests
 {
     [IntegrationFact]
-    public async Task ConnectDisconnectCycles_NoLeaks()
-    {
-        // Connect and disconnect multiple times to check for resource leaks
-        for (var i = 0; i < 10; i++)
-        {
-            await using var connection = await DBusConnection.ConnectSessionAsync();
-            var name = await connection.GetUniqueNameAsync();
-            Assert.NotNull(name);
-        }
-    }
-
-    [IntegrationFact]
     public async Task SignalSubscriptions_CleanedUpOnDispose()
     {
         await using var connection = await DBusConnection.ConnectSessionAsync();

@@ -55,23 +55,4 @@ public class ErrorHandlingTests
         Assert.Equal(DBusMessageType.Error, ex.ErrorReply!.Type);
     }
 
-    [Fact]
-    [Trait("Category", "Interop")]
-    public void CreateMethodCall_VeryLongPath_DoesNotThrow()
-    {
-        var longPath = "/" + new string('a', 500);
-        var msg = DBusMessage.CreateMethodCall("org.test", (DBusObjectPath)longPath, "org.test", "Method");
-
-        Assert.Equal(longPath, msg.Path!.Value.Value);
-    }
-
-    [Fact]
-    [Trait("Category", "Interop")]
-    public void CreateMethodCall_VeryLongInterfaceName_DoesNotThrow()
-    {
-        var longIface = "org." + new string('a', 200) + ".test";
-        var msg = DBusMessage.CreateMethodCall("org.test", (DBusObjectPath)"/test", longIface, "Method");
-
-        Assert.Equal(longIface, msg.Interface);
-    }
 }

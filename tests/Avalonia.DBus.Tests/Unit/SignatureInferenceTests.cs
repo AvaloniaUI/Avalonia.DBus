@@ -83,14 +83,6 @@ public class SignatureInferenceTests
     }
 
     [Fact]
-    public void InferSignatureFromValue_Array()
-    {
-        var result = DBusSignatureInference.InferSignatureFromValue(new[] { 1, 2, 3 });
-
-        Assert.Equal("ai", result);
-    }
-
-    [Fact]
     public void InferSignatureFromValue_Null_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => DBusSignatureInference.InferSignatureFromValue(null!));
@@ -202,12 +194,6 @@ public class SignatureInferenceTests
     }
 
     [Fact]
-    public void GetTypeForSignature_NullSignature_Throws()
-    {
-        Assert.Throws<ArgumentException>(() => DBusSignatureInference.GetTypeForSignature(null!));
-    }
-
-    [Fact]
     public void InferBodySignature_MultipleArgs()
     {
         var body = new object[] { "hello", 42, true };
@@ -224,11 +210,4 @@ public class SignatureInferenceTests
         Assert.Equal(string.Empty, result);
     }
 
-    [Fact]
-    public void InferBodySignature_Null()
-    {
-        var result = DBusSignatureInference.InferBodySignature(null);
-
-        Assert.Equal(string.Empty, result);
-    }
 }

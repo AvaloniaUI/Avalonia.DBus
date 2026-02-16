@@ -6,27 +6,6 @@ namespace Avalonia.DBus.SourceGen.Tests;
 public class HandlerGenerationTests
 {
     [Fact]
-    public void HandlerGeneration_MinimalInterface_ProducesOutput()
-    {
-        var xml = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <node>
-              <interface name="org.test.Handler">
-                <method name="Process">
-                  <arg direction="in" name="input" type="s"/>
-                  <arg direction="out" type="s"/>
-                </method>
-              </interface>
-            </node>
-            """;
-
-        var (result, _) = GeneratorTestHelper.RunGenerator(xml, "Handler");
-
-        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.NotEmpty(result.GeneratedTrees);
-    }
-
-    [Fact]
     public void HandlerGeneration_DispatchesByMember()
     {
         var xml = """

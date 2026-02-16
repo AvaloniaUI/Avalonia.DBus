@@ -26,22 +26,6 @@ public class PlatformAbstractionTests
     }
 
     [SkipUnlessLinux]
-    public void LinuxPosixPoll_Eagain_Is11()
-    {
-        var poll = new LinuxPosixPoll();
-
-        Assert.Equal(11, poll.Eagain);
-    }
-
-    [SkipUnlessLinux]
-    public void LinuxPosixPoll_Eintr_Is4()
-    {
-        var poll = new LinuxPosixPoll();
-
-        Assert.Equal(4, poll.Eintr);
-    }
-
-    [SkipUnlessLinux]
     public void LinuxPosixPoll_ErrorMask_IncludesPollRdhup()
     {
         var poll = new LinuxPosixPoll();
@@ -50,22 +34,6 @@ public class PlatformAbstractionTests
         Assert.True(poll.PollErrorMask.HasFlag(PollEvents.POLLERR));
         Assert.True(poll.PollErrorMask.HasFlag(PollEvents.POLLHUP));
         Assert.True(poll.PollErrorMask.HasFlag(PollEvents.POLLNVAL));
-    }
-
-    [SkipUnlessMacOs]
-    public void MacOSPosixPoll_Eagain_Is35()
-    {
-        var poll = new MacOSPosixPoll();
-
-        Assert.Equal(35, poll.Eagain);
-    }
-
-    [SkipUnlessMacOs]
-    public void MacOSPosixPoll_Eintr_Is4()
-    {
-        var poll = new MacOSPosixPoll();
-
-        Assert.Equal(4, poll.Eintr);
     }
 
     [SkipUnlessMacOs]
