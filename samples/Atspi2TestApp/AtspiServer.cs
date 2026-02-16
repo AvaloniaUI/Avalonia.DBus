@@ -376,7 +376,7 @@ internal sealed class AtspiServer
             await UpdateRegistrySignalSubscriptionsAsync(registryOwner);
 
             _registryOwnerChangedSubscription ??= await _a11yConnection.WatchNameOwnerChangedAsync(
-                (name, oldOwner, newOwner) =>
+                (name, _, newOwner) =>
                 {
                     if (!string.Equals(name, BusNameRegistry, StringComparison.Ordinal))
                     {
