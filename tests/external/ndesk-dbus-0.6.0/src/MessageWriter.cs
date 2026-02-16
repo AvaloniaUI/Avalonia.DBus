@@ -310,10 +310,6 @@ namespace NDesk.DBus
 
 			BusObject bobj = val as BusObject;
 
-			if (bobj == null && val is MarshalByRefObject) {
-				bobj = ((MarshalByRefObject)val).GetLifetimeService () as BusObject;
-			}
-
 			if (bobj == null)
 				throw new Exception ("No object reference to write");
 

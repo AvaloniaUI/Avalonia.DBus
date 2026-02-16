@@ -157,14 +157,14 @@ namespace NDesk.DBus.Transports
 			iov.Base = (IntPtr)(&buf);
 			iov.Length = 1;
 
-			msghdr msg = new msghdr ();
+			MsgHdr msg = new MsgHdr ();
 			msg.msg_iov = &iov;
 			msg.msg_iovlen = 1;
 
-			cmsg cm = new cmsg ();
+			Cmsg cm = new Cmsg ();
 			msg.msg_control = (IntPtr)(&cm);
-			msg.msg_controllen = (uint)sizeof (cmsg);
-			cm.hdr.cmsg_len = (uint)sizeof (cmsg);
+			msg.msg_controllen = (uint)sizeof (Cmsg);
+			cm.hdr.cmsg_len = (uint)sizeof (Cmsg);
 			cm.hdr.cmsg_level = 0xffff; //SOL_SOCKET
 			cm.hdr.cmsg_type = 0x03; //SCM_CREDS
 
@@ -249,7 +249,7 @@ namespace NDesk.DBus.Transports
 	}
 	*/
 
-	unsafe struct msghdr
+	unsafe struct MsgHdr
 	{
 		public IntPtr msg_name; //optional address
 		public uint msg_namelen; //size of address
@@ -260,14 +260,14 @@ namespace NDesk.DBus.Transports
 		public int msg_flags; //flags on received message
 	}
 
-	struct cmsghdr
+	struct CmsgHdr
 	{
 		public uint cmsg_len; //data byte count, including header
 		public int cmsg_level; //originating protocol
 		public int cmsg_type; //protocol-specific type
 	}
 
-	unsafe struct cmsgcred
+	unsafe struct CmsgCred
 	{
 		public int cmcred_pid; //PID of sending process
 		public uint cmcred_uid; //real UID of sending process
@@ -277,10 +277,10 @@ namespace NDesk.DBus.Transports
 		public fixed uint cmcred_groups[16]; //groups, CMGROUP_MAX
 	}
 
-	struct cmsg
+	struct Cmsg
 	{
-		public cmsghdr hdr;
-		public cmsgcred cred;
+		public CmsgHdr hdr;
+		public CmsgCred cred;
 	}
 #endif
 }

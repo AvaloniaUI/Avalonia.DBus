@@ -76,14 +76,14 @@ namespace NDesk.DBus.Authentication
 		public static DateTime UnixToDateTime (long time)
 		{
 			DateTime LocalUnixEpoch = new DateTime (1970, 1, 1);
-			TimeSpan LocalUtcOffset = TimeZone.CurrentTimeZone.GetUtcOffset (DateTime.UtcNow);
+			TimeSpan LocalUtcOffset = TimeZoneInfo.Local.GetUtcOffset (DateTime.UtcNow);
 			return LocalUnixEpoch.AddSeconds ((double) time + LocalUtcOffset.TotalSeconds);
 		}
 
 		public static long DateTimeToUnix (DateTime time)
 		{
 			DateTime LocalUnixEpoch = new DateTime (1970, 1, 1);
-			TimeSpan LocalUtcOffset = TimeZone.CurrentTimeZone.GetUtcOffset (DateTime.UtcNow);
+			TimeSpan LocalUtcOffset = TimeZoneInfo.Local.GetUtcOffset (DateTime.UtcNow);
 			TimeSpan unixTime = time.Subtract (LocalUnixEpoch) - LocalUtcOffset;
 
 			return (long) unixTime.TotalSeconds;
