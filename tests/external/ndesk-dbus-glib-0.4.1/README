@@ -1,0 +1,9 @@
+D-Bus for .NET: GLib integration module
+=======================================
+
+This code provides GLib main loop integration for Managed D-Bus.
+
+See http://www.ndesk.org/DBusSharp
+
+-- 
+Alp Toker <alp@atoker.com>
