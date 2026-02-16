@@ -363,7 +363,7 @@ internal static class Program
     private static bool IsExternallyVisibleType(INamedTypeSymbol t)
     {
         // A nested public type must have all containing types externally visible too.
-        for (INamedTypeSymbol? cur = t; cur is not null; cur = cur.ContainingType)
+        for (var cur = t; cur is not null; cur = cur.ContainingType)
         {
             if (!IsExternallyVisibleAccessibility(cur.DeclaredAccessibility))
                 return false;

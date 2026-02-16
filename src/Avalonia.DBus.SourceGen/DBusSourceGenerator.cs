@@ -38,7 +38,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             IgnoreComments = true
         };
 
-        IncrementalValuesProvider<XmlParseResult> generatorProvider = context.AdditionalTextsProvider
+        var generatorProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select((x, _) =>

@@ -10,3 +10,4 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyCompany("NDesk")]
 [assembly: InternalsVisibleTo("NDesk.DBus.GLib")]
 [assembly: InternalsVisibleTo("NDesk.DBus.Proxies")]
+[assembly: InternalsVisibleTo("NDesk.DBus.Tests")]
