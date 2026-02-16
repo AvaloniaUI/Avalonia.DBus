@@ -105,12 +105,12 @@ internal sealed partial class DbusWireWorker
         DBusError error = default;
         dbus_error_init(&error);
 
-        var connection = dbus_bus_get(busType, &error);
+        var connection = dbus_bus_get_private(busType, &error);
         if (connection == null)
             ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.");
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
-        return new DbusWireWorker(connection, closeOnDispose: false, diagnostics);
+        return new DbusWireWorker(connection, closeOnDispose: true, diagnostics);
     }
 
     internal static unsafe DbusWireWorker OpenAddress(string address, IDBusDiagnostics? diagnostics = null)

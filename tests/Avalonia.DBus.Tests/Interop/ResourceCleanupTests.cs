@@ -1,0 +1,77 @@
+using System;
+using System.Threading.Tasks;
+using Avalonia.DBus.Tests.Helpers;
+using Xunit;
+
+namespace Avalonia.DBus.Tests.Interop;
+
+[Trait("Category", "Interop")]
+public class ResourceCleanupTests
+{
+    [IntegrationFact]
+    public async Task ConnectDisconnectCycles_NoLeaks()
+    {
+        // Connect and disconnect multiple times to check for resource leaks
+        for (var i = 0; i < 10; i++)
+        {
+            await using var connection = await DBusConnection.ConnectSessionAsync();
+            var name = await connection.GetUniqueNameAsync();
+            Assert.NotNull(name);
+        }
+    }
+
+    [IntegrationFact]
+    public async Task SignalSubscriptions_CleanedUpOnDispose()
+    {
+        await using var connection = await DBusConnection.ConnectSessionAsync();
+
+        // Create multiple subscriptions
+        var subs = new System.IDisposable[5];
+        for (var i = 0; i < subs.Length; i++)
+        {
+            subs[i] = await connection.SubscribeAsync(
+                "org.freedesktop.DBus",
+                null,
+                "org.freedesktop.DBus",
+                "NameOwnerChanged",
+                _ => Task.CompletedTask);
+        }
+
+        // Dispose each subscription individually
+        foreach (var sub in subs)
+            sub.Dispose();
+
+        // Connection should still be usable after disposing subscriptions
+        var reply = await connection.CallMethodAsync(
+            "org.freedesktop.DBus",
+            (DBusObjectPath)"/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "GetId");
+
+        Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
+    }
+
+    [IntegrationFact]
+    public async Task ConnectionDispose_CleansUpSubscriptions()
+    {
+        var connection = await DBusConnection.ConnectSessionAsync();
+
+        // Add subscriptions without individually disposing them
+        for (var i = 0; i < 5; i++)
+        {
+            await connection.SubscribeAsync(
+                "org.freedesktop.DBus",
+                null,
+                "org.freedesktop.DBus",
+                "NameOwnerChanged",
+                _ => Task.CompletedTask);
+        }
+
+        // Disposing connection should clean up all subscriptions
+        var disposeTask = connection.DisposeAsync().AsTask();
+        var completed = await Task.WhenAny(disposeTask, Task.Delay(TimeSpan.FromSeconds(10)));
+        if (completed != disposeTask)
+            throw new TimeoutException("Connection disposal timed out.");
+        await disposeTask;
+    }
+}
