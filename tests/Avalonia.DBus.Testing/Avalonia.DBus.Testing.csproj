@@ -4,8 +4,10 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <IsTestProject>false</IsTestProject>
     <IsPackable>false</IsPackable>
     <IsPublishable>false</IsPublishable>
+    <OutputType>Library</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
