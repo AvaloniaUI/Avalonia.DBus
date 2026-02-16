@@ -7,8 +7,9 @@ using Xunit;
 
 namespace Avalonia.DBus.Tests.Interop;
 
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class ConcurrencyTests : IClassFixture<BusFixture>
+public class ConcurrencyTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task MultipleConnections_ConcurrentCalls()
@@ -19,7 +20,7 @@ public class ConcurrencyTests : IClassFixture<BusFixture>
         try
         {
             for (var i = 0; i < connectionCount; i++)
-                connections[i] = await DBusConnection.ConnectSessionAsync();
+                connections[i] = await fixture.CreateConnectionAsync();
 
             var tasks = connections
                 .Select(c => c.GetNameOwnerAsync("org.freedesktop.DBus"))

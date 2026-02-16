@@ -4,8 +4,9 @@ using Xunit;
 
 namespace Avalonia.DBus.Tests.Integration;
 
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Integration")]
-public class ObjectRegistrationTests(BusFixture fixture) : IClassFixture<BusFixture>
+public class ObjectRegistrationTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task CallUnknownObject_ReturnsError()

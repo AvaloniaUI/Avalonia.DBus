@@ -5,13 +5,14 @@ using Xunit;
 
 namespace Avalonia.DBus.Tests.Interop;
 
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class ErrorHandlingTests
+public class ErrorHandlingTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task CallAfterDisposal_ThrowsObjectDisposedException()
     {
-        var connection = await DBusConnection.ConnectSessionAsync();
+        var connection = await fixture.CreateConnectionAsync();
         await connection.DisposeAsync();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
@@ -25,7 +26,7 @@ public class ErrorHandlingTests
     [IntegrationFact]
     public async Task SubscribeAfterDisposal_ThrowsObjectDisposedException()
     {
-        var connection = await DBusConnection.ConnectSessionAsync();
+        var connection = await fixture.CreateConnectionAsync();
         await connection.DisposeAsync();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
@@ -40,7 +41,7 @@ public class ErrorHandlingTests
     [Trait("Category", "Interop")]
     public async Task DBusException_PreservesErrorDetails()
     {
-        await using var connection = await DBusConnection.ConnectSessionAsync();
+        await using var connection = await fixture.CreateConnectionAsync();
 
         var ex = await Assert.ThrowsAsync<DBusException>(async () =>
             await connection.CallMethodAsync(

@@ -6,8 +6,9 @@ using Xunit;
 
 namespace Avalonia.DBus.Tests.Integration;
 
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Integration")]
-public class SignalTests(BusFixture fixture) : IClassFixture<BusFixture>
+public class SignalTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task Subscribe_NameOwnerChanged_ReceivesSignal()

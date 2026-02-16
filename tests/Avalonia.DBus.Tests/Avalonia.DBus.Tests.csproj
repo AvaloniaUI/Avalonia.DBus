@@ -22,4 +22,10 @@
     <ProjectReference Include="../../src/Avalonia.DBus/Avalonia.DBus.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Helpers/test-session.conf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

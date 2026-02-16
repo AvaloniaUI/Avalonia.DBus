@@ -8,8 +8,9 @@ using Xunit;
 
 namespace Avalonia.DBus.Tests.Integration;
 
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Integration")]
-public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
+public class MethodCallTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task Ping_Succeeds()

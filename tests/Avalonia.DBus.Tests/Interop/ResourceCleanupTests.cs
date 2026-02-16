@@ -5,13 +5,14 @@ using Xunit;
 
 namespace Avalonia.DBus.Tests.Interop;
 
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class ResourceCleanupTests
+public class ResourceCleanupTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task SignalSubscriptions_CleanedUpOnDispose()
     {
-        await using var connection = await DBusConnection.ConnectSessionAsync();
+        await using var connection = await fixture.CreateConnectionAsync();
 
         // Create multiple subscriptions
         var subs = new System.IDisposable[5];
@@ -37,7 +38,7 @@ public class ResourceCleanupTests
     [IntegrationFact]
     public async Task ConnectionDispose_CleansUpSubscriptions()
     {
-        var connection = await DBusConnection.ConnectSessionAsync();
+        var connection = await fixture.CreateConnectionAsync();
 
         // Add subscriptions without individually disposing them
         for (var i = 0; i < 5; i++)

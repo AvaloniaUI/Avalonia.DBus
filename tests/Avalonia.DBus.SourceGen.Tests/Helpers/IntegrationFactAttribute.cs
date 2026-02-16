@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace Avalonia.DBus.Tests.Helpers;
+namespace Avalonia.DBus.SourceGen.Tests.Helpers;
 
 /// <summary>
 /// Fact attribute that skips the test if dbus-daemon is not found on the system.

@@ -38,10 +38,5 @@ jobs:
       - name: Run Source Generator Tests
         run: dotnet test tests/Avalonia.DBus.SourceGen.Tests/ --no-build --configuration Release
 
-      - name: Run Tests (Ubuntu)
-        if: runner.os == 'Linux'
-        run: dbus-run-session -- dotnet test tests/Avalonia.DBus.Tests/ --no-build --configuration Release
-
-      - name: Run Tests (macOS)
-        if: runner.os == 'macOS'
+      - name: Run Tests
         run: dotnet test tests/Avalonia.DBus.Tests/ --no-build --configuration Release

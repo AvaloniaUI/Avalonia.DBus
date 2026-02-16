@@ -8,8 +8,9 @@ namespace Avalonia.DBus.Tests.Interop;
 /// Tests type round-trip via the D-Bus daemon. Uses the built-in
 /// OrgFreedesktopDBusProxy and extension methods where possible.
 /// </summary>
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class IdentityEchoTests(BusFixture fixture) : IClassFixture<BusFixture>
+public class IdentityEchoTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task RoundTrip_Boolean_ViaNameHasOwner()

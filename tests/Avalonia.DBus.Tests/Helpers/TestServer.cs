@@ -35,9 +35,9 @@ public sealed class TestServer : IAsyncDisposable
     /// <summary>
     /// Starts a test server on a new session bus connection and claims a unique well-known name.
     /// </summary>
-    public static async Task<TestServer> StartAsync(CancellationToken ct = default)
+    public static async Task<TestServer> StartAsync(string address, CancellationToken ct = default)
     {
-        var connection = await DBusConnection.ConnectSessionAsync(ct);
+        var connection = await DBusConnection.ConnectAsync(address, ct);
         var busName = $"org.avalonia.dbus.test.srv.t{Guid.NewGuid():N}";
 
         var reply = await connection.RequestNameAsync(busName, cancellationToken: ct);

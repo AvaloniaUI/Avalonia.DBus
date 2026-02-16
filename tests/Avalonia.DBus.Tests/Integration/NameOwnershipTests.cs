@@ -6,8 +6,9 @@ using Xunit;
 
 namespace Avalonia.DBus.Tests.Integration;
 
+[Collection(DbusTestCollection.Name)]
 [Trait("Category", "Integration")]
-public class NameOwnershipTests(BusFixture fixture) : IClassFixture<BusFixture>
+public class NameOwnershipTests(BusFixture fixture)
 {
     [IntegrationFact]
     public async Task RequestName_Succeeds()
@@ -68,7 +69,7 @@ public class NameOwnershipTests(BusFixture fixture) : IClassFixture<BusFixture>
         var connection = fixture.RequireConnection();
         var testName = $"org.avalonia.dbus.test.taken.t{Guid.NewGuid():N}";
 
-        await using var otherConn = await DBusConnection.ConnectSessionAsync();
+        await using var otherConn = await fixture.CreateConnectionAsync();
 
         try
         {
