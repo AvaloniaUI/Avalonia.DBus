@@ -6,7 +6,8 @@ internal static class Program
 {
     private static async Task Main()
     {
-        await using var connection = await DBusConnection.ConnectSessionAsync();
+        var diagnostics = new ConsoleDiagnostics();
+        await using var connection = await DBusConnection.ConnectSessionAsync(diagnostics);
 
         // Manual message construction (sent via the public DBusConnection API)
         var reply = await connection.CallMethodAsync(

@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.DBus.Native;
+using Avalonia.DBus.Platform;
 using static Avalonia.DBus.Native.LibDbus;
 using DBusNativeConnection = Avalonia.DBus.Native.DBusConnection;
 using DBusNativeMessage = Avalonia.DBus.Native.DBusMessage;
@@ -59,8 +60,9 @@ internal sealed partial class DbusWireWorker
     private bool _disposed;
     private int _disposeRequested;
     private readonly int _activeWorkerId;
-    private readonly WakeupFd _curWakeupFd = new();
+    private WakeupFd _curWakeupFd = null!;
 
+    private readonly IPosixPoll _poll;
     private readonly bool _closeOnDispose;
     private readonly IDBusDiagnostics? _diagnostics;
 
@@ -69,9 +71,8 @@ internal sealed partial class DbusWireWorker
 
     private unsafe DbusWireWorker(DBusNativeConnection* connection, bool closeOnDispose, IDBusDiagnostics? diagnostics)
     {
-        if (!OperatingSystem.IsLinux())
-            throw new PlatformNotSupportedException("The D-Bus wire connection requires Linux polling.");
-
+        _poll = PosixPollFactory.Create();
+        _curWakeupFd = new WakeupFd(_poll);
         _connection = connection;
         _closeOnDispose = closeOnDispose;
         _diagnostics = diagnostics;
@@ -171,13 +172,11 @@ internal sealed partial class DbusWireWorker
         _workerThread.Start();
     }
 
-    private const PollEvents PollEventsErrorMask =
-        PollEvents.POLLERR | PollEvents.POLLHUP | PollEvents.POLLNVAL | PollEvents.POLLRDHUP;
-
     private unsafe void MainEventLoop()
     {
         try
         {
+            var pollErrorMask = _poll.PollErrorMask;
             while (!_disposed)
             {
                 ProcessQueuedMessages();
@@ -192,7 +191,7 @@ internal sealed partial class DbusWireWorker
                         .Select(x => (x.Key, new PollFd
                         {
                             fd = x.Value.Fd,
-                            events = x.Value.Events | PollEventsErrorMask,
+                            events = x.Value.Events | pollErrorMask,
                             revents = 0
                         }))
                         .ToArray();
@@ -202,7 +201,7 @@ internal sealed partial class DbusWireWorker
                 pollFds1.Add(new PollFd
                 {
                     fd = _curWakeupFd.PollFd,
-                    events = PollEventsErrorMask | PollEvents.POLLIN,
+                    events = pollErrorMask | PollEvents.POLLIN,
                     revents = 0
                 });
 
@@ -501,20 +500,20 @@ internal sealed partial class DbusWireWorker
         return events;
     }
 
-    private static unsafe void DoPoll(PollFd[] activeFds)
+    private unsafe void DoPoll(PollFd[] activeFds)
     {
         fixed (PollFd* awPtr = &activeFds[0])
             while (true)
             {
-                var ret = LinuxPoll.ppoll(awPtr, activeFds.Length, IntPtr.Zero, IntPtr.Zero);
+                var ret = _poll.Poll(awPtr, activeFds.Length);
                 if (ret >= 0)
                     break;
 
                 var errno = Marshal.GetLastPInvokeError();
-                if (errno == LinuxPoll.EINTR)
+                if (errno == _poll.Eintr)
                     continue;
 
-                throw new InvalidOperationException($"ppoll failed with errno {errno}.");
+                throw new InvalidOperationException($"poll failed with errno {errno}.");
             }
     }
 
