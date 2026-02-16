@@ -10,6 +10,7 @@ internal sealed class NodeHandlers(AccessibleNode node)
     public ComponentHandler? ComponentHandler { get; set; }
     public ActionHandler? ActionHandler { get; set; }
     public ValueHandler? ValueHandler { get; set; }
+    public ImageHandler? ImageHandler { get; set; }
     public EventObjectHandler? EventObjectHandler { get; set; }
 
     public IDisposable Register(
@@ -29,6 +30,8 @@ internal sealed class NodeHandlers(AccessibleNode node)
             targets.Add(ActionHandler);
         if (ValueHandler != null)
             targets.Add(ValueHandler);
+        if (ImageHandler != null)
+            targets.Add(ImageHandler);
         if (EventObjectHandler != null)
             targets.Add(EventObjectHandler);
 

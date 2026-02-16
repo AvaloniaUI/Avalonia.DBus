@@ -17,7 +17,7 @@ internal sealed class AtspiServer
     private readonly AtspiTree _tree;
     private readonly IDBusDiagnostics? _diagnostics;
     private readonly Dictionary<int, string> _roleNames = new();
-    private readonly object _treeGate = new(); 
+    private readonly object _treeGate = new();
     private readonly object _eventGate = new();
     private readonly HashSet<string> _registeredEvents = new(StringComparer.Ordinal);
     private readonly object _registryGate = new();
@@ -42,9 +42,10 @@ internal sealed class AtspiServer
     private PosixSignalRegistration? _sigtermRegistration;
     private Timer? _forceExitTimer;
 
-    public AtspiServer(AtspiTree tree)
+    public AtspiServer(AtspiTree tree, IDBusDiagnostics? diagnostics = null)
     {
-        _tree = tree; 
+        _tree = tree;
+        _diagnostics = diagnostics;
         _roleNames[RoleApplication] = "application";
         _roleNames[RoleFrame] = "frame";
         _roleNames[RoleLabel] = "label";
@@ -181,6 +182,12 @@ internal sealed class AtspiServer
                 handlers.ValueHandler = handler;
             }
 
+            if (node.Interfaces.Contains(IfaceImage))
+            {
+                var handler = new ImageHandler(this, node);
+                handlers.ImageHandler = handler;
+            }
+
             handlers.EventObjectHandler = new EventObjectHandler(this, node.Path);
 
             node.Handlers = handlers;
@@ -204,7 +211,7 @@ internal sealed class AtspiServer
         try
         {
             LogVerbose("Opening private accessibility bus connection");
-            _a11yConnection = await DBusConnection.ConnectAsync(address);
+            _a11yConnection = await DBusConnection.ConnectAsync(address, _diagnostics);
             _uniqueName = await _a11yConnection.GetUniqueNameAsync() ?? "";
             LogVerbose($"TryConnect end ({sw.ElapsedMilliseconds} ms)");
             return true;

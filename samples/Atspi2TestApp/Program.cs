@@ -20,6 +20,7 @@ internal static class Program
     internal const string IfaceValue = "org.a11y.atspi.Value";
     internal const string IfaceEventObject = "org.a11y.atspi.Event.Object";
     internal const string IfaceCache = "org.a11y.atspi.Cache";
+    internal const string IfaceImage = "org.a11y.atspi.Image";
 
     internal const string BusNameRegistry = "org.a11y.atspi.Registry";
     internal const string BusNameA11y = "org.a11y.Bus";
@@ -32,6 +33,7 @@ internal static class Program
     internal const uint ValueVersion = 1;
     internal const uint EventObjectVersion = 1;
     internal const uint CacheVersion = 1;
+    internal const uint ImageVersion = 1;
 
     internal const int RoleApplication = 75;
     internal const int RoleFrame = 23;
