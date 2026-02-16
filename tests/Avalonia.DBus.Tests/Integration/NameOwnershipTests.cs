@@ -13,37 +13,17 @@ public class NameOwnershipTests(BusFixture fixture) : IClassFixture<BusFixture>
     public async Task RequestName_Succeeds()
     {
         var connection = fixture.RequireConnection();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var testName = $"org.avalonia.dbus.test.own.t{Guid.NewGuid():N}";
 
         try
         {
-            var reply = await connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "RequestName",
-                cts.Token,
-                testName, 0u);
+            var reply = await connection.RequestNameAsync(testName, cancellationToken: Cts().Token);
 
-            Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
-            Assert.Single(reply.Body);
-            // 1 = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER
-            Assert.Equal(1u, reply.Body[0]);
+            Assert.Equal(DBusRequestNameReply.PrimaryOwner, reply);
         }
         finally
         {
-            try
-            {
-                await connection.CallMethodAsync(
-                    "org.freedesktop.DBus",
-                    (DBusObjectPath)"/org/freedesktop/DBus",
-                    "org.freedesktop.DBus",
-                    "ReleaseName",
-                    cts.Token,
-                    testName);
-            }
-            catch { }
+            await TryRelease(connection, testName);
         }
     }
 
@@ -51,43 +31,20 @@ public class NameOwnershipTests(BusFixture fixture) : IClassFixture<BusFixture>
     public async Task RequestName_GetNameOwner_Confirms()
     {
         var connection = fixture.RequireConnection();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var testName = $"org.avalonia.dbus.test.getowner.t{Guid.NewGuid():N}";
         var myName = await connection.GetUniqueNameAsync();
 
         try
         {
-            await connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "RequestName",
-                cts.Token,
-                testName, 0u);
+            await connection.RequestNameAsync(testName, cancellationToken: Cts().Token);
 
-            var reply = await connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "GetNameOwner",
-                cts.Token,
-                testName);
+            var owner = await connection.GetNameOwnerAsync(testName, Cts().Token);
 
-            Assert.Equal(myName, reply.Body[0]);
+            Assert.Equal(myName, owner);
         }
         finally
         {
-            try
-            {
-                await connection.CallMethodAsync(
-                    "org.freedesktop.DBus",
-                    (DBusObjectPath)"/org/freedesktop/DBus",
-                    "org.freedesktop.DBus",
-                    "ReleaseName",
-                    cts.Token,
-                    testName);
-            }
-            catch { }
+            await TryRelease(connection, testName);
         }
     }
 
@@ -95,36 +52,20 @@ public class NameOwnershipTests(BusFixture fixture) : IClassFixture<BusFixture>
     public async Task ReleaseName_Succeeds()
     {
         var connection = fixture.RequireConnection();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var testName = $"org.avalonia.dbus.test.release.t{Guid.NewGuid():N}";
 
-        await connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "RequestName",
-            cts.Token,
-            testName, 0u);
+        await connection.RequestNameAsync(testName, cancellationToken: Cts().Token);
+        await connection.ReleaseNameAsync(testName, Cts().Token);
 
-        var reply = await connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "ReleaseName",
-            cts.Token,
-            testName);
-
-        Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
-        Assert.Single(reply.Body);
-        // 1 = DBUS_RELEASE_NAME_REPLY_RELEASED
-        Assert.Equal(1u, reply.Body[0]);
+        // After release, name should have no owner
+        var owner = await connection.GetNameOwnerAsync(testName, Cts().Token);
+        Assert.Null(owner);
     }
 
     [IntegrationFact]
-    public async Task RequestName_WhenAlreadyTaken_ReturnsCorrectCode()
+    public async Task RequestName_WhenAlreadyTaken_ReturnsExists()
     {
         var connection = fixture.RequireConnection();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var testName = $"org.avalonia.dbus.test.taken.t{Guid.NewGuid():N}";
 
         await using var otherConn = await DBusConnection.ConnectSessionAsync();
@@ -132,40 +73,27 @@ public class NameOwnershipTests(BusFixture fixture) : IClassFixture<BusFixture>
         try
         {
             // First connection takes the name
-            await otherConn.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "RequestName",
-                cts.Token,
-                testName, 0u);
+            await otherConn.RequestNameAsync(testName, cancellationToken: Cts().Token);
 
-            // Second connection tries to take it with DoNotQueue (4)
-            var reply = await connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "RequestName",
-                cts.Token,
-                testName, 4u); // DBUS_NAME_FLAG_DO_NOT_QUEUE
+            // Second connection tries with DoNotQueue
+            var reply = await connection.RequestNameAsync(
+                testName,
+                DBusRequestNameFlags.DoNotQueue,
+                Cts().Token);
 
-            Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
-            // 3 = DBUS_REQUEST_NAME_REPLY_EXISTS
-            Assert.Equal(3u, reply.Body[0]);
+            Assert.Equal(DBusRequestNameReply.Exists, reply);
         }
         finally
         {
-            try
-            {
-                await otherConn.CallMethodAsync(
-                    "org.freedesktop.DBus",
-                    (DBusObjectPath)"/org/freedesktop/DBus",
-                    "org.freedesktop.DBus",
-                    "ReleaseName",
-                    cts.Token,
-                    testName);
-            }
-            catch { }
+            await TryRelease(otherConn, testName);
         }
+    }
+
+    private static CancellationTokenSource Cts() => new(TimeSpan.FromSeconds(10));
+
+    private static async Task TryRelease(DBusConnection connection, string name)
+    {
+        try { await connection.ReleaseNameAsync(name); }
+        catch { /* best-effort cleanup */ }
     }
 }

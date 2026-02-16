@@ -25,7 +25,7 @@ public class ObjectRegistrationTests(BusFixture fixture) : IClassFixture<BusFixt
         Assert.Contains("UnknownObject", ex.ErrorName);
     }
 
-    [Fact]
+    [IntegrationFact]
     public void RegisterObjects_NullTargets_Throws()
     {
         var connection = fixture.RequireConnection();
@@ -35,7 +35,7 @@ public class ObjectRegistrationTests(BusFixture fixture) : IClassFixture<BusFixt
                 null!));
     }
 
-    [Fact]
+    [IntegrationFact]
     public void RegisterObjects_EmptyTargets_Throws()
     {
         var connection = fixture.RequireConnection();

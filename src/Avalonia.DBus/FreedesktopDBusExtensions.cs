@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,7 +12,7 @@ public static class FreedesktopDBusExtensions
 
     extension(IDBusConnection connection)
     {
-        public OrgFreedesktopDBusProxy CreateFreedesktopDBusProxy()
+        internal OrgFreedesktopDBusProxy CreateFreedesktopDBusProxy()
         {
             ArgumentNullException.ThrowIfNull(connection);
             return new OrgFreedesktopDBusProxy(connection, BusDestination, BusPath);
@@ -59,6 +60,33 @@ public static class FreedesktopDBusExtensions
             {
                 return null;
             }
+        }
+
+        public async Task<bool> NameHasOwnerAsync(string name,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrEmpty(name))
+                throw new ArgumentException("Name is required.", nameof(name));
+
+            return await connection
+                .CreateFreedesktopDBusProxy()
+                .NameHasOwnerAsync(name, cancellationToken);
+        }
+
+        public async Task<List<string>> ListNamesAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return await connection
+                .CreateFreedesktopDBusProxy()
+                .ListNamesAsync(cancellationToken);
+        }
+
+        public async Task<string> GetIdAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return await connection
+                .CreateFreedesktopDBusProxy()
+                .GetIdAsync(cancellationToken);
         }
 
         public Task<IDisposable> WatchNameOwnerChangedAsync(Action<string, string?, string?> handler,

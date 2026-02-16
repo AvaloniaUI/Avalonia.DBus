@@ -43,7 +43,8 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select((x, _) =>
             {
-                if (!x.Right.GetOptions(x.Left).TryGetValue("build_metadata.AdditionalFiles.DBusGeneratorMode", out var generatorMode))
+                if (!x.Right.GetOptions(x.Left).TryGetValue("build_metadata.AdditionalFiles.DBusGeneratorMode", out var generatorMode)
+                    || string.IsNullOrEmpty(generatorMode))
                     return default;
                 try
                 {

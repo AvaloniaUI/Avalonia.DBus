@@ -2,7 +2,6 @@
   <Folder Name="/Samples/">
     <Project Path="samples/Atspi2TestApp/Atspi2TestApp.csproj" />
     <Project Path="samples\SourceGenHelloWorld\SourceGenHelloWorld.csproj" />
-    <Project Path="samples/FreedesktopNameWatchMultiSubscriber/FreedesktopNameWatchMultiSubscriber.csproj" />
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/Avalonia.DBus.Tests/Avalonia.DBus.Tests.csproj" />

@@ -7,7 +7,8 @@ namespace Avalonia.DBus.Tests.Helpers;
 
 /// <summary>
 /// Helper that provides typed echo-like operations using the bus daemon's own
-/// methods. Since registering custom objects requires source-generated handlers,
+/// methods via the built-in OrgFreedesktopDBusProxy and extension methods.
+/// Since registering custom objects requires source-generated handlers,
 /// this helper uses well-known bus methods (GetNameOwner, RequestName, ListNames,
 /// NameHasOwner, etc.) to exercise type round-trips through the wire.
 ///
@@ -36,91 +37,51 @@ public sealed class TestServer : IAsyncDisposable
     /// </summary>
     public static async Task<TestServer> StartAsync(CancellationToken ct = default)
     {
-        var connection = await DBusConnection.ConnectSessionAsync();
+        var connection = await DBusConnection.ConnectSessionAsync(ct);
         var busName = $"org.avalonia.dbus.test.srv.t{Guid.NewGuid():N}";
 
-        var nameReply = await connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "RequestName",
-            ct,
-            busName, 0u);
-
-        var code = (uint)nameReply.Body[0];
-        if (code != 1u)
-            throw new InvalidOperationException($"Failed to acquire bus name '{busName}', reply code: {code}");
-
-        return new TestServer(connection, busName);
+        var reply = await connection.RequestNameAsync(busName, cancellationToken: ct);
+        return reply != DBusRequestNameReply.PrimaryOwner ?
+            throw new InvalidOperationException($"Failed to acquire bus name '{busName}', reply: {reply}") : new TestServer(connection, busName);
     }
 
     /// <summary>
     /// Round-trips a string through GetNameOwner (send string, receive string).
     /// </summary>
-    public async Task<string> EchoStringAsync(string name, CancellationToken ct = default)
+    public Task<string?> EchoStringAsync(string name, CancellationToken ct = default)
     {
-        var reply = await _connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "GetNameOwner",
-            ct,
-            name);
-
-        return (string)reply.Body[0];
+        return _connection.GetNameOwnerAsync(name, ct);
     }
 
     /// <summary>
     /// Round-trips a bool through NameHasOwner (send string, receive bool).
     /// </summary>
-    public async Task<bool> CheckNameExistsAsync(string name, CancellationToken ct = default)
+    public Task<bool> CheckNameExistsAsync(string name, CancellationToken ct = default)
     {
-        var reply = await _connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "NameHasOwner",
-            ct,
-            name);
-
-        return (bool)reply.Body[0];
+        return _connection.NameHasOwnerAsync(name, ct);
     }
 
     /// <summary>
-    /// Round-trips a uint32 through RequestName (send string + uint32, receive uint32).
+    /// Round-trips a uint32 through RequestName (send string + uint32, receive enum).
     /// The name is immediately released afterwards.
     /// </summary>
-    public async Task<uint> EchoUInt32ViaRequestNameAsync(CancellationToken ct = default)
+    public async Task<DBusRequestNameReply> EchoUInt32ViaRequestNameAsync(CancellationToken ct = default)
     {
         var tempName = $"org.avalonia.dbus.test.echo.t{Guid.NewGuid():N}";
 
         try
         {
-            var reply = await _connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "RequestName",
-                ct,
-                tempName, 0u);
-
-            return (uint)reply.Body[0];
+            return await _connection.RequestNameAsync(tempName, cancellationToken: ct);
         }
         finally
         {
             try
             {
-                await _connection.CallMethodAsync(
-                    "org.freedesktop.DBus",
-                    (DBusObjectPath)"/org/freedesktop/DBus",
-                    "org.freedesktop.DBus",
-                    "ReleaseName",
-                    ct,
-                    tempName);
+                await _connection.ReleaseNameAsync(tempName, ct);
             }
             catch
             {
-                // Best-effort cleanup
+                 /* best-effort */
             }
         }
     }
@@ -128,38 +89,20 @@ public sealed class TestServer : IAsyncDisposable
     /// <summary>
     /// Round-trips a string array through ListNames (no args, receive string[]).
     /// </summary>
-    public async Task<IReadOnlyList<string>> ListNamesAsync(CancellationToken ct = default)
+    public Task<List<string>> ListNamesAsync(CancellationToken ct = default)
     {
-        var reply = await _connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "ListNames",
-            ct);
-
-        if (reply.Body[0] is List<string> list)
-            return list;
-        if (reply.Body[0] is string[] array)
-            return array;
-
-        throw new InvalidOperationException($"Unexpected ListNames return type: {reply.Body[0]?.GetType()}");
+        return _connection.ListNamesAsync(ct);
     }
 
     public async ValueTask DisposeAsync()
     {
         try
         {
-            await _connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "ReleaseName",
-                default,
-                _ownedName);
+            await _connection.ReleaseNameAsync(_ownedName);
         }
         catch
         {
-            // Best-effort cleanup
+             /* best-effort */
         }
 
         await _connection.DisposeAsync();

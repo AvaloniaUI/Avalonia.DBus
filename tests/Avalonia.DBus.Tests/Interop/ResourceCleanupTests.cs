@@ -42,13 +42,8 @@ public class ResourceCleanupTests
             sub.Dispose();
 
         // Connection should still be usable after disposing subscriptions
-        var reply = await connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "GetId");
-
-        Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
+        var id = await connection.GetIdAsync();
+        Assert.NotEmpty(id);
     }
 
     [IntegrationFact]

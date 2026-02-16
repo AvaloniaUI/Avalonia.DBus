@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
         var connection = fixture.RequireConnection();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
+        // Ping is on org.freedesktop.DBus.Peer, not on the main interface proxy
         var reply = await connection.CallMethodAsync(
             "org.freedesktop.DBus",
             (DBusObjectPath)"/org/freedesktop/DBus",
@@ -30,19 +32,10 @@ public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
     public async Task GetNameOwner_ReturnsOwner()
     {
         var connection = fixture.RequireConnection();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        var reply = await connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "GetNameOwner",
-            cts.Token,
-            "org.freedesktop.DBus");
+        var owner = await connection.GetNameOwnerAsync("org.freedesktop.DBus");
 
-        Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
-        Assert.Single(reply.Body);
-        Assert.Equal("org.freedesktop.DBus", reply.Body[0]);
+        Assert.Equal("org.freedesktop.DBus", owner);
     }
 
     [IntegrationFact]
@@ -89,12 +82,7 @@ public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "ListNames",
-                cts.Token));
+            await connection.ListNamesAsync(cts.Token));
     }
 
     [IntegrationFact]
@@ -105,40 +93,26 @@ public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
         const int count = 10;
 
         var tasks = Enumerable.Range(0, count)
-            .Select(_ => connection.CallMethodAsync(
-                "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-                "GetId",
-                cts.Token))
+            .Select(_ => connection.GetIdAsync(cts.Token))
             .ToArray();
 
         var results = await Task.WhenAll(tasks);
 
         Assert.Equal(count, results.Length);
-        Assert.All(results, r => Assert.Equal(DBusMessageType.MethodReturn, r.Type));
+        Assert.All(results, id => Assert.NotEmpty(id));
 
         // All should return the same bus ID
-        var firstId = results[0].Body[0];
-        Assert.All(results, r => Assert.Equal(firstId, r.Body[0]));
+        Assert.All(results, id => Assert.Equal(results[0], id));
     }
 
     [IntegrationFact]
     public async Task GetId_ReturnsValidId()
     {
         var connection = fixture.RequireConnection();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        var reply = await connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "GetId",
-            cts.Token);
+        var id = await connection.GetIdAsync();
 
-        Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
-        Assert.Single(reply.Body);
-        var id = Assert.IsType<string>(reply.Body[0]);
+        Assert.NotNull(id);
         Assert.NotEmpty(id);
     }
 
@@ -146,25 +120,10 @@ public class MethodCallTests(BusFixture fixture) : IClassFixture<BusFixture>
     public async Task ListNames_ReturnsArrayContainingBusDaemon()
     {
         var connection = fixture.RequireConnection();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        var reply = await connection.CallMethodAsync(
-            "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
-            "org.freedesktop.DBus",
-            "ListNames",
-            cts.Token);
+        var names = await connection.ListNamesAsync();
 
-        Assert.Equal(DBusMessageType.MethodReturn, reply.Type);
-        Assert.Single(reply.Body);
-
-        // Should contain at least the bus daemon itself
-        var names = reply.Body[0];
         Assert.NotNull(names);
-
-        if (names is System.Collections.Generic.List<string> nameList)
-            Assert.Contains("org.freedesktop.DBus", nameList);
-        else if (names is string[] nameArray)
-            Assert.Contains("org.freedesktop.DBus", nameArray);
+        Assert.Contains("org.freedesktop.DBus", names);
     }
 }
