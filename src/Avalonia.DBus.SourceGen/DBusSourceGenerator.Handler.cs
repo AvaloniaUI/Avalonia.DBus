@@ -56,27 +56,22 @@ public partial class DBusSourceGenerator
         sb.AppendLine("{");
         sb.AppendLine($"    internal sealed class {dispatcherIdentifier} : IDBusInterfaceCallDispatcher");
         sb.AppendLine("    {");
-        sb.AppendLine("        private readonly object _target;");
+        sb.AppendLine($"        internal static {dispatcherIdentifier} Instance {{ get; }} = new();");
         sb.AppendLine();
-        sb.AppendLine($"        internal {dispatcherIdentifier}(object target)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            _target = target ?? throw new ArgumentNullException(nameof(target));");
-        sb.AppendLine("        }");
+        sb.AppendLine($"        private {dispatcherIdentifier}() {{ }}");
         sb.AppendLine();
-        sb.AppendLine("        public async Task<DBusMessage> Handle(IDBusConnection connection, DBusMessage message)");
+        sb.AppendLine("        public async Task<DBusMessage> Handle(IDBusConnection connection, object? target, DBusMessage message)");
         sb.AppendLine("        {");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(message);");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(connection);");
         sb.AppendLine();
-        sb.AppendLine($"            if (_target is not {interfaceTypeName} typedTarget)");
+        sb.AppendLine($"            if (target is not {interfaceTypeName} typedTarget)");
         sb.AppendLine("            {");
         sb.AppendLine($"                return message.CreateError(\"org.freedesktop.DBus.Error.UnknownInterface\", \"Target does not implement interface {dBusInterface.Name}.\");");
         sb.AppendLine("            }");
         sb.AppendLine();
-        sb.AppendLine("            try");
+        sb.AppendLine("            switch (message.Member)");
         sb.AppendLine("            {");
-        sb.AppendLine("                switch (message.Member)");
-        sb.AppendLine("                {");
 
         foreach (var method in methods)
         {
@@ -85,48 +80,62 @@ public partial class DBusSourceGenerator
             var methodIdentifier = GetInterfaceMethodIdentifier(method);
             var callArguments = string.Join(", ", inArgs.Select((argument, index) => GetParameterIdentifier(argument, index)));
 
-            sb.AppendLine($"                    case {SymbolDisplay.FormatLiteral(method.Name!, quote: true)}:");
-            sb.AppendLine("                    {");
+            sb.AppendLine($"                case {SymbolDisplay.FormatLiteral(method.Name!, quote: true)}:");
+            sb.AppendLine("                {");
 
-            for (var i = 0; i < inArgs.Length; i++)
+            // Argument extraction with try/catch → InvalidArgs
+            if (inArgs.Length > 0)
             {
-                var parameterIdentifier = GetParameterIdentifier(inArgs[i], i);
-                var fromDbusExpression = MakeFromDbusValueExpressionString(inArgs[i].DBusDotnetType, $"message.Body[{i}]");
-                sb.AppendLine($"                        var {parameterIdentifier} = {fromDbusExpression};");
+                for (var i = 0; i < inArgs.Length; i++)
+                {
+                    var parameterIdentifier = GetParameterIdentifier(inArgs[i], i);
+                    var typeSyntax = inArgs[i].DBusDotnetType.ToTypeSyntax().ToString();
+                    sb.AppendLine($"                    {typeSyntax} {parameterIdentifier};");
+                }
+
+                sb.AppendLine("                    try");
+                sb.AppendLine("                    {");
+                for (var i = 0; i < inArgs.Length; i++)
+                {
+                    var parameterIdentifier = GetParameterIdentifier(inArgs[i], i);
+                    var fromDbusExpression = MakeFromDbusValueExpressionString(inArgs[i].DBusDotnetType, $"message.Body[{i}]");
+                    sb.AppendLine($"                        {parameterIdentifier} = {fromDbusExpression};");
+                }
+                sb.AppendLine("                    }");
+                sb.AppendLine("                    catch (Exception ex)");
+                sb.AppendLine("                    {");
+                sb.AppendLine("                        return message.CreateError(\"org.freedesktop.DBus.Error.InvalidArgs\", ex.Message);");
+                sb.AppendLine("                    }");
             }
 
+            // User method invocation — exceptions propagate to ObjectHandlerRegistration
             if (outArgs.Length == 0)
             {
-                sb.AppendLine($"                        await typedTarget.{methodIdentifier}({callArguments}).ConfigureAwait(false);");
-                sb.AppendLine("                        return message.CreateReply();");
+                sb.AppendLine($"                    await typedTarget.{methodIdentifier}({callArguments}).ConfigureAwait(false);");
+                sb.AppendLine("                    return message.CreateReply();");
             }
             else
             {
-                sb.AppendLine($"                        var result = await typedTarget.{methodIdentifier}({callArguments}).ConfigureAwait(false);");
+                sb.AppendLine($"                    var result = await typedTarget.{methodIdentifier}({callArguments}).ConfigureAwait(false);");
 
                 if (outArgs.Length == 1)
                 {
                     var toDbusExpression = MakeToDbusValueExpressionString(outArgs[0].DBusDotnetType, "result");
-                    sb.AppendLine($"                        return message.CreateReply({toDbusExpression});");
+                    sb.AppendLine($"                    return message.CreateReply({toDbusExpression});");
                 }
                 else
                 {
                     var replyArgs = string.Join(", ", outArgs.Select((argument, index) =>
                         MakeToDbusValueExpressionString(argument.DBusDotnetType, $"result.Item{index + 1}")));
-                    sb.AppendLine($"                        return message.CreateReply({replyArgs});");
+                    sb.AppendLine($"                    return message.CreateReply({replyArgs});");
                 }
             }
 
-            sb.AppendLine("                    }");
+            sb.AppendLine("                }");
         }
 
-        sb.AppendLine("                    default:");
-        sb.AppendLine("                        return message.CreateError(\"org.freedesktop.DBus.Error.UnknownMethod\", \"Unknown method\");");
-        sb.AppendLine("                }");
-        sb.AppendLine("            }");
-        sb.AppendLine("            catch (Exception ex)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                return message.CreateError(\"org.freedesktop.DBus.Error.InvalidArgs\", ex.Message);");
+        sb.AppendLine("                default:");
+        sb.AppendLine("                    return message.CreateError(\"org.freedesktop.DBus.Error.UnknownMethod\", \"Unknown method\");");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
@@ -135,7 +144,7 @@ public partial class DBusSourceGenerator
         sb.AppendLine($"    internal static class {registrationHelperIdentifier}");
         sb.AppendLine("    {");
         sb.AppendLine($"        internal const string InterfaceName = {interfaceNameLiteral};");
-        sb.AppendLine($"        internal static IDBusInterfaceCallDispatcher CreateHandler(object target) => new {dispatcherIdentifier}(target);");
+        sb.AppendLine($"        internal static IDBusInterfaceCallDispatcher CreateHandler() => {dispatcherIdentifier}.Instance;");
         sb.AppendLine();
         sb.AppendLine("        private static DBusVariant? TryGetProperty(object target, string propertyName)");
         sb.AppendLine("        {");

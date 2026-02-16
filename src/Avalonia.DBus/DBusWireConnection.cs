@@ -25,24 +25,24 @@ internal sealed class DBusWireConnection : IAsyncDisposable
     public static Task<DBusWireConnection> ConnectAsync(
         string address,
         CancellationToken cancellationToken = default)
-        => ConnectAsync(address, loggers: null, cancellationToken);
+        => ConnectAsync(address, diagnostics: null, cancellationToken);
 
     internal static Task<DBusWireConnection> ConnectAsync(
         string address,
-        DBusLogger? loggers,
+        IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(address))
             throw new ArgumentException("Address is required.", nameof(address));
 
         if (string.Equals(address, "session", StringComparison.OrdinalIgnoreCase))
-            return ConnectSessionAsync(loggers, cancellationToken);
+            return ConnectSessionAsync(diagnostics, cancellationToken);
 
         if (string.Equals(address, "system", StringComparison.OrdinalIgnoreCase))
-            return ConnectSystemAsync(loggers, cancellationToken);
+            return ConnectSystemAsync(diagnostics, cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var worker = DbusWireWorker.OpenAddress(address, loggers);
+        var worker = DbusWireWorker.OpenAddress(address, diagnostics);
         return Task.FromResult(new DBusWireConnection(worker));
     }
 
@@ -51,14 +51,14 @@ internal sealed class DBusWireConnection : IAsyncDisposable
     /// </summary>
     public static Task<DBusWireConnection> ConnectSessionAsync(
         CancellationToken cancellationToken = default)
-        => ConnectSessionAsync(loggers: null, cancellationToken);
+        => ConnectSessionAsync(diagnostics: null, cancellationToken);
 
     internal static Task<DBusWireConnection> ConnectSessionAsync(
-        DBusLogger? loggers,
+        IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SESSION, loggers);
+        var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SESSION, diagnostics);
         return Task.FromResult(new DBusWireConnection(worker));
     }
 
@@ -67,14 +67,14 @@ internal sealed class DBusWireConnection : IAsyncDisposable
     /// </summary>
     public static Task<DBusWireConnection> ConnectSystemAsync(
         CancellationToken cancellationToken = default)
-        => ConnectSystemAsync(loggers: null, cancellationToken);
+        => ConnectSystemAsync(diagnostics: null, cancellationToken);
 
     internal static Task<DBusWireConnection> ConnectSystemAsync(
-        DBusLogger? loggers,
+        IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SYSTEM, loggers);
+        var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SYSTEM, diagnostics);
         return Task.FromResult(new DBusWireConnection(worker));
     }
 

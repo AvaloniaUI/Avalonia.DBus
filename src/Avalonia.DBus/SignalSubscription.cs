@@ -16,7 +16,8 @@ internal sealed class SignalSubscription(
     string member,
     Func<DBusMessage, Task> handler,
     SynchronizationContext? context,
-    string matchRule)
+    string matchRule,
+    IDBusDiagnostics? diagnostics)
     : IDisposable
 {
     private bool _disposed;
@@ -53,9 +54,9 @@ internal sealed class SignalSubscription(
             return;
 
         if (context == null)
-            fireAndForget(handler(message));
+            fireAndForget(InvokeHandlerAsync(message));
         else
-            context.Post(_ => fireAndForget(handler(message)), null);
+            context.Post(_ => fireAndForget(InvokeHandlerAsync(message)), null);
     }
 
     public void Dispose()
@@ -70,5 +71,17 @@ internal sealed class SignalSubscription(
         }
 
         removeMatch(matchRule);
+    }
+
+    private async Task InvokeHandlerAsync(DBusMessage message)
+    {
+        try
+        {
+            await handler(message);
+        }
+        catch (Exception ex)
+        {
+            diagnostics?.OnUnobservedException(ex);
+        }
     }
 }

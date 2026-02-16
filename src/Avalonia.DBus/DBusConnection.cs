@@ -13,13 +13,13 @@ public sealed class DBusConnection : IDBusConnection
     private readonly List<SignalSubscription> _subscriptions = [];
     private readonly CancellationTokenSource _dispatchCts = new();
     private readonly Task _dispatchLoop;
-    private readonly DBusLogger _logger;
+    private readonly IDBusDiagnostics? _diagnostics;
     private bool _disposed;
 
-    private DBusConnection(DBusWireConnection wire, DBusLogger? loggers)
+    private DBusConnection(DBusWireConnection wire, IDBusDiagnostics? diagnostics)
     {
         Wire = wire ?? throw new ArgumentNullException(nameof(wire));
-        _logger = loggers ?? DBusLogger.CreateDefault();
+        _diagnostics = diagnostics;
         _dispatchLoop = Task.Run(() => DispatchLoopAsync(_dispatchCts.Token));
     }
 
@@ -31,7 +31,7 @@ public sealed class DBusConnection : IDBusConnection
         CancellationToken cancellationToken = default)
     {
         var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken);
-        return new DBusConnection(wire, loggers: null);
+        return new DBusConnection(wire, diagnostics: null);
     }
 
     /// <summary>
@@ -39,11 +39,11 @@ public sealed class DBusConnection : IDBusConnection
     /// </summary>
     public static async Task<DBusConnection> ConnectAsync(
         string address,
-        DBusLogger? loggers,
+        IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectAsync(address, loggers, cancellationToken);
-        return new DBusConnection(wire, loggers);
+        var wire = await DBusWireConnection.ConnectAsync(address, diagnostics, cancellationToken);
+        return new DBusConnection(wire, diagnostics);
     }
 
     /// <summary>
@@ -53,18 +53,18 @@ public sealed class DBusConnection : IDBusConnection
         CancellationToken cancellationToken = default)
     {
         var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken);
-        return new DBusConnection(wire, loggers: null);
+        return new DBusConnection(wire, diagnostics: null);
     }
 
     /// <summary>
     /// Connects to the session bus.
     /// </summary>
     public static async Task<DBusConnection> ConnectSessionAsync(
-        DBusLogger? loggers,
+        IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSessionAsync(loggers, cancellationToken);
-        return new DBusConnection(wire, loggers);
+        var wire = await DBusWireConnection.ConnectSessionAsync(diagnostics, cancellationToken);
+        return new DBusConnection(wire, diagnostics);
     }
 
     /// <summary>
@@ -74,18 +74,18 @@ public sealed class DBusConnection : IDBusConnection
         CancellationToken cancellationToken = default)
     {
         var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken);
-        return new DBusConnection(wire, loggers: null);
+        return new DBusConnection(wire, diagnostics: null);
     }
 
     /// <summary>
     /// Connects to the system bus.
     /// </summary>
     public static async Task<DBusConnection> ConnectSystemAsync(
-        DBusLogger? loggers,
+        IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSystemAsync(loggers, cancellationToken);
-        return new DBusConnection(wire, loggers);
+        var wire = await DBusWireConnection.ConnectSystemAsync(diagnostics, cancellationToken);
+        return new DBusConnection(wire, diagnostics);
     }
 
     /// <summary>
@@ -141,7 +141,7 @@ public sealed class DBusConnection : IDBusConnection
                 var createHandler = registration.CreateHandler
                                      ?? throw new InvalidOperationException(
                                          $"Generated handler registration for '{registration.InterfaceName}' is missing CreateHandler delegate.");
-                var dispatcher = createHandler(target);
+                var dispatcher = createHandler();
                 if (string.IsNullOrEmpty(registration.InterfaceName))
                     throw new ArgumentException("Interface is required.", nameof(registration.InterfaceName));
 
@@ -155,8 +155,10 @@ public sealed class DBusConnection : IDBusConnection
                     FireAndForget,
                     this,
                     key,
+                    target,
                     dispatcher,
-                    synchronizationContext);
+                    synchronizationContext,
+                    _diagnostics);
 
                 lock (_gate)
                 {
@@ -213,19 +215,19 @@ public sealed class DBusConnection : IDBusConnection
                     FireAndForget,
                     this,
                     key,
+                    target: null,
                     propertiesHandler,
-                    synchronizationContext);
+                    synchronizationContext,
+                    _diagnostics);
 
                 lock (_gate)
                 {
                     ThrowIfDisposed();
 
-                    if (_handlers.ContainsKey(key))
+                    if (!_handlers.TryAdd(key, registrationHandle))
                     {
                         throw new InvalidOperationException("A handler is already registered for this path and interface.");
                     }
-
-                    _handlers.Add(key, registrationHandle);
                 }
 
                 handles.Add(registrationHandle);
@@ -300,7 +302,8 @@ public sealed class DBusConnection : IDBusConnection
             member,
             handler,
             synchronizationContext,
-            matchRule);
+            matchRule,
+            _diagnostics);
         lock (_gate)
         {
             ThrowIfDisposed();
@@ -453,15 +456,7 @@ public sealed class DBusConnection : IDBusConnection
 
     private void LogVerbose(string message)
     {
-        var sink = _logger.Verbose;
-        if (sink == null)
-            return;
-
-#if DEBUG
-        sink($"[DBusConnection {Environment.CurrentManagedThreadId}] {message}");
-#else
-        sink(message);
-#endif
+        _diagnostics?.Log(DBusLogLevel.Verbose, message);
     }
 
     private async Task<DBusMessage> CallBusMethodAsync(
@@ -567,10 +562,14 @@ public sealed class DBusConnection : IDBusConnection
             .Replace("'", "\\'", StringComparison.Ordinal);
     }
 
-    private static void FireAndForget(Task task)
+    private void FireAndForget(Task task)
     {
         _ = task.ContinueWith(
-            t => _ = t.Exception,
+            t =>
+            {
+                if (t.Exception != null)
+                    _diagnostics?.OnUnobservedException(t.Exception);
+            },
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);

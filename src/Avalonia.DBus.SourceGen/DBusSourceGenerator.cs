@@ -16,13 +16,6 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             IgnoreComments = true
         };
 
-        context.RegisterPostInitializationOutput(initializationContext =>
-        {
-            initializationContext.AddSource(
-                "Avalonia.DBus.SourceGen.BuiltInFreedesktopDBus.g.cs",
-                BuiltInFreedesktopDbusSource);
-        });
-
         IncrementalValuesProvider<(DBusNode, string, string, string)> generatorProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
             .Combine(context.AnalyzerConfigOptionsProvider)

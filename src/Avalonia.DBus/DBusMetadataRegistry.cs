@@ -137,7 +137,7 @@ public sealed record DBusInteropMetadata
     public GetAllPropertiesFactory? GetAllPropertiesFactory { get; init; }
 }
 
-public delegate IDBusInterfaceCallDispatcher CreateHandlerFactory(object target);
+public delegate IDBusInterfaceCallDispatcher CreateHandlerFactory();
 
 public delegate IReadOnlyDictionary<string, DBusVariant> GetAllPropertiesFactory(object target);
 

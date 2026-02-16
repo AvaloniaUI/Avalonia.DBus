@@ -15,7 +15,7 @@ internal sealed class BuiltInPropertiesHandler(
 
     public const string InterfaceName = "org.freedesktop.DBus.Properties";
 
-    public Task<DBusMessage> Handle(IDBusConnection _, DBusMessage message)
+    public Task<DBusMessage> Handle(IDBusConnection _, object? __, DBusMessage message)
     {
         try
         {
@@ -26,6 +26,10 @@ internal sealed class BuiltInPropertiesHandler(
                 "Set" => HandleSet(message),
                 _ => Task.FromResult(message.CreateError(ErrorUnknownMethod, "Unknown method"))
             };
+        }
+        catch (DBusException dbusEx)
+        {
+            return Task.FromResult(message.CreateError(dbusEx.ErrorName, dbusEx.Message));
         }
         catch (Exception ex)
         {

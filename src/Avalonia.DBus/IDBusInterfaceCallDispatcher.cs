@@ -4,6 +4,6 @@ namespace Avalonia.DBus;
 
 public interface IDBusInterfaceCallDispatcher
 {
-    Task<DBusMessage> Handle(IDBusConnection connection, DBusMessage message);
+    Task<DBusMessage> Handle(IDBusConnection connection, object? target, DBusMessage message);
 }
  

@@ -13,9 +13,21 @@ public class DBusException : Exception
     public string ErrorName { get; }
 
     /// <summary>
-    /// The original ERROR message.
+    /// The original ERROR message, if available.
     /// </summary>
-    public DBusMessage ErrorReply { get; }
+    public DBusMessage? ErrorReply { get; }
+
+    public DBusException(string errorName, string? message = null)
+        : base(string.IsNullOrEmpty(message) ? errorName : $"{errorName}: {message}")
+    {
+        if (string.IsNullOrEmpty(errorName))
+        {
+            throw new ArgumentException("Error name is required.", nameof(errorName));
+        }
+
+        ErrorName = errorName;
+        ErrorReply = null;
+    }
 
     public DBusException(string errorName, string? message, DBusMessage dbusMessage)
         : base(string.IsNullOrEmpty(message) ? errorName : $"{errorName}: {message}")

@@ -13,8 +13,10 @@ internal sealed class ObjectHandlerRegistration(
     Action<Task> fireAndForget,
     IDBusConnection connection,
     ObjectHandlerKey key,
+    object? target,
     IDBusInterfaceCallDispatcher handler,
-    SynchronizationContext? context)
+    SynchronizationContext? context,
+    IDBusDiagnostics? diagnostics)
     : IDisposable
 {
     private bool _disposed;
@@ -51,12 +53,17 @@ internal sealed class ObjectHandlerRegistration(
         DBusMessage reply;
         try
         {
-            reply = await handler.Handle(connection, message);
+            reply = await handler.Handle(connection, target, message);
             if (reply == null)
                 reply = message.CreateError("org.freedesktop.DBus.Error.Failed", "Handler returned null reply.");
         }
+        catch (DBusException dbusEx)
+        {
+            reply = message.CreateError(dbusEx.ErrorName, dbusEx.Message);
+        }
         catch (Exception ex)
         {
+            diagnostics?.OnUnobservedException(ex);
             reply = message.CreateError("org.freedesktop.DBus.Error.Failed", ex.Message);
         }
 
