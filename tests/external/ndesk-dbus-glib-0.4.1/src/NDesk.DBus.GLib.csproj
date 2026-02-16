@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>NDesk.DBus.GLib</AssemblyName>
+    <RootNamespace>NDesk.DBus.GLib</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ndesk-dbus-0.6.0\src\NDesk.DBus.csproj" />
+  </ItemGroup>
+</Project>

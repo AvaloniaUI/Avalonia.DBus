@@ -8,12 +8,13 @@
 #define HAVE_CMSGCRED
 
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Text;
 
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
-using Mono.Unix;
 using Mono.Unix.Native;
 
 namespace NDesk.DBus.Transports
@@ -57,6 +58,15 @@ namespace NDesk.DBus.Transports
 
 		public int Handle;
 
+		internal static void ThrowLastErrorIfNegative (int result)
+		{
+			if (result >= 0)
+				return;
+
+			int errno = Marshal.GetLastWin32Error ();
+			throw new IOException (new Win32Exception (errno).Message);
+		}
+
 		public UnixSocket (int handle)
 		{
 			this.Handle = handle;
@@ -68,8 +78,7 @@ namespace NDesk.DBus.Transports
 			//AddressFamily family, SocketType type, ProtocolType proto
 
 			int r = socket (AF_UNIX, SOCK_STREAM, 0);
-			//we should get the Exception from UnixMarshal and throw it here for a better stack trace, but the relevant API seems to be private
-			UnixMarshal.ThrowExceptionForLastErrorIf (r);
+			ThrowLastErrorIfNegative (r);
 			Handle = r;
 		}
 
@@ -79,8 +88,7 @@ namespace NDesk.DBus.Transports
 		public void Connect (byte[] remote_end)
 		{
 			int r = connect (Handle, remote_end, (uint)remote_end.Length);
-			//we should get the Exception from UnixMarshal and throw it here for a better stack trace, but the relevant API seems to be private
-			UnixMarshal.ThrowExceptionForLastErrorIf (r);
+			ThrowLastErrorIfNegative (r);
 			connected = true;
 		}
 
@@ -88,13 +96,13 @@ namespace NDesk.DBus.Transports
 		public void Bind (byte[] local_end)
 		{
 			int r = bind (Handle, local_end, (uint)local_end.Length);
-			UnixMarshal.ThrowExceptionForLastErrorIf (r);
+			ThrowLastErrorIfNegative (r);
 		}
 
 		public void Listen (int backlog)
 		{
 			int r = listen (Handle, backlog);
-			UnixMarshal.ThrowExceptionForLastErrorIf (r);
+			ThrowLastErrorIfNegative (r);
 		}
 
 		public UnixSocket Accept ()
@@ -103,7 +111,7 @@ namespace NDesk.DBus.Transports
 			uint addrlen = (uint)addr.Length;
 
 			int r = accept (Handle, addr, ref addrlen);
-			UnixMarshal.ThrowExceptionForLastErrorIf (r);
+			ThrowLastErrorIfNegative (r);
 			//TODO: use the returned addr
 			//TODO: fix probable memory leak here
 			//string str = Encoding.Default.GetString (addr, 0, (int)addrlen);
@@ -133,7 +141,8 @@ namespace NDesk.DBus.Transports
 
 			//socket.Blocking = true;
 			SocketHandle = (long)socket.Handle;
-			Stream = new UnixStream ((int)socket.Handle);
+			var handle = new SafeFileHandle ((IntPtr)socket.Handle, false);
+			Stream = new FileStream (handle, FileAccess.ReadWrite);
 		}
 
 		//send peer credentials null byte
@@ -160,7 +169,7 @@ namespace NDesk.DBus.Transports
 			cm.hdr.cmsg_type = 0x03; //SCM_CREDS
 
 			int written = UnixSocket.sendmsg (socket.Handle, (IntPtr)(&msg), 0);
-			UnixMarshal.ThrowExceptionForLastErrorIf (written);
+			UnixSocket.ThrowLastErrorIfNegative (written);
 			if (written != 1)
 				throw new Exception ("Failed to write credentials");
 		}

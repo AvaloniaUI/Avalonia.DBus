@@ -469,16 +469,10 @@ namespace NDesk.DBus
 			//	return GetObject (bus_name, path);
 
 			//if the requested type is an interface, we can implement it efficiently
-			//otherwise we fall back to using a transparent proxy
 			if (type.IsInterface) {
 				return BusObject.GetObject (this, bus_name, path, type);
 			} else {
-				if (Protocol.Verbose)
-					Console.Error.WriteLine ("Warning: Note that MarshalByRefObject use is not recommended; for best performance, define interfaces");
-
-				BusObject busObject = new BusObject (this, bus_name, path);
-				DProxy prox = new DProxy (busObject, type);
-				return prox.GetTransparentProxy ();
+				throw new NotSupportedException ("Non-interface proxy generation is not supported on .NET 8. Use an interface type with GetObject<T>().");
 			}
 		}
 
