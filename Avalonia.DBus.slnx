@@ -4,6 +4,10 @@
     <Project Path="samples\SourceGenHelloWorld\SourceGenHelloWorld.csproj" />
     <Project Path="samples/FreedesktopNameWatchMultiSubscriber/FreedesktopNameWatchMultiSubscriber.csproj" />
   </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Avalonia.DBus.Tests/Avalonia.DBus.Tests.csproj" />
+    <Project Path="tests/Avalonia.DBus.SourceGen.Tests/Avalonia.DBus.SourceGen.Tests.csproj" />
+  </Folder>
   <Project Path="src/Avalonia.DBus/Avalonia.DBus.csproj" />
   <Project Path="src/Avalonia.DBus.SourceGen/Avalonia.DBus.SourceGen.csproj" />
   <Project Path="tools/Avalonia.DBus.PublicApiExtractor/Avalonia.DBus.PublicApiExtractor.csproj" />

@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -127,22 +126,4 @@ public sealed class OrgFreedesktopDBusProxy(
     {
         return string.IsNullOrWhiteSpace(owner) ? null : owner;
     }
-}
-
-internal static class FreedesktopDBusGeneratedPrivateImplementationDoNotTouch
-{
-#pragma warning disable CA2255
-    [ModuleInitializer]
-    public static void Register()
-    {
-        DBusInteropMetadataRegistry.Register(
-            new DBusInteropMetadata
-            {
-                ClrType = typeof(OrgFreedesktopDBusProxy),
-                InterfaceName = "org.freedesktop.DBus",
-                CreateProxy = static (connection, destination, path, iface) =>
-                    new OrgFreedesktopDBusProxy(connection, destination, path, iface)
-            });
-    }
-#pragma warning restore CA2255
 }

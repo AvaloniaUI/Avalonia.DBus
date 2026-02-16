@@ -86,7 +86,7 @@ public partial class DBusSourceGenerator
     private static string NormalizeNamespace(string? rootNamespace, string suffixNamespace)
     {
         var rootSegments = string.IsNullOrWhiteSpace(rootNamespace)
-            ? Array.Empty<string>()
+            ? []
             : rootNamespace!
                 .Split('.')
                 .Select(SanitizeNamespaceSegment)
@@ -94,7 +94,7 @@ public partial class DBusSourceGenerator
                 .ToArray();
 
         var suffixSegments = string.IsNullOrWhiteSpace(suffixNamespace)
-            ? Array.Empty<string>()
+            ? []
             : suffixNamespace
                 .Split('.')
                 .Select(SanitizeNamespaceSegment)

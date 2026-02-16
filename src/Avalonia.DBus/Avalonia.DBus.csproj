@@ -10,4 +10,8 @@
     <Compile Remove="Avalonia.DBus.AutoGen/obj/**/*.cs;Avalonia.DBus.AutoGen/bin/**/*.cs;waylandisp.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Avalonia.DBus.Tests" />
+  </ItemGroup>
+
 </Project>

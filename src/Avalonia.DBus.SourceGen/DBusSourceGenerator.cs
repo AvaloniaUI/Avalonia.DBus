@@ -5,6 +5,28 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
 {
     private const string PrivateImplementationNamespace = "Avalonia.DBus.SourceGen.PrivateImplementationDoNoTouch";
 
+    private static readonly DiagnosticDescriptor InvalidXmlWarning = new(
+        id: "ADBUS001",
+        title: "Invalid D-Bus XML",
+        messageFormat: "Failed to parse D-Bus XML file '{0}': {1}",
+        category: "Avalonia.DBus",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private readonly struct XmlParseResult(
+        DBusNode? node,
+        string? generatorMode,
+        string? filePath,
+        string? ns,
+        string? parseError)
+    {
+        public readonly DBusNode? Node = node;
+        public readonly string? GeneratorMode = generatorMode;
+        public readonly string? FilePath = filePath;
+        public readonly string? Namespace = ns;
+        public readonly string? ParseError = parseError;
+    }
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         XmlSerializer xmlSerializer = new(typeof(DBusNode));
@@ -16,7 +38,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             IgnoreComments = true
         };
 
-        IncrementalValuesProvider<(DBusNode, string, string, string)> generatorProvider = context.AdditionalTextsProvider
+        IncrementalValuesProvider<XmlParseResult> generatorProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select((x, _) =>
@@ -34,14 +56,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     x.Right.GlobalOptions.TryGetValue("build_property.ProjectDir", out var projectDir);
                     x.Right.GlobalOptions.TryGetValue("build_property.RootNamespace", out var rootNamespace);
                     var userFacingNamespace = GetUserFacingNamespace(x.Left.Path, projectDir, rootNamespace);
-                    return ValueTuple.Create(dBusNode, generatorMode, x.Left.Path, userFacingNamespace);
+                    return new XmlParseResult(dBusNode, generatorMode, x.Left.Path, userFacingNamespace, null);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    return default;
+                    return new XmlParseResult(null, null, x.Left.Path, null, ex.Message);
                 }
             })
-            .Where(static x => x is { Item1: not null, Item2: not null, Item3: not null, Item4: not null });
+            .Where(static x => x.Node != null || x.ParseError != null);
 
         var xmlTextProvider = context.AdditionalTextsProvider
             .Where(static x => x.Path.EndsWith(".xml", StringComparison.Ordinal))
@@ -52,7 +74,16 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(combinedProvider, (productionContext, data) =>
         {
-            var provider = data.Left;
+            foreach (var entry in data.Left)
+            {
+                if (entry.ParseError != null)
+                    productionContext.ReportDiagnostic(Diagnostic.Create(InvalidXmlWarning, Location.None, entry.FilePath, entry.ParseError));
+            }
+
+            var provider = data.Left
+                .Where(static x => x.Node != null)
+                .Select(static x => (Node: x.Node!, GeneratorMode: x.GeneratorMode!, FilePath: x.FilePath!, Namespace: x.Namespace!))
+                .ToImmutableArray();
             if (provider.IsEmpty)
                 return;
 
@@ -66,11 +97,11 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             var importPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var value in provider)
             {
-                var node = value.Item1;
+                var node = value.Node;
                 if (node.ImportTypes is null || node.ImportTypes.Length == 0)
                     continue;
 
-                var baseDirectory = Path.GetDirectoryName(value.Item3) ?? string.Empty;
+                var baseDirectory = Path.GetDirectoryName(value.FilePath) ?? string.Empty;
                 foreach (var import in node.ImportTypes)
                 {
                     if (string.IsNullOrWhiteSpace(import))
@@ -82,7 +113,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             }
 
             var interfaceContexts = provider
-                .SelectMany(value => value.Item1.Interfaces!.Select(dBusInterface => (Interface: dBusInterface, UserFacingNamespace: value.Item4)))
+                .SelectMany(value => value.Node.Interfaces!.Select(dBusInterface => (Interface: dBusInterface, UserFacingNamespace: value.Namespace)))
                 .ToArray();
             var dBusInterfaces = interfaceContexts.Select(static context => context.Interface).ToArray();
             var structAliases = CollectStructAliases(dBusInterfaces);
@@ -113,7 +144,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
 
             var proxyRegistrations = new Dictionary<string, ProxyRegistration>(StringComparer.Ordinal);
             var handlerRegistrations = new Dictionary<string, HandlerRegistration>(StringComparer.Ordinal);
-            foreach ((DBusNode Node, string GeneratorMode, string Path, string UserFacingNamespace) value in provider)
+            foreach (var value in provider)
             {
                 switch (value.GeneratorMode)
                 {
@@ -122,14 +153,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                         {
                             TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface);
                             var namespaceDeclaration = NamespaceDeclaration(
-                                    ParseName(value.UserFacingNamespace))
+                                    ParseName(value.Namespace))
                                 .AddMembers(typeDeclarationSyntax);
                             var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
                             productionContext.AddSource(
-                                $"{GetHintPrefix(value.UserFacingNamespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs",
+                                $"{GetHintPrefix(value.Namespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs",
                                 compilationUnit.GetText(Encoding.UTF8));
                             var proxyIdentifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
-                            var proxyTypeName = GetGlobalQualifiedTypeName(value.UserFacingNamespace, proxyIdentifier);
+                            var proxyTypeName = GetGlobalQualifiedTypeName(value.Namespace, proxyIdentifier);
                             proxyRegistrations[proxyTypeName] = new ProxyRegistration(proxyTypeName, dBusInterface.Name!);
                         }
 
@@ -137,14 +168,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     case "Handler":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            var source = BuildHandlerSource(dBusInterface, value.UserFacingNamespace);
+                            var source = BuildHandlerSource(dBusInterface, value.Namespace);
                             productionContext.AddSource(
-                                $"{GetHintPrefix(value.UserFacingNamespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs",
+                                $"{GetHintPrefix(value.Namespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs",
                                 source);
                             var handlerHelperIdentifier = GetHandlerRegistrationHelperIdentifier(dBusInterface);
                             var handlerInterfaceIdentifier = GetHandlerInterfaceIdentifier(dBusInterface);
                             var helperTypeName = GetGlobalQualifiedTypeName(PrivateImplementationNamespace, handlerHelperIdentifier);
-                            var interfaceTypeName = GetGlobalQualifiedTypeName(value.UserFacingNamespace, handlerInterfaceIdentifier);
+                            var interfaceTypeName = GetGlobalQualifiedTypeName(value.Namespace, handlerInterfaceIdentifier);
                             handlerRegistrations[helperTypeName] = new HandlerRegistration(interfaceTypeName, helperTypeName);
                         }
 

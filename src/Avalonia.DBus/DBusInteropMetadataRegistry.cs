@@ -123,28 +123,3 @@ public static class DBusInteropMetadataRegistry
         public IReadOnlyDictionary<Type, DBusInteropMetadata> ByClrType { get; } = byClrType;
     }
 }
-
-public sealed record DBusInteropMetadata
-{
-    public required Type ClrType { get; init; }
-
-    public required string InterfaceName { get; init; }
-
-    public CreateProxyFactory? CreateProxy { get; init; }
-    public CreateHandlerFactory? CreateHandler { get; init; }
-    public TrySetPropertyFactory? TrySetProperty { get; init; }
-
-    public GetAllPropertiesFactory? GetAllPropertiesFactory { get; init; }
-}
-
-public delegate IDBusInterfaceCallDispatcher CreateHandlerFactory();
-
-public delegate IReadOnlyDictionary<string, DBusVariant> GetAllPropertiesFactory(object target);
-
-public delegate bool TrySetPropertyFactory(object target, string propertyName, object propertyValue);
-
-public delegate object CreateProxyFactory(
-    IDBusConnection connection,
-    string destination,
-    DBusObjectPath path,
-    string iface);
