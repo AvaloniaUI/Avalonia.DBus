@@ -4,13 +4,13 @@ using System.IO;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace NDesk.DBus.Tests.Helpers;
+namespace Avalonia.DBus.Testing;
 
 public sealed class DbusDaemonFixture : IAsyncLifetime
 {
-    private Process _process;
+    private Process? _process;
 
-    public string Address { get; private set; }
+    public string? Address { get; private set; }
 
     public bool IsAvailable => Address is not null;
 
@@ -72,7 +72,7 @@ public sealed class DbusDaemonFixture : IAsyncLifetime
         _process = null;
     }
 
-    internal static string FindDbusDaemon()
+    public static string? FindDbusDaemon()
     {
         string[] candidates =
         [

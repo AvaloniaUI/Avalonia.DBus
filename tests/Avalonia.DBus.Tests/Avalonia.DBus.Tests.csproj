@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Avalonia.DBus.Testing/Avalonia.DBus.Testing.csproj" />
     <ProjectReference Include="../../src/Avalonia.DBus/Avalonia.DBus.csproj" />
   </ItemGroup>
 

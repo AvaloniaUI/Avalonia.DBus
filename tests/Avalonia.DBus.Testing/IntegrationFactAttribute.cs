@@ -1,10 +1,7 @@
 using Xunit;
 
-namespace Avalonia.DBus.Tests.Helpers;
+namespace Avalonia.DBus.Testing;
 
-/// <summary>
-/// Fact attribute that skips the test if dbus-daemon is not found on the system.
-/// </summary>
 public sealed class IntegrationFactAttribute : FactAttribute
 {
     public IntegrationFactAttribute()

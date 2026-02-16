@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Avalonia.DBus.Testing/Avalonia.DBus.Testing.csproj" />
     <ProjectReference Include="../external/ndesk-dbus-0.6.0/src/NDesk.DBus.csproj" />
   </ItemGroup>
 

@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Avalonia.DBus.Testing/Avalonia.DBus.Testing.csproj" />
     <ProjectReference Include="../../src/Avalonia.DBus/Avalonia.DBus.csproj" />
     <ProjectReference Include="../../src/Avalonia.DBus.SourceGen/Avalonia.DBus.SourceGen.csproj" />
   </ItemGroup>
