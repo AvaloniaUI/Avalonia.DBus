@@ -6,12 +6,13 @@ using Avalonia.DBus.Interop.Tests.Contracts;
 using Avalonia.DBus.Interop.Tests.Helpers;
 using NDesk.DBus;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 
 [Collection(InteropTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class ComplexTypeTests(InteropFixture fixture)
+public class ComplexTypeTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private const string TypeTestInterface = "org.avalonia.dbus.interop.TypeTest";
     private static readonly DBusObjectPath TypeTestPath = (DBusObjectPath)"/org/avalonia/dbus/interop/TypeTest";
@@ -33,8 +34,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task GetStringArray_ReturnsListOfStrings()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -51,8 +52,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task GetIntArray_ReturnsListOfInts()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -69,8 +70,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task SumArray_AvaloniaPassesArrayToNdesk()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -88,8 +89,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task JoinStrings_AvaloniaPassesArrayAndString()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -107,8 +108,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task GetStringMap_ReturnsDictionary()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -125,8 +126,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task LookupInMap_PassesStringReturnsString()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -143,8 +144,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task GetTuple_ReturnsStruct()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -162,8 +163,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task GetVariantString_ReturnsDBusVariant()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -180,8 +181,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task GetVariantInt_ReturnsDBusVariant()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -198,8 +199,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task GetMixedMap_ReturnsDictWithVariantValues()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -217,8 +218,8 @@ public class ComplexTypeTests(InteropFixture fixture)
     [InteropFact]
     public async Task NotifySignal_CarriesVariantPayload()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);

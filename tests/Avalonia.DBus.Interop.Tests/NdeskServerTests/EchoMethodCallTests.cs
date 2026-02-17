@@ -5,12 +5,13 @@ using Avalonia.DBus.Interop.Tests.Contracts;
 using Avalonia.DBus.Interop.Tests.Helpers;
 using NDesk.DBus;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 
 [Collection(InteropTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class EchoMethodCallTests(InteropFixture fixture)
+public class EchoMethodCallTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private const string EchoInterface = "org.avalonia.dbus.interop.Echo";
     private static readonly DBusObjectPath EchoPath = (DBusObjectPath)"/org/avalonia/dbus/interop/Echo";
@@ -35,8 +36,8 @@ public class EchoMethodCallTests(InteropFixture fixture)
     [InteropFact]
     public async Task Echo_ReturnsIdenticalString()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -50,8 +51,8 @@ public class EchoMethodCallTests(InteropFixture fixture)
     [InteropFact]
     public async Task Add_ReturnsSumOfTwoInts()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -65,8 +66,8 @@ public class EchoMethodCallTests(InteropFixture fixture)
     [InteropFact]
     public async Task Concat_ReturnsConcatenatedStrings()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -80,8 +81,8 @@ public class EchoMethodCallTests(InteropFixture fixture)
     [InteropFact]
     public async Task Negate_ReturnsNegatedLong()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -95,8 +96,8 @@ public class EchoMethodCallTests(InteropFixture fixture)
     [InteropFact]
     public async Task Echo_EmptyString_ReturnsEmpty()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -110,8 +111,8 @@ public class EchoMethodCallTests(InteropFixture fixture)
     [InteropFact]
     public async Task CallNonExistentMethod_ReturnsError()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);

@@ -16,6 +16,8 @@ namespace NDesk.DBus
 
 	public partial class Connection
 	{
+		public Action<string> Logger;
+
 		//TODO: reconsider this field
 		Stream ns = null;
 
@@ -146,6 +148,8 @@ namespace NDesk.DBus
 		object writeLock = new object ();
 		internal void WriteMessage (Message msg)
 		{
+			LogMessage ("Send", msg);
+
 			byte[] HeaderData = msg.GetHeaderData ();
 
 			long msgLength = HeaderData.Length + (msg.Body != null ? msg.Body.Length : 0);
@@ -348,6 +352,8 @@ namespace NDesk.DBus
 			if (msg == null)
 				throw new ArgumentNullException ("msg", "Cannot handle a null message; maybe the bus was disconnected");
 
+			LogMessage ("Recv", msg);
+
 			{
 				object field_value;
 				if (msg.Header.Fields.TryGetValue (FieldCode.ReplySerial, out field_value)) {
@@ -402,6 +408,8 @@ namespace NDesk.DBus
 		//this might need reworking with MulticastDelegate
 		internal void HandleSignal (Message msg)
 		{
+			LogMessage ("Dispatch", msg);
+
 			Signal signal = new Signal (msg);
 
 			//TODO: this is a hack, not necessary when MatchRule is complete
@@ -567,5 +575,20 @@ namespace NDesk.DBus
 		}
 
 		internal static readonly EndianFlag NativeEndianness;
+
+		static string GetField (IDictionary<FieldCode,object> fields, FieldCode code)
+		{
+			return fields.TryGetValue (code, out var v) && v != null ? v.ToString () : "";
+		}
+
+		void LogMessage (string direction, Message msg)
+		{
+			if (Logger == null)
+				return;
+
+			var f = msg.Header.Fields;
+			var type = msg.Header.MessageType;
+			Logger ($"{direction} {type}: sender='{GetField (f, FieldCode.Sender)}' dest='{GetField (f, FieldCode.Destination)}' path='{GetField (f, FieldCode.Path)}' iface='{GetField (f, FieldCode.Interface)}' member='{GetField (f, FieldCode.Member)}' serial={msg.Header.Serial} body={msg.Body?.Length ?? 0}");
+		}
 	}
 }

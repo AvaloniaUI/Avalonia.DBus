@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NDesk.DBus;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Avalonia.DBus.Interop.Tests.Helpers;
 
@@ -36,12 +37,36 @@ public sealed class InteropFixture : IAsyncLifetime
         return await DBusConnection.ConnectAsync(_daemon.Address, ct);
     }
 
+    public async Task<DBusConnection> CreateLoggedAvaloniaConnectionAsync(
+        ITestOutputHelper output, CancellationToken ct = default)
+    {
+        if (_daemon.Address is null)
+            throw new InvalidOperationException("D-Bus daemon is not available.");
+
+        return await DBusConnection.ConnectAsync(
+            _daemon.Address, new TestOutputDiagnostics(output), ct);
+    }
+
     public Bus CreateNdeskBus()
     {
         if (_daemon.Address is null)
             throw new InvalidOperationException("D-Bus daemon is not available.");
 
         return new Bus(_daemon.Address);
+    }
+
+    public Bus CreateLoggedNdeskBus(ITestOutputHelper output)
+    {
+        var bus = CreateNdeskBus();
+        bus.Logger = msg => output.WriteLine($"[NDesk] {msg}");
+        return bus;
+    }
+
+    public Bus RequireLoggedNdeskBus(ITestOutputHelper output)
+    {
+        var bus = RequireNdeskBus();
+        bus.Logger = msg => output.WriteLine($"[NDesk] {msg}");
+        return bus;
     }
 
     public async Task InitializeAsync()

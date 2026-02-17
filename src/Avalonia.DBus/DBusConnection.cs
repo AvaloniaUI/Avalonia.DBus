@@ -359,6 +359,8 @@ public sealed class DBusConnection : IDBusConnection
 
     private void DispatchSignal(DBusMessage message)
     {
+        LogVerbose($"Dispatch SIGNAL: sender='{message.Sender}' path='{message.Path}' iface='{message.Interface}' member='{message.Member}' body={message.Body.Count}");
+
         List<SignalSubscription> snapshot;
         lock (_gate)
         {

@@ -4,12 +4,13 @@ using Avalonia.DBus.Interop.Tests.Helpers;
 using NDesk.DBus;
 using org.freedesktop.DBus;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Avalonia.DBus.Interop.Tests.BusMediatedTests;
 
 [Collection(InteropTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class AvaloniaClaimsNdeskObservesTests(InteropFixture fixture)
+public class AvaloniaClaimsNdeskObservesTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private static string TestName() => $"org.avalonia.dbus.interop.t{Guid.NewGuid():N}";
 
@@ -23,8 +24,8 @@ public class AvaloniaClaimsNdeskObservesTests(InteropFixture fixture)
     [InteropFact]
     public async Task AvaloniaRequestsName_NdeskSeesViaNameHasOwner()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var bus = fixture.RequireNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var bus = fixture.RequireLoggedNdeskBus(output);
         var name = TestName();
 
         try
@@ -44,8 +45,8 @@ public class AvaloniaClaimsNdeskObservesTests(InteropFixture fixture)
     [InteropFact]
     public async Task AvaloniaRequestsName_NdeskSeesViaGetNameOwner()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var bus = fixture.RequireNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var bus = fixture.RequireLoggedNdeskBus(output);
         var name = TestName();
 
         try
@@ -67,8 +68,8 @@ public class AvaloniaClaimsNdeskObservesTests(InteropFixture fixture)
     [InteropFact]
     public async Task AvaloniaRequestsName_NdeskSeesViaListNames()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var bus = fixture.RequireNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var bus = fixture.RequireLoggedNdeskBus(output);
         var name = TestName();
 
         try
@@ -89,8 +90,8 @@ public class AvaloniaClaimsNdeskObservesTests(InteropFixture fixture)
     [InteropFact]
     public async Task AvaloniaReleasesName_NdeskSeesAbsence()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var bus = fixture.RequireNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var bus = fixture.RequireLoggedNdeskBus(output);
         var name = TestName();
 
         await conn.RequestNameAsync(name);

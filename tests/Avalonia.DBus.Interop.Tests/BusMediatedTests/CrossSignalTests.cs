@@ -5,20 +5,21 @@ using Avalonia.DBus.Interop.Tests.Helpers;
 using NDesk.DBus;
 using org.freedesktop.DBus;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Avalonia.DBus.Interop.Tests.BusMediatedTests;
 
 [Collection(InteropTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class CrossSignalTests(InteropFixture fixture)
+public class CrossSignalTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private static string TestName() => $"org.avalonia.dbus.interop.sig.t{Guid.NewGuid():N}";
 
     [InteropFact]
     public async Task AvaloniaClaimsName_NdeskReceivesNameOwnerChanged()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var bus = fixture.RequireNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var bus = fixture.RequireLoggedNdeskBus(output);
         var name = TestName();
 
         var dbusBus = bus.GetObject<IBus>(
@@ -65,8 +66,8 @@ public class CrossSignalTests(InteropFixture fixture)
     [InteropFact]
     public async Task NdeskClaimsName_AvaloniaReceivesNameOwnerChanged()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var bus = fixture.RequireNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var bus = fixture.RequireLoggedNdeskBus(output);
         var name = TestName();
 
         var tcs = new TaskCompletionSource<(string Name, string? OldOwner, string? NewOwner)>();

@@ -6,12 +6,13 @@ using Avalonia.DBus.Interop.Tests.Contracts;
 using Avalonia.DBus.Interop.Tests.Helpers;
 using NDesk.DBus;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 
 [Collection(InteropTestCollection.Name)]
 [Trait("Category", "Interop")]
-public class CounterConversationTests(InteropFixture fixture)
+public class CounterConversationTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private const string CounterInterface = "org.avalonia.dbus.interop.Counter";
     private static readonly DBusObjectPath CounterPath = (DBusObjectPath)"/org/avalonia/dbus/interop/Counter";
@@ -46,8 +47,8 @@ public class CounterConversationTests(InteropFixture fixture)
     [InteropFact]
     public async Task IncrementThreeTimes_GetValueReturns3()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -65,8 +66,8 @@ public class CounterConversationTests(InteropFixture fixture)
     [InteropFact]
     public async Task IncrementAndDecrement_TracksCorrectValue()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -85,8 +86,8 @@ public class CounterConversationTests(InteropFixture fixture)
     [InteropFact]
     public async Task IncrementTriggersValueChangedSignals()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -121,8 +122,8 @@ public class CounterConversationTests(InteropFixture fixture)
     [InteropFact]
     public async Task ResetAfterIncrements_SignalShowsDropToZero()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
@@ -162,8 +163,8 @@ public class CounterConversationTests(InteropFixture fixture)
     [InteropFact]
     public async Task FullConversation_MethodsAndSignalsInterleaved()
     {
-        var conn = fixture.RequireAvaloniaConnection();
-        var serverBus = fixture.CreateNdeskBus();
+        await using var conn = await fixture.CreateLoggedAvaloniaConnectionAsync(output);
+        var serverBus = fixture.CreateLoggedNdeskBus(output);
         var name = TestName();
 
         serverBus.RequestName(name);
