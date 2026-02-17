@@ -67,14 +67,17 @@ internal sealed class BuiltInIntrospectionHandler(
             sb.AppendLine("    </method>");
             sb.AppendLine("  </interface>");
 
-            foreach (var iface in data.Interfaces)
+            foreach (var (ifaceName, writeXml) in data.Interfaces)
             {
-                sb.AppendLine($"  <interface name=\"{EscapeXml(iface)}\">");
-                // We don't have method/property metadata at this level,
-                // so emit a minimal stub.  D-Feet shows the interface name,
-                // and tools like accerciser/busctl use AT-SPI method calls
-                // directly rather than relying on introspection details.
-                sb.AppendLine("  </interface>");
+                if (writeXml is not null)
+                {
+                    writeXml(sb, "  ");
+                }
+                else
+                {
+                    sb.AppendLine($"  <interface name=\"{EscapeXml(ifaceName)}\">");
+                    sb.AppendLine("  </interface>");
+                }
             }
         }
 
@@ -97,10 +100,10 @@ internal sealed class BuiltInIntrospectionHandler(
 internal readonly struct IntrospectionData
 {
     /// <summary>
-    /// D-Bus interface names registered at this exact path
-    /// (e.g. "org.a11y.atspi.Accessible").
+    /// D-Bus interfaces registered at this exact path.
+    /// Each entry is (interfaceName, introspection-writer-or-null).
     /// </summary>
-    public IReadOnlyList<string> Interfaces { get; init; }
+    public IReadOnlyList<(string Name, WriteIntrospectionXmlFactory? WriteXml)> Interfaces { get; init; }
 
     /// <summary>
     /// Immediate child path segments (e.g. for path "/org" this might

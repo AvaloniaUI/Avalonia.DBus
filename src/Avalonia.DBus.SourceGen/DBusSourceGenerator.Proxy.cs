@@ -742,7 +742,8 @@ public partial class DBusSourceGenerator
             sb.AppendLine($"                    InterfaceName = {registration.HandlerMetadataTypeName}.InterfaceName,");
             sb.AppendLine($"                    CreateHandler = {registration.HandlerMetadataTypeName}.CreateHandler,");
             sb.AppendLine($"                    TrySetProperty = {registration.HandlerMetadataTypeName}.TrySetProperty,");
-            sb.AppendLine($"                    GetAllPropertiesFactory = {registration.HandlerMetadataTypeName}.GetAllProperties");
+            sb.AppendLine($"                    GetAllPropertiesFactory = {registration.HandlerMetadataTypeName}.GetAllProperties,");
+            sb.AppendLine($"                    WriteIntrospectionXml = {registration.HandlerMetadataTypeName}.WriteIntrospectionXml");
             sb.AppendLine("                });");
         }
         sb.AppendLine("        }");

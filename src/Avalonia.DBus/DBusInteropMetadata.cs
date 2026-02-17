@@ -13,4 +13,6 @@ public sealed record DBusInteropMetadata
     public TrySetPropertyFactory? TrySetProperty { get; init; }
 
     public GetAllPropertiesFactory? GetAllPropertiesFactory { get; init; }
+
+    public WriteIntrospectionXmlFactory? WriteIntrospectionXml { get; init; }
 }

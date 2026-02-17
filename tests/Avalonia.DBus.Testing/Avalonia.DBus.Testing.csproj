@@ -8,6 +8,7 @@
     <IsPackable>false</IsPackable>
     <IsPublishable>false</IsPublishable>
     <OutputType>Library</OutputType>
+    <NoWarn>CA1813</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

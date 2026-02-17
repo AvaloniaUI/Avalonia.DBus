@@ -5,7 +5,7 @@ namespace Avalonia.DBus.Interop.Tests.Contracts;
 
 public delegate void TypeTestNotifyHandler(string tag, object payload);
 
-public struct MyTuple
+public record struct MyTuple
 {
     public string A;
     public string B;

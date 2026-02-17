@@ -146,6 +146,8 @@ public partial class DBusSourceGenerator
         sb.AppendLine($"        internal const string InterfaceName = {interfaceNameLiteral};");
         sb.AppendLine($"        internal static IDBusInterfaceCallDispatcher CreateHandler() => {dispatcherIdentifier}.Instance;");
         sb.AppendLine();
+        EmitWriteIntrospectionXml(sb, dBusInterface);
+        sb.AppendLine();
         sb.AppendLine("        private static DBusVariant? TryGetProperty(object target, string propertyName)");
         sb.AppendLine("        {");
         sb.AppendLine("            ArgumentNullException.ThrowIfNull(propertyName);");
@@ -240,5 +242,82 @@ public partial class DBusSourceGenerator
             "write" => "set;",
             _ => string.Empty
         };
+    }
+
+    /// <summary>
+    /// Emits a static method <c>WriteIntrospectionXml(StringBuilder sb, string indent)</c>
+    /// that writes the D-Bus introspection XML for this interface at runtime.
+    /// </summary>
+    private static void EmitWriteIntrospectionXml(StringBuilder sb, DBusInterface dBusInterface)
+    {
+        var ifaceName = SymbolDisplay.FormatLiteral(dBusInterface.Name!, quote: true);
+
+        sb.AppendLine("        internal static void WriteIntrospectionXml(System.Text.StringBuilder sb, string indent)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            var inner = indent + \"  \";");
+        sb.AppendLine($"            sb.Append(indent).Append(\"<interface name=\\\"\").Append({ifaceName}).AppendLine(\"\\\">\");");
+
+        foreach (var property in dBusInterface.Properties ?? [])
+        {
+            var name = SymbolDisplay.FormatLiteral(property.Name!, quote: true);
+            var type = SymbolDisplay.FormatLiteral(property.Type!, quote: true);
+            var access = SymbolDisplay.FormatLiteral(property.Access ?? "readwrite", quote: true);
+            sb.AppendLine($"            sb.Append(inner).Append(\"<property name=\\\"\").Append({name}).Append(\"\\\" type=\\\"\").Append({type}).Append(\"\\\" access=\\\"\").Append({access}).AppendLine(\"\\\"/>\");");
+        }
+
+        foreach (var method in dBusInterface.Methods ?? [])
+        {
+            var args = method.Arguments ?? [];
+            var mName = SymbolDisplay.FormatLiteral(method.Name!, quote: true);
+
+            if (args.Length == 0)
+            {
+                sb.AppendLine($"            sb.Append(inner).Append(\"<method name=\\\"\").Append({mName}).AppendLine(\"\\\"/>\");");
+                continue;
+            }
+
+            sb.AppendLine($"            sb.Append(inner).Append(\"<method name=\\\"\").Append({mName}).AppendLine(\"\\\">\");");
+            foreach (var arg in args)
+                EmitArgAppend(sb, arg);
+            sb.AppendLine("            sb.Append(inner).AppendLine(\"</method>\");");
+        }
+
+        foreach (var signal in dBusInterface.Signals ?? [])
+        {
+            var args = signal.Arguments ?? [];
+            var sName = SymbolDisplay.FormatLiteral(signal.Name!, quote: true);
+
+            if (args.Length == 0)
+            {
+                sb.AppendLine($"            sb.Append(inner).Append(\"<signal name=\\\"\").Append({sName}).AppendLine(\"\\\"/>\");");
+                continue;
+            }
+
+            sb.AppendLine($"            sb.Append(inner).Append(\"<signal name=\\\"\").Append({sName}).AppendLine(\"\\\">\");");
+            foreach (var arg in args)
+                EmitArgAppend(sb, arg);
+            sb.AppendLine("            sb.Append(inner).AppendLine(\"</signal>\");");
+        }
+
+        sb.AppendLine("            sb.Append(indent).AppendLine(\"</interface>\");");
+        sb.AppendLine("        }");
+    }
+
+    private static void EmitArgAppend(StringBuilder sb, DBusArgument arg)
+    {
+        var type = SymbolDisplay.FormatLiteral(arg.Type!, quote: true);
+        // Build: sb.Append(inner).Append("  <arg type=\"").Append(type).Append("\"")...AppendLine("/>");
+        sb.Append("            sb.Append(inner).Append(\"  <arg type=\\\"\").Append(").Append(type).Append(").Append(\"\\\"\")");
+        if (arg.Name is not null)
+        {
+            var name = SymbolDisplay.FormatLiteral(arg.Name, quote: true);
+            sb.Append(".Append(\" name=\\\"\").Append(").Append(name).Append(").Append(\"\\\"\")");
+        }
+        if (arg.Direction is not null)
+        {
+            var dir = SymbolDisplay.FormatLiteral(arg.Direction, quote: true);
+            sb.Append(".Append(\" direction=\\\"\").Append(").Append(dir).Append(").Append(\"\\\"\")");
+        }
+        sb.AppendLine(".AppendLine(\"/>\");");
     }
 }

@@ -512,6 +512,7 @@ public sealed class DBusConnection : IDBusConnection
             .Select(k => k.Iface)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(i => i, StringComparer.Ordinal)
+            .Select(iface => (iface, DBusInteropMetadataRegistry.GetIntrospectionWriter(iface)))
             .ToList();
 
         // Immediate child segments: for each registered path that starts with

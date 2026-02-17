@@ -36,7 +36,8 @@ public static class DBusInteropMetadataRegistry
                     CreateProxy = existing.CreateProxy ?? metadata.CreateProxy,
                     CreateHandler = existing.CreateHandler ?? metadata.CreateHandler,
                     TrySetProperty = existing.TrySetProperty ?? metadata.TrySetProperty,
-                    GetAllPropertiesFactory = existing.GetAllPropertiesFactory ?? metadata.GetAllPropertiesFactory
+                    GetAllPropertiesFactory = existing.GetAllPropertiesFactory ?? metadata.GetAllPropertiesFactory,
+                    WriteIntrospectionXml = existing.WriteIntrospectionXml ?? metadata.WriteIntrospectionXml
                 };
 
                 var mergedMap = new Dictionary<Type, DBusInteropMetadata>(byClrType)
@@ -106,6 +107,18 @@ public static class DBusInteropMetadataRegistry
 
         registrations.Sort(static (left, right) => string.CompareOrdinal(left.InterfaceName, right.InterfaceName));
         return registrations;
+    }
+
+    internal static WriteIntrospectionXmlFactory? GetIntrospectionWriter(string interfaceName)
+    {
+        var snapshot = s_snapshot;
+        foreach (var metadata in snapshot.ByClrType.Values)
+        {
+            if (string.Equals(metadata.InterfaceName, interfaceName, StringComparison.Ordinal)
+                && metadata.WriteIntrospectionXml is not null)
+                return metadata.WriteIntrospectionXml;
+        }
+        return null;
     }
 
     private static bool TryGetByClrType(Type clrType, out DBusInteropMetadata metadata)
