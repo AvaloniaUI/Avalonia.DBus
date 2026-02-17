@@ -8,7 +8,7 @@ public class SignatureTests
     public void Construction_FromString_MatchesByteArray()
     {
         var fromString = new Signature("siu");
-        var fromBytes = new Signature(new[] { (byte)'s', (byte)'i', (byte)'u' });
+        var fromBytes = new Signature("siu"u8.ToArray());
 
         Assert.True(fromString == fromBytes);
     }
