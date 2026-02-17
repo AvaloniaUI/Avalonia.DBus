@@ -39,4 +39,4 @@ jobs:
         run: dotnet test tests/Avalonia.DBus.SourceGen.Tests/ --no-build --configuration Release
 
       - name: Run Tests
-        run: dotnet test tests/Avalonia.DBus.Tests/ --no-build --configuration Release
+        run: dotnet test tests/Avalonia.DBus.Tests/ --no-build --configuration Release --logger "console;verbosity=detailed"
