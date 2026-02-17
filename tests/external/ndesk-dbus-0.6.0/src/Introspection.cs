@@ -14,7 +14,6 @@ namespace NDesk.DBus
 	//TODO: complete this class
 	class Introspector
 	{
-		const string NAMESPACE = "http://www.freedesktop.org/standards/dbus";
 		const string PUBLIC_IDENTIFIER = "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN";
 		const string SYSTEM_IDENTIFIER = "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd";
 

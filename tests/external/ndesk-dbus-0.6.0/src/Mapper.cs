@@ -353,7 +353,7 @@ namespace NDesk.DBus
 	}
 
 	[AttributeUsage (AttributeTargets.Interface | AttributeTargets.Class, AllowMultiple=false, Inherited=true)]
-	public class InterfaceAttribute : Attribute
+	public sealed class InterfaceAttribute : Attribute
 	{
 		public string Name;
 
@@ -364,7 +364,7 @@ namespace NDesk.DBus
 	}
 
 	[AttributeUsage (AttributeTargets.Parameter | AttributeTargets.ReturnValue, AllowMultiple=false, Inherited=true)]
-	public class ArgumentAttribute : Attribute
+	public sealed class ArgumentAttribute : Attribute
 	{
 		public string Name;
 

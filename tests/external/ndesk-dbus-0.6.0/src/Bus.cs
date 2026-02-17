@@ -77,8 +77,8 @@ namespace NDesk.DBus
 			if (address == null)
 				throw new ArgumentNullException ("address");
 
-			if (buses.ContainsKey (address))
-				return buses[address];
+			if (buses.TryGetValue (address, out var existing))
+				return existing;
 
 			Bus bus = new Bus (address);
 			buses[address] = bus;
@@ -88,7 +88,7 @@ namespace NDesk.DBus
 
 		IBus bus;
 
-		static readonly string DBusName = "org.freedesktop.DBus";
+		const string DBusName = "org.freedesktop.DBus";
 		static readonly ObjectPath DBusPath = new ObjectPath ("/org/freedesktop/DBus");
 
 		public Bus (string address) : base (address)

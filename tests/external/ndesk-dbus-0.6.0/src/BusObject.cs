@@ -57,8 +57,8 @@ namespace NDesk.DBus
 			rule.Path = object_path;
 
 			if (adding) {
-				if (conn.Handlers.ContainsKey (rule))
-					conn.Handlers[rule] = Delegate.Combine (conn.Handlers[rule], dlg);
+				if (conn.Handlers.TryGetValue (rule, out var existing))
+					conn.Handlers[rule] = Delegate.Combine (existing, dlg);
 				else {
 					conn.Handlers[rule] = dlg;
 					conn.AddMatch (rule.ToString ());
@@ -169,7 +169,7 @@ namespace NDesk.DBus
 
 		public void Invoke (MethodBase methodBase, string methodName, object[] inArgs, out object[] outArgs, out object retVal, out Exception exception)
 		{
-			outArgs = new object[0];
+			outArgs = Array.Empty<object>();
 			retVal = null;
 			exception = null;
 

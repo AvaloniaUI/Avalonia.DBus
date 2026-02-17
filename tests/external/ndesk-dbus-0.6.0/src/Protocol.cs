@@ -173,7 +173,7 @@ namespace NDesk.DBus
 					return null;
 
 				string par = Value.Substring (0, Value.LastIndexOf ('/'));
-				if (par == String.Empty)
+				if (par.Length == 0)
 					par = "/";
 
 				return new ObjectPath (par);
