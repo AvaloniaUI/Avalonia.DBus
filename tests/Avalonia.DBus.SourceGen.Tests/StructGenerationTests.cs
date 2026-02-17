@@ -22,12 +22,9 @@ public class StructGenerationTests
         var doc = serializer.Deserialize(reader) as AvTypesDocument;
 
         Assert.NotNull(doc);
-        Assert.NotNull(doc!.Structs);
-        Assert.Single(doc.Structs);
-        Assert.Equal("TestPoint", doc.Structs[0].Name);
-        Assert.Equal(2, doc.Structs[0].Properties!.Length);
-        Assert.Equal("X", doc.Structs[0].Properties![0].Name);
-        Assert.Equal("Y", doc.Structs[0].Properties![1].Name);
+        var s = Assert.Single(doc!.Structs!);
+        Assert.Equal("TestPoint", s.Name);
+        Assert.Equal(new[] { "X", "Y" }, s.Properties!.Select(p => p.Name).ToArray());
     }
 
     [Fact]
@@ -48,11 +45,10 @@ public class StructGenerationTests
         var doc = serializer.Deserialize(reader) as AvTypesDocument;
 
         Assert.NotNull(doc);
-        Assert.NotNull(doc!.Dictionaries);
-        Assert.Single(doc.Dictionaries);
-        Assert.Equal("TestDict", doc.Dictionaries[0].Name);
-        Assert.Equal("Id", doc.Dictionaries[0].Key!.Name);
-        Assert.Equal("Data", doc.Dictionaries[0].Value!.Name);
+        var d = Assert.Single(doc!.Dictionaries!);
+        Assert.Equal("TestDict", d.Name);
+        Assert.Equal("Id", d.Key!.Name);
+        Assert.Equal("Data", d.Value!.Name);
     }
 
     [Fact]
@@ -74,10 +70,9 @@ public class StructGenerationTests
         var doc = serializer.Deserialize(reader) as AvTypesDocument;
 
         Assert.NotNull(doc);
-        Assert.NotNull(doc!.BitFlags);
-        Assert.Single(doc.BitFlags);
-        Assert.Equal("TestFlags", doc.BitFlags[0].Name);
-        Assert.Equal(3, doc.BitFlags[0].BitFlags!.Length);
+        var bf = Assert.Single(doc!.BitFlags!);
+        Assert.Equal("TestFlags", bf.Name);
+        Assert.Equal(3, bf.BitFlags!.Length);
     }
 
     [Fact]
@@ -102,8 +97,7 @@ public class StructGenerationTests
         var doc = serializer.Deserialize(reader) as AvTypesDocument;
 
         Assert.NotNull(doc);
-        Assert.NotNull(doc!.Structs);
-        Assert.Equal(2, doc.Structs.Length);
+        Assert.Equal(2, doc!.Structs!.Length);
         Assert.Equal("InnerStruct", doc.Structs[0].Properties![0].Type);
     }
 
@@ -128,22 +122,18 @@ public class StructGenerationTests
         var node = serializer.Deserialize(reader) as DBusNode;
 
         Assert.NotNull(node);
-        Assert.NotNull(node!.Interfaces);
-        Assert.Single(node.Interfaces);
+        Assert.Single(node!.Interfaces!);
 
-        var iface = node.Interfaces[0];
+        var iface = node.Interfaces![0];
         Assert.Equal("org.test.Simple", iface.Name);
-        Assert.Single(iface.Methods!);
-        Assert.True(iface.Methods != null, "iface.Methods != null");
-        Assert.Equal("Ping", iface.Methods[0].Name);
-        Assert.Single(iface.Properties!);
-        Assert.True(iface.Properties != null, "iface.Properties != null");
-        Assert.Equal("Status", iface.Properties[0].Name);
-        Assert.Equal("s", iface.Properties[0].Type);
-        Assert.Equal("read", iface.Properties[0].Access);
-        Assert.Single(iface.Signals!);
-        Assert.True(iface.Signals != null, "iface.Signals != null");
-        Assert.Equal("StatusChanged", iface.Signals[0].Name);
+        var method = Assert.Single(iface.Methods!);
+        Assert.Equal("Ping", method.Name);
+        var prop = Assert.Single(iface.Properties!);
+        Assert.Equal("Status", prop.Name);
+        Assert.Equal("s", prop.Type);
+        Assert.Equal("read", prop.Access);
+        var signal = Assert.Single(iface.Signals!);
+        Assert.Equal("StatusChanged", signal.Name);
     }
 
     [Fact]
@@ -167,9 +157,9 @@ public class StructGenerationTests
         var node = serializer.Deserialize(reader) as DBusNode;
 
         Assert.NotNull(node);
-        Assert.True(node.Interfaces != null, "node.Interfaces != null");
+        Assert.NotNull(node!.Interfaces);
         var method = node.Interfaces[0].Methods?[0];
-        Assert.True(method != null, nameof(method) + " != null");
+        Assert.NotNull(method);
         Assert.Equal("Transfer", method.Name);
         Assert.Equal(3, method.Arguments!.Length);
         Assert.Equal("in", method.Arguments[0].Direction);

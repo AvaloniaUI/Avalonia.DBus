@@ -66,10 +66,7 @@ public class SignatureParsingTests
 
         var result = sig.ToTypes();
 
-        Assert.Equal(3, result.Length);
-        Assert.Equal(typeof(int), result[0]);
-        Assert.Equal(typeof(IDictionary<string, object>), result[1]);
-        Assert.Equal(typeof(string), result[2]);
+        Assert.Equal(new[] { typeof(int), typeof(IDictionary<string, object>), typeof(string) }, result);
     }
 
     [Fact]

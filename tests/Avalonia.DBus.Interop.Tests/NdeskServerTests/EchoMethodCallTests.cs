@@ -28,7 +28,7 @@ public class EchoMethodCallTests(InteropFixture fixture)
         var reply = await conn.CallMethodAsync(
             destination, EchoPath, EchoInterface, member, ct, args);
 
-        Assert.True(reply.Body.Count > 0, $"Expected a return value from {member}");
+        Assert.NotEmpty(reply.Body);
         return (T)reply.Body[0];
     }
 

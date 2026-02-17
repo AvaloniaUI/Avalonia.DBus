@@ -29,7 +29,7 @@ public class CounterConversationTests(InteropFixture fixture)
         var reply = await conn.CallMethodAsync(
             destination, CounterPath, CounterInterface, member, ct, args);
 
-        Assert.True(reply.Body.Count > 0, $"Expected a return value from {member}");
+        Assert.NotEmpty(reply.Body);
         return (T)reply.Body[0];
     }
 
@@ -115,10 +115,7 @@ public class CounterConversationTests(InteropFixture fixture)
         for (var i = 0; i < 3; i++)
             Assert.True(await signalCount.WaitAsync(TimeSpan.FromSeconds(5)), $"Timed out waiting for signal {i + 1}");
 
-        Assert.Equal(3, signals.Count);
-        Assert.Equal((0, 1), signals[0]);
-        Assert.Equal((1, 2), signals[1]);
-        Assert.Equal((2, 3), signals[2]);
+        Assert.Equal([(0, 1), (1, 2), (2, 3)], signals);
     }
 
     [InteropFact]

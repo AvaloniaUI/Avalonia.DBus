@@ -10,7 +10,7 @@ public class Utf8StringTests
     {
         using var utf8 = new Utf8String("Hello");
 
-        Assert.True(utf8.Pointer != null);
+        Assert.NotEqual(IntPtr.Zero, (IntPtr)utf8.Pointer);
 
         var span = new ReadOnlySpan<byte>(utf8.Pointer, 6); // 5 chars + null terminator
         Assert.Equal("Hello\0"u8.ToArray(), span.ToArray());
@@ -21,7 +21,7 @@ public class Utf8StringTests
     {
         using var utf8 = new Utf8String("\u00E9"); // é
 
-        Assert.True(utf8.Pointer != null);
+        Assert.NotEqual(IntPtr.Zero, (IntPtr)utf8.Pointer);
 
         // UTF-8 encoding of é (U+00E9) is 0xC3 0xA9
         var span = new ReadOnlySpan<byte>(utf8.Pointer, 3); // 2 bytes + null
@@ -33,7 +33,7 @@ public class Utf8StringTests
     {
         using var utf8 = new Utf8String("");
 
-        Assert.True(utf8.Pointer != null);
+        Assert.NotEqual(IntPtr.Zero, (IntPtr)utf8.Pointer);
 
         // Should just be a null terminator
         Assert.Equal(0, *utf8.Pointer);
@@ -44,7 +44,7 @@ public class Utf8StringTests
     {
         using var utf8 = new Utf8String(null!);
 
-        Assert.True(utf8.Pointer == null);
+        Assert.Equal(IntPtr.Zero, (IntPtr)utf8.Pointer);
     }
 
     [Fact]

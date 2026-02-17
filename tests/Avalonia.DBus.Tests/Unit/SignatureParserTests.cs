@@ -85,9 +85,7 @@ public class SignatureParserTests
     {
         var parts = DBusSignatureParser.ParseStructSignatures(signature);
 
-        Assert.Equal(expected.Length, parts.Count);
-        for (var i = 0; i < expected.Length; i++)
-            Assert.Equal(expected[i], parts[i]);
+        Assert.Equal(expected, parts);
     }
 
     [Fact]
@@ -95,9 +93,7 @@ public class SignatureParserTests
     {
         var parts = DBusSignatureParser.ParseStructSignatures("(i(ss))");
 
-        Assert.Equal(2, parts.Count);
-        Assert.Equal("i", parts[0]);
-        Assert.Equal("(ss)", parts[1]);
+        Assert.Equal(["i", "(ss)"], parts);
     }
 
     [Theory]

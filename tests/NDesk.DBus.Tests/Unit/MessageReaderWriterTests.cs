@@ -111,11 +111,7 @@ public class MessageReaderWriterTests
     {
         var data = WriteAndGetBytes(w => w.Write(new Signature("si")));
 
-        Assert.Equal(4, data.Length);
-        Assert.Equal(2, data[0]);
-        Assert.Equal((byte)'s', data[1]);
-        Assert.Equal((byte)'i', data[2]);
-        Assert.Equal(0, data[3]);
+        Assert.Equal(new byte[] { 2, (byte)'s', (byte)'i', 0 }, data);
     }
 
     [Fact]
@@ -140,8 +136,6 @@ public class MessageReaderWriterTests
         writer.Write(42);
         var data = writer.ToArray();
 
-        Assert.Equal(0, data[1]);
-        Assert.Equal(0, data[2]);
-        Assert.Equal(0, data[3]);
+        Assert.All(data[1..4], b => Assert.Equal(0, b));
     }
 }

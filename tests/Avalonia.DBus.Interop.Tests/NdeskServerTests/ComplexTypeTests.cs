@@ -42,13 +42,10 @@ public class ComplexTypeTests(InteropFixture fixture)
         using var runner = new NdeskServerRunner(serverBus);
 
         var reply = await CallTypeTestAsync(conn, name, "GetStringArray", CancellationToken.None);
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
 
         var result = Assert.IsType<List<string>>(reply.Body[0]);
-        Assert.Equal(3, result.Count);
-        Assert.Equal("alpha", result[0]);
-        Assert.Equal("beta", result[1]);
-        Assert.Equal("gamma", result[2]);
+        Assert.Equal(["alpha", "beta", "gamma"], result);
     }
 
     [InteropFact]
@@ -63,7 +60,7 @@ public class ComplexTypeTests(InteropFixture fixture)
         using var runner = new NdeskServerRunner(serverBus);
 
         var reply = await CallTypeTestAsync(conn, name, "GetIntArray", CancellationToken.None);
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
 
         var result = Assert.IsType<List<int>>(reply.Body[0]);
         Assert.Equal([10, 20, 30, 40], result);
@@ -84,7 +81,7 @@ public class ComplexTypeTests(InteropFixture fixture)
             conn, name, "SumArray", CancellationToken.None,
             new List<int> { 1, 2, 3, 4, 5 });
 
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
         Assert.Equal(15, (int)reply.Body[0]);
     }
 
@@ -103,7 +100,7 @@ public class ComplexTypeTests(InteropFixture fixture)
             conn, name, "JoinStrings", CancellationToken.None,
             new List<string> { "a", "b", "c" }, "-");
 
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
         Assert.Equal("a-b-c", (string)reply.Body[0]);
     }
 
@@ -119,11 +116,10 @@ public class ComplexTypeTests(InteropFixture fixture)
         using var runner = new NdeskServerRunner(serverBus);
 
         var reply = await CallTypeTestAsync(conn, name, "GetStringMap", CancellationToken.None);
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
 
         var result = Assert.IsType<Dictionary<string, string>>(reply.Body[0]);
-        Assert.Equal("test", result["name"]);
-        Assert.Equal("1.0", result["version"]);
+        Assert.Equal(new Dictionary<string, string> { ["name"] = "test", ["version"] = "1.0" }, result);
     }
 
     [InteropFact]
@@ -140,7 +136,7 @@ public class ComplexTypeTests(InteropFixture fixture)
         var reply = await CallTypeTestAsync(
             conn, name, "LookupInMap", CancellationToken.None, "name");
 
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
         Assert.Equal("test", (string)reply.Body[0]);
     }
 
@@ -156,7 +152,7 @@ public class ComplexTypeTests(InteropFixture fixture)
         using var runner = new NdeskServerRunner(serverBus);
 
         var reply = await CallTypeTestAsync(conn, name, "GetTuple", CancellationToken.None);
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
 
         var result = Assert.IsType<DBusStruct>(reply.Body[0]);
         Assert.Equal("hello", (string)result[0]);
@@ -175,7 +171,7 @@ public class ComplexTypeTests(InteropFixture fixture)
         using var runner = new NdeskServerRunner(serverBus);
 
         var reply = await CallTypeTestAsync(conn, name, "GetVariantString", CancellationToken.None);
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
 
         var result = Assert.IsType<DBusVariant>(reply.Body[0]);
         Assert.Equal("variant-string", (string)result.Value);
@@ -193,7 +189,7 @@ public class ComplexTypeTests(InteropFixture fixture)
         using var runner = new NdeskServerRunner(serverBus);
 
         var reply = await CallTypeTestAsync(conn, name, "GetVariantInt", CancellationToken.None);
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
 
         var result = Assert.IsType<DBusVariant>(reply.Body[0]);
         Assert.Equal(42, (int)result.Value);
@@ -211,7 +207,7 @@ public class ComplexTypeTests(InteropFixture fixture)
         using var runner = new NdeskServerRunner(serverBus);
 
         var reply = await CallTypeTestAsync(conn, name, "GetMixedMap", CancellationToken.None);
-        Assert.True(reply.Body.Count > 0);
+        Assert.NotEmpty(reply.Body);
 
         var result = Assert.IsType<Dictionary<string, DBusVariant>>(reply.Body[0]);
         Assert.Equal(3, (int)result["count"].Value);

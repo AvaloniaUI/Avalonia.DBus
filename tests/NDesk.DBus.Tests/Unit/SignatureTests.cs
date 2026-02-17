@@ -10,7 +10,7 @@ public class SignatureTests
         var fromString = new Signature("siu");
         var fromBytes = new Signature("siu"u8.ToArray());
 
-        Assert.True(fromString == fromBytes);
+        Assert.Equal(fromString, fromBytes);
     }
 
     [Theory]
@@ -29,8 +29,7 @@ public class SignatureTests
     {
         var sig = new Signature("siu");
 
-        Assert.Equal(DType.String, sig[0]);
-        Assert.Equal(DType.Int32, sig[1]);
-        Assert.Equal(DType.UInt32, sig[2]);
+        Assert.Equal(new[] { DType.String, DType.Int32, DType.UInt32 },
+            new[] { sig[0], sig[1], sig[2] });
     }
 }
