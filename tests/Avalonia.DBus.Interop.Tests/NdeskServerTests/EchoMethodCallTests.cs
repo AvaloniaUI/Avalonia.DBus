@@ -4,9 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.DBus.Interop.Tests.Contracts;
 using Avalonia.DBus.Interop.Tests.Helpers;
 using NDesk.DBus;
-using org.freedesktop.DBus;
 using Xunit;
-using DBusObjectPath = Avalonia.DBus.DBusObjectPath;
 
 namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 
@@ -15,7 +13,7 @@ namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 public class EchoMethodCallTests(InteropFixture fixture)
 {
     private const string EchoInterface = "org.avalonia.dbus.interop.Echo";
-    private static readonly DBusObjectPath EchoPath = new DBusObjectPath("/org/avalonia/dbus/interop/Echo");
+    private static readonly DBusObjectPath EchoPath = (DBusObjectPath)"/org/avalonia/dbus/interop/Echo";
     private static readonly ObjectPath NdeskEchoPath = new("/org/avalonia/dbus/interop/Echo");
 
     private static string TestName() => $"org.avalonia.dbus.interop.echo.t{Guid.NewGuid():N}";

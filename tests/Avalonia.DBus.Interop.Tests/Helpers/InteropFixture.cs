@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using NDesk.DBus;
 using Xunit;
 
 namespace Avalonia.DBus.Interop.Tests.Helpers;
@@ -11,7 +12,7 @@ public sealed class InteropFixture : IAsyncLifetime
     private NdeskServerRunner? _ndeskPump;
 
     public DBusConnection? AvaloniaConnection { get; private set; }
-    public NDesk.DBus.Bus? NdeskBus { get; private set; }
+    public Bus? NdeskBus { get; private set; }
 
     public string? DaemonAddress => _daemon.Address;
 
@@ -21,7 +22,7 @@ public sealed class InteropFixture : IAsyncLifetime
             "Avalonia.DBus connection is not available. Tests using this should be guarded by [IntegrationFact].");
     }
 
-    public NDesk.DBus.Bus RequireNdeskBus()
+    public Bus RequireNdeskBus()
     {
         return NdeskBus ?? throw new InvalidOperationException(
             "NDesk.DBus bus is not available. Tests using this should be guarded by [IntegrationFact].");
@@ -35,12 +36,12 @@ public sealed class InteropFixture : IAsyncLifetime
         return await DBusConnection.ConnectAsync(_daemon.Address, ct);
     }
 
-    public NDesk.DBus.Bus CreateNdeskBus()
+    public Bus CreateNdeskBus()
     {
         if (_daemon.Address is null)
             throw new InvalidOperationException("D-Bus daemon is not available.");
 
-        return new NDesk.DBus.Bus(_daemon.Address);
+        return new Bus(_daemon.Address);
     }
 
     public async Task InitializeAsync()
@@ -61,7 +62,7 @@ public sealed class InteropFixture : IAsyncLifetime
 
         try
         {
-            NdeskBus = new NDesk.DBus.Bus(_daemon.Address);
+            NdeskBus = new Bus(_daemon.Address);
             // Start a background pump so that proxy calls from any thread
             // (including async continuations) work correctly. NDesk's
             // PendingCall uses Monitor.Wait when the caller is not on

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Xunit;
-using NDesk.DBus;
 
 namespace NDesk.DBus.Tests.Unit;
 
@@ -26,7 +25,7 @@ public class SignatureInferenceTests
     [Fact]
     public void GetSig_TypeArray_CombinesSignatures()
     {
-        var sig = Signature.GetSig(new Type[] { typeof(string), typeof(int), typeof(uint) });
+        var sig = Signature.GetSig(new[] { typeof(string), typeof(int), typeof(uint) });
 
         Assert.Equal("siu", sig.Value);
     }

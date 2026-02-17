@@ -1,8 +1,5 @@
 using System;
 using Xunit;
-using NDesk.DBus;
-
-#nullable disable
 
 namespace NDesk.DBus.Tests.Unit;
 

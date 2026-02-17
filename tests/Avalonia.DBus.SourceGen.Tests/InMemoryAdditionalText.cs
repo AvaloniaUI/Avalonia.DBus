@@ -1,6 +1,3 @@
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
-
 namespace Avalonia.DBus.SourceGen.Tests;
 
 internal sealed class InMemoryAdditionalText(string path, string text) : AdditionalText

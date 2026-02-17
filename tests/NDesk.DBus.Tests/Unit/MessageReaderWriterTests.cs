@@ -1,9 +1,6 @@
 using System;
 using System.Text;
 using Xunit;
-using NDesk.DBus;
-
-#nullable disable
 
 namespace NDesk.DBus.Tests.Unit;
 
@@ -31,10 +28,10 @@ public class MessageReaderWriterTests
         writer.Write(true);
         writer.Write((short)-500);
         writer.Write((ushort)60000);
-        writer.Write((int)-123456);
+        writer.Write(-123456);
         writer.Write((uint)123456);
-        writer.Write((long)-9876543210L);
-        writer.Write((ulong)9876543210UL);
+        writer.Write(-9876543210L);
+        writer.Write(9876543210UL);
         writer.Write(1.5f);
         writer.Write(2.718281828);
         writer.Write("test string");
@@ -64,7 +61,7 @@ public class MessageReaderWriterTests
     {
         var writer = new MessageWriter(Connection.NativeEndianness);
         writer.Write((byte)0xAB);
-        writer.Write((int)42);
+        writer.Write(42);
         var data = writer.ToArray();
 
         Assert.Equal(8, data.Length);
@@ -140,7 +137,7 @@ public class MessageReaderWriterTests
     {
         var writer = new MessageWriter(Connection.NativeEndianness);
         writer.Write((byte)0xFF);
-        writer.Write((int)42);
+        writer.Write(42);
         var data = writer.ToArray();
 
         Assert.Equal(0, data[1]);

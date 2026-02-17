@@ -186,9 +186,7 @@ public sealed class DBusConnection : IDBusConnection
                                 : propertyName =>
                                 {
                                     var values = registration.GetAllPropertiesFactory(target);
-                                    return values.TryGetValue(propertyName, out var value)
-                                        ? value
-                                        : null;
+                                    return values.GetValueOrDefault(propertyName);
                                 },
                             registration.TrySetProperty == null
                                 ? null

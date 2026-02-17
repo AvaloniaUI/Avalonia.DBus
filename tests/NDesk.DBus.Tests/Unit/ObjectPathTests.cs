@@ -1,5 +1,4 @@
 using System;
-using NDesk.DBus;
 using Xunit;
 
 namespace NDesk.DBus.Tests.Unit;

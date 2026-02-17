@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace Avalonia.DBus.SourceGen.Tests.Helpers;
 
 [CollectionDefinition(Name)]

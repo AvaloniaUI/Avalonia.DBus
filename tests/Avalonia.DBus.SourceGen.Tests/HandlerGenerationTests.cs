@@ -1,6 +1,3 @@
-using Microsoft.CodeAnalysis;
-using Xunit;
-
 namespace Avalonia.DBus.SourceGen.Tests;
 
 public class HandlerGenerationTests

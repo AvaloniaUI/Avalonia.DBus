@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using Xunit;
-using NDesk.DBus;
 
 namespace NDesk.DBus.Tests.Unit;
 

@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using LibDbus = Avalonia.DBus.Native.LibDbus;

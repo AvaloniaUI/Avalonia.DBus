@@ -1,6 +1,4 @@
-using System;
 using Xunit;
-using NDesk.DBus;
 
 namespace NDesk.DBus.Tests.Unit;
 
@@ -10,7 +8,7 @@ public class SignatureTests
     public void Construction_FromString_MatchesByteArray()
     {
         var fromString = new Signature("siu");
-        var fromBytes = new Signature(new byte[] { (byte)'s', (byte)'i', (byte)'u' });
+        var fromBytes = new Signature(new[] { (byte)'s', (byte)'i', (byte)'u' });
 
         Assert.True(fromString == fromBytes);
     }

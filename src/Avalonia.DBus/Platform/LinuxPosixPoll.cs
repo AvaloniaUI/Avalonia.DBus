@@ -14,7 +14,7 @@ internal sealed unsafe class LinuxPosixPoll : IPosixPoll
 
     public int Poll(PollFd* fds, int nfds)
     {
-        return ppoll(fds, (IntPtr)nfds, IntPtr.Zero, IntPtr.Zero);
+        return ppoll(fds, nfds, IntPtr.Zero, IntPtr.Zero);
     }
 
     public int CreatePipe(out int readFd, out int writeFd)

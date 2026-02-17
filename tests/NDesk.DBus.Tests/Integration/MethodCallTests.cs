@@ -1,4 +1,3 @@
-using System;
 using NDesk.DBus.Tests.Helpers;
 using org.freedesktop.DBus;
 using Xunit;

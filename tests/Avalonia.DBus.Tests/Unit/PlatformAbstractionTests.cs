@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Avalonia.DBus.Platform;
 using Avalonia.DBus.Tests.Helpers;
@@ -13,7 +14,7 @@ public class PlatformAbstractionTests
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
             !RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            Assert.Throws<System.PlatformNotSupportedException>(PosixPollFactory.Create);
+            Assert.Throws<PlatformNotSupportedException>(PosixPollFactory.Create);
             return;
         }
 

@@ -1,3 +1,4 @@
+using System;
 using Xunit;
 
 namespace Avalonia.DBus.Tests.Unit;
@@ -11,7 +12,7 @@ public class Utf8StringTests
 
         Assert.True(utf8.Pointer != null);
 
-        var span = new System.ReadOnlySpan<byte>(utf8.Pointer, 6); // 5 chars + null terminator
+        var span = new ReadOnlySpan<byte>(utf8.Pointer, 6); // 5 chars + null terminator
         Assert.Equal("Hello\0"u8.ToArray(), span.ToArray());
     }
 
@@ -23,7 +24,7 @@ public class Utf8StringTests
         Assert.True(utf8.Pointer != null);
 
         // UTF-8 encoding of é (U+00E9) is 0xC3 0xA9
-        var span = new System.ReadOnlySpan<byte>(utf8.Pointer, 3); // 2 bytes + null
+        var span = new ReadOnlySpan<byte>(utf8.Pointer, 3); // 2 bytes + null
         Assert.Equal("\u00E9\0"u8.ToArray(), span.ToArray());
     }
 
@@ -62,7 +63,7 @@ public class Utf8StringTests
         // Snowman U+2603 -> 0xE2 0x98 0x83
         using var utf8 = new Utf8String("\u2603");
 
-        var span = new System.ReadOnlySpan<byte>(utf8.Pointer, 4);
+        var span = new ReadOnlySpan<byte>(utf8.Pointer, 4);
         Assert.Equal("\u2603\0"u8.ToArray(), span.ToArray());
     }
 }

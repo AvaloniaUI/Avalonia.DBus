@@ -1,7 +1,7 @@
+using Atspi2TestApp.DBusXml;
 using Avalonia.DBus;
 using static Atspi2TestApp.Program;
 
-using Atspi2TestApp.DBusXml;
 namespace Atspi2TestApp;
 
 internal sealed class CacheHandler(AtspiServer server) : IOrgA11yAtspiCache

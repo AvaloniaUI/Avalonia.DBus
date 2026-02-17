@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.Xml.Serialization;
-using Xunit;
 
 namespace Avalonia.DBus.SourceGen.Tests;
 

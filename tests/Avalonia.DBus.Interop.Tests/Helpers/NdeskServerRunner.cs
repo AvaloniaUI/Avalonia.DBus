@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using NDesk.DBus;
 
 namespace Avalonia.DBus.Interop.Tests.Helpers;
 
@@ -16,12 +17,12 @@ namespace Avalonia.DBus.Interop.Tests.Helpers;
 /// </summary>
 public sealed class NdeskServerRunner : IDisposable
 {
-    private readonly NDesk.DBus.Bus _bus;
+    private readonly Bus _bus;
     private readonly Thread _thread;
     private readonly ManualResetEventSlim _started = new();
     private volatile bool _stop;
 
-    public NdeskServerRunner(NDesk.DBus.Bus bus)
+    public NdeskServerRunner(Bus bus)
     {
         _bus = bus ?? throw new ArgumentNullException(nameof(bus));
         _thread = new Thread(Run)

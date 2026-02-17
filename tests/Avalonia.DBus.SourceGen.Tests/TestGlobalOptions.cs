@@ -1,5 +1,3 @@
-using Microsoft.CodeAnalysis.Diagnostics;
-
 namespace Avalonia.DBus.SourceGen.Tests;
 
 internal sealed class TestGlobalOptions(string projectDir, string rootNamespace) : AnalyzerConfigOptions

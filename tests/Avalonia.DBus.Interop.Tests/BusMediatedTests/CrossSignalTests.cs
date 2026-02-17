@@ -36,7 +36,7 @@ public class CrossSignalTests(InteropFixture fixture)
             receivedName = n;
             receivedOldOwner = oldOwner;
             receivedNewOwner = newOwner;
-            signalReceived?.Set();
+            signalReceived.Set();
         };
 
         try
