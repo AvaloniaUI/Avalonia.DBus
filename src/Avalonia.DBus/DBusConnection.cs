@@ -231,6 +231,36 @@ public sealed class DBusConnection : IDBusConnection
                 handles.Add(registrationHandle);
             }
 
+            // Register built-in Introspectable handler
+            {
+                var normalizedPath = NormalizePath(path.Value);
+                var introspectionHandler = new BuiltInIntrospectionHandler(ResolveIntrospectionData)
+                {
+                    BoundPath = normalizedPath
+                };
+                var key = new ObjectHandlerKey(normalizedPath, BuiltInIntrospectionHandler.InterfaceName);
+                var registrationHandle = new ObjectHandlerRegistration(
+                    _gate,
+                    _handlers,
+                    EnsureReplyMetadata,
+                    reply => Wire.SendAsync(reply),
+                    FireAndForget,
+                    this,
+                    key,
+                    target: null,
+                    introspectionHandler,
+                    context: null, // Introspection is read-only, no UI thread needed
+                    _diagnostics);
+
+                lock (_gate)
+                {
+                    ThrowIfDisposed();
+                    _handlers.TryAdd(key, registrationHandle); // Silently skip if already registered
+                }
+
+                handles.Add(registrationHandle);
+            }
+
             return new CompositeDisposable(handles);
         }
         catch
@@ -404,6 +434,14 @@ public sealed class DBusConnection : IDBusConnection
             return;
         }
 
+        // Handle introspection for intermediate/virtual paths (e.g. "/", "/org", "/org/a11y")
+        if (string.Equals(message.Interface, BuiltInIntrospectionHandler.InterfaceName, StringComparison.Ordinal)
+            && string.Equals(message.Member, "Introspect", StringComparison.Ordinal))
+        {
+            HandleVirtualIntrospection(message, pathValue);
+            return;
+        }
+
         ReplyMissingHandler(message, hasPath);
     }
 
@@ -432,6 +470,71 @@ public sealed class DBusConnection : IDBusConnection
         LogVerbose($"Dispatch METHOD_CALL missing handler: path='{path}' iface='{iface}' member='{member}' -> {errorName}");
         var error = message.CreateError(errorName, errorMessage);
         FireAndForget(Wire.SendAsync(error));
+    }
+
+    /// <summary>
+    /// Handles introspection for paths that have no explicit handler registration
+    /// (intermediate path segments like "/", "/org", "/org/a11y").
+    /// </summary>
+    private void HandleVirtualIntrospection(DBusMessage message, string pathValue)
+    {
+        var data = ResolveIntrospectionData(pathValue);
+        if (data.ChildSegments.Count == 0 && data.Interfaces.Count == 0)
+        {
+            ReplyMissingHandler(message, hasPath: false);
+            return;
+        }
+
+        // Build and send the introspection XML inline
+        var handler = new BuiltInIntrospectionHandler(_ => data) { BoundPath = pathValue };
+        var reply = handler.Handle(this, null, message).GetAwaiter().GetResult();
+        var replyWithMetadata = EnsureReplyMetadata(message, reply);
+        FireAndForget(Wire.SendAsync(replyWithMetadata));
+    }
+
+    /// <summary>
+    /// Resolves introspection data for a given path by examining all registered handlers.
+    /// Returns the interfaces at this path and immediate child path segments.
+    /// </summary>
+    private IntrospectionData ResolveIntrospectionData(string path)
+    {
+        List<ObjectHandlerKey> snapshot;
+        lock (_gate)
+        {
+            snapshot = _handlers.Keys.ToList();
+        }
+
+        // Interfaces registered at this exact path (excluding built-in Properties/Introspectable)
+        var interfaces = snapshot
+            .Where(k => string.Equals(k.Path, path, StringComparison.Ordinal)
+                        && !string.Equals(k.Iface, BuiltInPropertiesHandler.InterfaceName, StringComparison.Ordinal)
+                        && !string.Equals(k.Iface, BuiltInIntrospectionHandler.InterfaceName, StringComparison.Ordinal))
+            .Select(k => k.Iface)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(i => i, StringComparer.Ordinal)
+            .ToList();
+
+        // Immediate child segments: for each registered path that starts with
+        // this path, extract the next segment.
+        var prefix = path == "/" ? "/" : path + "/";
+        var childSegments = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var k in snapshot)
+        {
+            if (!k.Path.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var remainder = k.Path.Substring(prefix.Length);
+            var slashIndex = remainder.IndexOf('/');
+            var segment = slashIndex >= 0 ? remainder.Substring(0, slashIndex) : remainder;
+            if (!string.IsNullOrEmpty(segment))
+                childSegments.Add(segment);
+        }
+
+        return new IntrospectionData
+        {
+            Interfaces = interfaces,
+            ChildSegments = childSegments.OrderBy(s => s, StringComparer.Ordinal).ToList()
+        };
     }
 
     private static string NormalizePath(string path)
