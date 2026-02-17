@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace NDesk.DBus
 {
@@ -298,6 +299,37 @@ namespace NDesk.DBus
 		}
 
 		internal Thread mainThread = Thread.CurrentThread;
+
+		/// <summary>
+		/// Adopts the calling thread as the "main thread" for message dispatch.
+		/// When a proxy method call is made from a different thread, its
+		/// PendingCall will wait on a Monitor rather than trying to read
+		/// messages directly — the main thread is expected to pump Iterate().
+		/// </summary>
+		public void ClaimMainThread ()
+		{
+			mainThread = Thread.CurrentThread;
+		}
+
+		[DllImport ("libc", SetLastError = true)]
+		static extern int shutdown (int sockfd, int how);
+
+		const int SHUT_RDWR = 2;
+
+		/// <summary>
+		/// Shuts down the underlying socket, unblocking any thread
+		/// currently inside a blocking ReadMessage() call.
+		/// Stream.Close() alone does not interrupt a blocking read
+		/// on macOS; shutdown() forces the read to return immediately.
+		/// </summary>
+		public void CloseTransport ()
+		{
+			try {
+				if (transport != null && transport.SocketHandle != 0)
+					shutdown ((int)transport.SocketHandle, SHUT_RDWR);
+			} catch { }
+			try { ns?.Close (); } catch { }
+		}
 
 		//temporary hack
 		public void Iterate ()

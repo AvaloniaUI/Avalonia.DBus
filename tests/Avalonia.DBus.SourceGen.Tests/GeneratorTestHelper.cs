@@ -32,7 +32,7 @@ internal static class GeneratorTestHelper
             .ToList();
 
         // Also add the Avalonia.DBus assembly reference
-        var dbusAssembly = typeof(Avalonia.DBus.DBusObjectPath).Assembly;
+        var dbusAssembly = typeof(DBusObjectPath).Assembly;
         if (!string.IsNullOrWhiteSpace(dbusAssembly.Location))
             references.Add(MetadataReference.CreateFromFile(dbusAssembly.Location));
 

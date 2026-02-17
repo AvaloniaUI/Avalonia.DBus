@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Avalonia.DBus.Testing;
 
-public sealed class IntegrationFactAttribute : FactAttribute
+public class IntegrationFactAttribute : FactAttribute
 {
     public IntegrationFactAttribute()
     {

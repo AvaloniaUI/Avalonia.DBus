@@ -142,7 +142,10 @@ namespace NDesk.DBus.Transports
 			//socket.Blocking = true;
 			SocketHandle = (long)socket.Handle;
 			var handle = new SafeFileHandle ((IntPtr)socket.Handle, false);
-			Stream = new FileStream (handle, FileAccess.ReadWrite);
+			// bufferSize: 1 disables internal buffering so that concurrent
+			// Read (pump thread) and Write (caller thread) do not deadlock
+			// on FileStream's internal synchronization.
+			Stream = new FileStream (handle, FileAccess.ReadWrite, bufferSize: 1);
 		}
 
 		//send peer credentials null byte

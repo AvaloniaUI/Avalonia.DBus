@@ -15,7 +15,7 @@ public class ResourceCleanupTests(BusFixture fixture)
         await using var connection = await fixture.CreateConnectionAsync();
 
         // Create multiple subscriptions
-        var subs = new System.IDisposable[5];
+        var subs = new IDisposable[5];
         for (var i = 0; i < subs.Length; i++)
         {
             subs[i] = await connection.SubscribeAsync(

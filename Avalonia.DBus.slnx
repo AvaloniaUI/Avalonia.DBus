@@ -8,6 +8,7 @@
     <Project Path="tests/Avalonia.DBus.SourceGen.Tests/Avalonia.DBus.SourceGen.Tests.csproj" />
     <Project Path="tests/Avalonia.DBus.Testing/Avalonia.DBus.Testing.csproj" />
     <Project Path="tests/NDesk.DBus.Tests/NDesk.DBus.Tests.csproj" />
+    <Project Path="tests/Avalonia.DBus.Interop.Tests/Avalonia.DBus.Interop.Tests.csproj" />
   </Folder>
   <Project Path="src/Avalonia.DBus/Avalonia.DBus.csproj" />
   <Project Path="src/Avalonia.DBus.SourceGen/Avalonia.DBus.SourceGen.csproj" />
