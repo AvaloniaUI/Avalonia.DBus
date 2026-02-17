@@ -20,6 +20,7 @@ public partial class DBusSourceGenerator
         sb.AppendLine("using System.Threading;");
         sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using Avalonia.DBus;");
+        sb.AppendLine($"using {userFacingNamespace};");
         sb.AppendLine();
         sb.AppendLine("#nullable enable");
         sb.AppendLine($"namespace {userFacingNamespace}");
