@@ -7,6 +7,8 @@
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
     <IsPublishable>false</IsPublishable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>../../avalonia.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>
