@@ -3,7 +3,10 @@ using System.Collections.Generic;
 
 namespace Avalonia.DBus;
 
-public static class DBusInteropMetadataRegistry
+#if !AVDBUS_INTERNAL
+public
+#endif
+static class DBusInteropMetadataRegistry
 {
     private static readonly object Gate = new();
 

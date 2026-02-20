@@ -3,7 +3,10 @@ using System;
 namespace Avalonia.DBus;
 
 [Flags]
-public enum DBusRequestNameFlags
+#if !AVDBUS_INTERNAL
+public
+#endif
+enum DBusRequestNameFlags
 {
     None = 0,
 

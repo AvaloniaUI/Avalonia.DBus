@@ -1,3 +1,6 @@
 namespace Avalonia.DBus;
 
-public delegate IDBusInterfaceCallDispatcher CreateHandlerFactory();
+#if !AVDBUS_INTERNAL
+public
+#endif
+delegate IDBusInterfaceCallDispatcher CreateHandlerFactory();

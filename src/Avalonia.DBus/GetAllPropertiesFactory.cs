@@ -2,4 +2,7 @@ using System.Collections.Generic;
 
 namespace Avalonia.DBus;
 
-public delegate IReadOnlyDictionary<string, DBusVariant> GetAllPropertiesFactory(object target);
+#if !AVDBUS_INTERNAL
+public
+#endif
+delegate IReadOnlyDictionary<string, DBusVariant> GetAllPropertiesFactory(object target);

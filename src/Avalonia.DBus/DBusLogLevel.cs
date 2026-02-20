@@ -1,3 +1,6 @@
 namespace Avalonia.DBus;
 
-public enum DBusLogLevel { Verbose, Info, Warning, Error }
+#if !AVDBUS_INTERNAL
+public
+#endif
+enum DBusLogLevel { Verbose, Info, Warning, Error }

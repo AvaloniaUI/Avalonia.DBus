@@ -2,7 +2,10 @@ using System;
 
 namespace Avalonia.DBus;
 
-public sealed record DBusInteropMetadata
+#if !AVDBUS_INTERNAL
+public
+#endif
+sealed record DBusInteropMetadata
 {
     public required Type ClrType { get; init; }
 

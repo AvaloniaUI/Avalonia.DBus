@@ -6,7 +6,10 @@ namespace Avalonia.DBus;
 /// <summary>
 /// A pure managed class representing a D-Bus message.
 /// </summary>
-public sealed class DBusMessage
+#if !AVDBUS_INTERNAL
+public
+#endif
+sealed class DBusMessage
 {
     private IReadOnlyList<object> _body = [];
     private DBusSignature _signature = new(string.Empty);

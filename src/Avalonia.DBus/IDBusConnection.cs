@@ -5,7 +5,10 @@ using System.Threading.Tasks;
 
 namespace Avalonia.DBus;
 
-public interface IDBusConnection : IAsyncDisposable
+#if !AVDBUS_INTERNAL
+public
+#endif
+interface IDBusConnection : IAsyncDisposable
 {
     object CreateProxy(
         Type interfaceType,

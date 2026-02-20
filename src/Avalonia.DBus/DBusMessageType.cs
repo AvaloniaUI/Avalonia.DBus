@@ -1,6 +1,9 @@
 namespace Avalonia.DBus;
 
-public enum DBusMessageType
+#if !AVDBUS_INTERNAL
+public
+#endif
+enum DBusMessageType
 {
     Invalid = 0,
     MethodCall = 1,

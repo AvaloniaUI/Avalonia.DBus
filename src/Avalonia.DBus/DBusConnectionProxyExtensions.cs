@@ -1,6 +1,9 @@
 namespace Avalonia.DBus;
 
-public static class DBusConnectionProxyExtensions
+#if !AVDBUS_INTERNAL
+public
+#endif
+static class DBusConnectionProxyExtensions
 {
     public static T CreateProxy<T>(
         this IDBusConnection connection,

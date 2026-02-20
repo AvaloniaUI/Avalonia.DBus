@@ -5,7 +5,10 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Represents a D-Bus variant (dynamically typed value).
 /// </summary>
-public sealed class DBusVariant
+#if !AVDBUS_INTERNAL
+public
+#endif
+sealed class DBusVariant
 {
     /// <summary>
     /// The D-Bus type signature of the contained value.

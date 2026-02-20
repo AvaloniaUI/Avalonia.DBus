@@ -5,7 +5,10 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Exception thrown when a D-Bus method call returns an ERROR message.
 /// </summary>
-public class DBusException : Exception
+#if !AVDBUS_INTERNAL
+public
+#endif
+class DBusException : Exception
 {
     /// <summary>
     /// The D-Bus error name (e.g., "org.freedesktop.DBus.Error.ServiceUnknown").

@@ -5,7 +5,10 @@ using System.Threading.Tasks;
 
 namespace Avalonia.DBus;
 
-public static class FreedesktopDBusExtensions
+#if !AVDBUS_INTERNAL
+public
+#endif
+static class FreedesktopDBusExtensions
 {
     private const string BusDestination = "org.freedesktop.DBus";
     private static readonly DBusObjectPath BusPath = (DBusObjectPath)"/org/freedesktop/DBus";

@@ -1,6 +1,9 @@
 namespace Avalonia.DBus;
 
-public enum DBusRequestNameReply
+#if !AVDBUS_INTERNAL
+public
+#endif
+enum DBusRequestNameReply
 {
     /// <summary>
     /// The caller is now the primary owner of the name.

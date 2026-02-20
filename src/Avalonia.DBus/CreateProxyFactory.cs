@@ -1,6 +1,9 @@
 namespace Avalonia.DBus;
 
-public delegate object CreateProxyFactory(
+#if !AVDBUS_INTERNAL
+public
+#endif
+delegate object CreateProxyFactory(
     IDBusConnection connection,
     string destination,
     DBusObjectPath path,

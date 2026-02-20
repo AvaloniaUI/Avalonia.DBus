@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 
 namespace Avalonia.DBus;
 
-public sealed class DBusConnection : IDBusConnection
+#if !AVDBUS_INTERNAL
+public
+#endif
+sealed class DBusConnection : IDBusConnection
 {
     private readonly object _gate = new();
     private readonly Dictionary<ObjectHandlerKey, ObjectHandlerRegistration> _handlers = new();

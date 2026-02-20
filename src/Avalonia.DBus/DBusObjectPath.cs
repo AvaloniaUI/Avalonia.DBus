@@ -5,7 +5,10 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Represents a D-Bus object path.
 /// </summary>
-public readonly struct DBusObjectPath(string value) : IEquatable<DBusObjectPath>
+#if !AVDBUS_INTERNAL
+public
+#endif
+readonly struct DBusObjectPath(string value) : IEquatable<DBusObjectPath>
 {
     public string Value { get; } = value;
 
