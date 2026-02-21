@@ -9,6 +9,8 @@
     <IsPublishable>false</IsPublishable>
     <OutputType>Library</OutputType>
     <NoWarn>CA1813</NoWarn>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>../../avalonia.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>
