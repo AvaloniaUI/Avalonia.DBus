@@ -109,7 +109,7 @@ public partial class DBusSourceGenerator
                 sb.AppendLine("                    }");
             }
 
-            // User method invocation — exceptions propagate to ObjectHandlerRegistration
+            // User method invocation — exceptions propagate to the handler dispatch loop
             if (outArgs.Length == 0)
             {
                 sb.AppendLine($"                    await typedTarget.{methodIdentifier}({callArguments}).ConfigureAwait(false);");

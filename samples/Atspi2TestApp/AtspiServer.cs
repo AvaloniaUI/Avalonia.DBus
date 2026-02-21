@@ -114,7 +114,7 @@ internal sealed class AtspiServer
         BuildHandlers();
 
         LogVerbose("Registering object paths");
-        if (!RegisterObjectPaths())
+        if (!await RegisterObjectPathsAsync())
         {
             return false;
         }
@@ -248,7 +248,7 @@ internal sealed class AtspiServer
         }
     }
 
-    private bool RegisterObjectPaths()
+    private async Task<bool> RegisterObjectPathsAsync()
     {
         var sw = Stopwatch.StartNew();
         if (_a11yConnection == null)
@@ -259,7 +259,7 @@ internal sealed class AtspiServer
 
         try
         {
-            RefreshPathRegistrations();
+            await RefreshPathRegistrationsAsync();
             LogVerbose($"RegisterObjectPaths end ({sw.ElapsedMilliseconds} ms)");
             return true;
         }
@@ -270,14 +270,14 @@ internal sealed class AtspiServer
         }
     }
 
-    private void RefreshPathRegistrations()
+    private async Task RefreshPathRegistrationsAsync()
     {
         if (_a11yConnection == null)
         {
             return;
         }
 
-        var desiredRegistrations = new Dictionary<string, (object Owner, Func<IDisposable> Register)>(StringComparer.Ordinal);
+        var desiredRegistrations = new Dictionary<string, (object Owner, Func<Task<IDisposable>> Register)>(StringComparer.Ordinal);
         foreach (var node in _tree.NodesByPath.Values.OrderBy(static n => n.Path, StringComparer.Ordinal))
         {
             if (node.Handlers == null)
@@ -312,7 +312,7 @@ internal sealed class AtspiServer
             if (_pathRegistrations.ContainsKey(path))
                 continue;
 
-            var registration = desired.Register();
+            var registration = await desired.Register();
             _pathRegistrations.Add(path, new ActivePathRegistration(desired.Owner, registration));
         }
     }
@@ -716,40 +716,37 @@ internal sealed class AtspiServer
     private void StartToggleLoop()
     {
         _toggleTimer = new Timer(
-            _ => ToggleWindow(),
+            _ => _ = ToggleWindowAsync(),
             null,
             WindowToggleIntervalMs,
             WindowToggleIntervalMs);
     }
 
-    private void ToggleWindow()
+    private async Task ToggleWindowAsync()
     {
         if (!_running || _a11yConnection == null)
         {
             return;
         }
 
-        lock (_treeGate)
+        if (_tree.IsToggleWindowAttached)
         {
-            if (_tree.IsToggleWindowAttached)
-            {
-                var index = _tree.GetToggleWindowIndex();
-                _tree.RemoveToggleWindow();
-                RefreshPathRegistrations();
-                EmitChildrenChanged(_tree.Root, "remove", index < 0 ? 0 : index, _tree.ToggleWindow);
-                EmitCacheRemoveSubtree(_tree.ToggleWindow);
-            }
-            else
-            {
-                _windowToggleCounter++;
-                _tree.ToggleWindow.Description = $"Recurring window (cycle {_windowToggleCounter})";
-                _tree.AddToggleWindow();
-                RefreshPathRegistrations();
-                var index = _tree.GetToggleWindowIndex();
-                EmitChildrenChanged(_tree.Root, "add", index < 0 ? 0 : index, _tree.ToggleWindow);
-                EmitPropertyChange(_tree.ToggleWindow, "accessible-description", _tree.ToggleWindow.Description);
-                EmitCacheAddSubtree(_tree.ToggleWindow);
-            }
+            var index = _tree.GetToggleWindowIndex();
+            _tree.RemoveToggleWindow();
+            await RefreshPathRegistrationsAsync();
+            EmitChildrenChanged(_tree.Root, "remove", index < 0 ? 0 : index, _tree.ToggleWindow);
+            EmitCacheRemoveSubtree(_tree.ToggleWindow);
+        }
+        else
+        {
+            _windowToggleCounter++;
+            _tree.ToggleWindow.Description = $"Recurring window (cycle {_windowToggleCounter})";
+            _tree.AddToggleWindow();
+            await RefreshPathRegistrationsAsync();
+            var index = _tree.GetToggleWindowIndex();
+            EmitChildrenChanged(_tree.Root, "add", index < 0 ? 0 : index, _tree.ToggleWindow);
+            EmitPropertyChange(_tree.ToggleWindow, "accessible-description", _tree.ToggleWindow.Description);
+            EmitCacheAddSubtree(_tree.ToggleWindow);
         }
     }
 

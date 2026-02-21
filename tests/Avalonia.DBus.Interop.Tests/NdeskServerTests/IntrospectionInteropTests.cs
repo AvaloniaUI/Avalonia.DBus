@@ -36,7 +36,7 @@ public class IntrospectionInteropTests(InteropFixture fixture, ITestOutputHelper
         var avaloniaName = await avaloniaConn.GetUniqueNameAsync();
         Assert.NotNull(avaloniaName);
 
-        using var _ = avaloniaConn.RegisterObjects(AvaloniaPath, [new IntrospectionTarget()]);
+        using var _ = await avaloniaConn.RegisterObjects(AvaloniaPath, [new IntrospectionTarget()]);
 
         // Use a separate NDesk bus to call Introspect on the Avalonia-hosted object
         var ndeskBus = fixture.CreateLoggedNdeskBus(output);

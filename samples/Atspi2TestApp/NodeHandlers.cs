@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Avalonia.DBus;
 
 namespace Atspi2TestApp;
@@ -13,7 +14,7 @@ internal sealed class NodeHandlers(AccessibleNode node)
     public ImageHandler? ImageHandler { get; set; }
     public EventObjectHandler? EventObjectHandler { get; set; }
 
-    public IDisposable Register(
+    public async Task<IDisposable> Register(
         IDBusConnection connection,
         SynchronizationContext? synchronizationContext = null)
     {
@@ -38,7 +39,7 @@ internal sealed class NodeHandlers(AccessibleNode node)
         if (targets.Count == 0)
             return EmptyRegistration.Instance;
 
-        return connection.RegisterObjects((DBusObjectPath)Node.Path, targets, synchronizationContext);
+        return await connection.RegisterObjects((DBusObjectPath)Node.Path, targets, synchronizationContext);
     }
 
     private sealed class EmptyRegistration : IDisposable

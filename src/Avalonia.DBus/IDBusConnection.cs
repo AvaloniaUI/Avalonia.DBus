@@ -16,7 +16,7 @@ interface IDBusConnection : IAsyncDisposable
         DBusObjectPath path,
         string? iface = null);
 
-    IDisposable RegisterObjects(
+    Task<IDisposable> RegisterObjects(
         DBusObjectPath path,
         IEnumerable<object> targets,
         SynchronizationContext? synchronizationContext = null);

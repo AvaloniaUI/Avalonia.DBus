@@ -43,7 +43,7 @@ public class ObjectRegistrationTests(BusFixture fixture)
         Assert.NotNull(serverName);
 
         const string leafPath = "/org/a11y/atspi/accessible/root";
-        using var _ = serverConnection.RegisterObjects((DBusObjectPath)leafPath, [new VirtualPathTarget()]);
+        using var _ = await serverConnection.RegisterObjects((DBusObjectPath)leafPath, [new VirtualPathTarget()]);
 
         var rootReply = await clientConnection.CallMethodAsync(
             serverName!,
