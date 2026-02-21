@@ -106,7 +106,7 @@ internal sealed class DBusWireConnection : IAsyncDisposable
             false,
             cancellationToken));
 
-        await tcs.Task;
+        await tcs.Task.ConfigureAwait(false);
     }
 
     /// <summary>
@@ -128,7 +128,7 @@ internal sealed class DBusWireConnection : IAsyncDisposable
             cancellationToken
             ));
 
-        return await tcs.Task;
+        return await tcs.Task.ConfigureAwait(false);
     }
 
     /// <summary>

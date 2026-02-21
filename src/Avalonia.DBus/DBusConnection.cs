@@ -44,7 +44,7 @@ sealed partial class DBusConnection : IDBusConnection
         string address,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken);
+        var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken).ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics: null);
     }
 
@@ -56,7 +56,8 @@ sealed partial class DBusConnection : IDBusConnection
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectAsync(address, diagnostics, cancellationToken);
+        var wire = await DBusWireConnection.ConnectAsync(address, diagnostics, cancellationToken)
+            .ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics);
     }
 
@@ -66,7 +67,7 @@ sealed partial class DBusConnection : IDBusConnection
     public static async Task<DBusConnection> ConnectSessionAsync(
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken);
+        var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken).ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics: null);
     }
 
@@ -77,7 +78,8 @@ sealed partial class DBusConnection : IDBusConnection
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSessionAsync(diagnostics, cancellationToken);
+        var wire = await DBusWireConnection.ConnectSessionAsync(diagnostics, cancellationToken)
+            .ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics);
     }
 
@@ -87,7 +89,7 @@ sealed partial class DBusConnection : IDBusConnection
     public static async Task<DBusConnection> ConnectSystemAsync(
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken);
+        var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken).ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics: null);
     }
 
@@ -98,7 +100,8 @@ sealed partial class DBusConnection : IDBusConnection
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSystemAsync(diagnostics, cancellationToken);
+        var wire = await DBusWireConnection.ConnectSystemAsync(diagnostics, cancellationToken)
+            .ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics);
     }
 
@@ -126,7 +129,7 @@ sealed partial class DBusConnection : IDBusConnection
         var targetArray = targets.ToArray();
 
         EnqueueOrThrowDisposed(new RegisterObjectsMessage(path, targetArray, synchronizationContext, token, completion));
-        await completion.Task;
+        await completion.Task.ConfigureAwait(false);
 
         return new RegistrationHandle(_channel, token);
     }
@@ -160,7 +163,7 @@ sealed partial class DBusConnection : IDBusConnection
 
         EnqueueOrThrowDisposed(new MethodCallMessage(message, completion, cancellationToken));
 
-        var reply = await completion.Task;
+        var reply = await completion.Task.ConfigureAwait(false);
         ThrowIfError(reply);
         return reply;
     }
@@ -190,7 +193,7 @@ sealed partial class DBusConnection : IDBusConnection
                 token,
                 completion));
 
-        await completion.Task;
+        await completion.Task.ConfigureAwait(false);
         return new SubscriptionHandle(_channel, token);
     }
 
@@ -204,14 +207,14 @@ sealed partial class DBusConnection : IDBusConnection
         if (!_channel.TryWrite(new DisposeConnectionMessage(completion)))
             return;
 
-        await completion.Task;
+        await completion.Task.ConfigureAwait(false);
     }
 
     public async Task<string?> GetUniqueNameAsync()
     {
         var completion = CreateCompletionSource<string?>();
         EnqueueOrThrowDisposed(new GetUniqueNameMessage(completion));
-        return await completion.Task;
+        return await completion.Task.ConfigureAwait(false);
     }
 
     private void EnqueueOrThrowDisposed(object message)
