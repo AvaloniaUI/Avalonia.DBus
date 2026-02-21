@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.DBus.Native;
 
@@ -132,16 +132,10 @@ internal sealed class DBusWireConnection : IAsyncDisposable
     }
 
     /// <summary>
-    /// Receives incoming messages (METHOD_CALL, SIGNAL, etc.).
-    /// Used for implementing services.
+    /// Reader for incoming messages (METHOD_CALL, SIGNAL, etc.).
+    /// Used by higher-level connection workers.
     /// </summary>
-    public async IAsyncEnumerable<DBusMessage> ReceiveAsync(
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        var reader = _worker.ReceivingReader;
-        await foreach (var item in reader.ReadAllAsync(cancellationToken))
-            yield return item;
-    }
+    internal ChannelReader<DBusMessage> ReceivingReader => _worker.ReceivingReader;
 
     /// <summary>
     /// Closes the connection and releases resources.

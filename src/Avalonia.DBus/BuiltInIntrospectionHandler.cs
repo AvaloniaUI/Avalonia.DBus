@@ -109,5 +109,5 @@ internal readonly struct IntrospectionData
     /// Immediate child path segments (e.g. for path "/org" this might
     /// contain "a11y" if "/org/a11y/..." is registered).
     /// </summary>
-    public IReadOnlyList<string> ChildSegments { get; init; }
+    public IReadOnlySet<string> ChildSegments { get; init; }
 }
