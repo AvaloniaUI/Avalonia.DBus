@@ -83,6 +83,14 @@ public class SignatureInferenceTests
     }
 
     [Fact]
+    public void InferSignatureFromValue_StructConvertible()
+    {
+        var result = DBusSignatureInference.InferSignatureFromValue(new TestStructConvertible());
+
+        Assert.Equal("(si)", result);
+    }
+
+    [Fact]
     public void InferSignatureFromValue_Null_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => DBusSignatureInference.InferSignatureFromValue(null!));
@@ -139,6 +147,13 @@ public class SignatureInferenceTests
     {
         Assert.Throws<NotSupportedException>(
             () => DBusSignatureInference.InferSignatureFromType(typeof(DBusStruct)));
+    }
+
+    [Fact]
+    public void InferSignatureFromType_StructConvertible_Throws()
+    {
+        Assert.Throws<NotSupportedException>(
+            () => DBusSignatureInference.InferSignatureFromType(typeof(TestStructConvertible)));
     }
 
     [Theory]
@@ -210,4 +225,8 @@ public class SignatureInferenceTests
         Assert.Equal(string.Empty, result);
     }
 
+    private sealed class TestStructConvertible : IDBusStructConvertible
+    {
+        public DBusStruct ToDbusStruct() => new("hello", 42);
+    }
 }
