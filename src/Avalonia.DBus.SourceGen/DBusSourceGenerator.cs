@@ -92,7 +92,8 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             foreach (var entry in data.Right
                          .Where(entry => !string.IsNullOrWhiteSpace(entry.Text)))
             {
-                xmlByPath[entry.Path] = entry.Text!;
+                // Normalize path separators so lookups match across platforms.
+                xmlByPath[NormalizePath(entry.Path)] = entry.Text!;
             }
 
             var importPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -108,7 +109,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     if (string.IsNullOrWhiteSpace(import))
                         continue;
 
-                    var resolvedPath = Path.GetFullPath(Path.Combine(baseDirectory, import));
+                    var resolvedPath = NormalizePath(Path.Combine(baseDirectory, import));
                     importPaths.Add(resolvedPath);
                 }
             }
@@ -199,4 +200,6 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
 
         });
     }
+
+    private static string NormalizePath(string path) => Path.GetFullPath(path);
 }
