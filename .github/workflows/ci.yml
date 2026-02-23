@@ -35,6 +35,9 @@ jobs:
       - name: Build
         run: dotnet build Avalonia.DBus.slnx --configuration Release --no-restore
 
+      - name: AOT Compatibility Gate
+        run: ./tools/check-aot-compat.sh
+
       - name: Run Source Generator Tests
         run: dotnet test tests/Avalonia.DBus.SourceGen.Tests/ --no-build --configuration Release
 
