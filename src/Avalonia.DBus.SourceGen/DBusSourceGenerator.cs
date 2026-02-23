@@ -73,15 +73,24 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
 
         var combinedProvider = generatorProvider.Collect().Combine(xmlTextProvider.Collect());
 
-        context.RegisterSourceOutput(combinedProvider, (productionContext, data) =>
+        var isInternalProvider = context.AnalyzerConfigOptionsProvider.Select((options, _) =>
         {
-            foreach (var entry in data.Left)
+            options.GlobalOptions.TryGetValue("build_property.AvDBusInternal", out var value);
+            return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+        });
+
+        var fullProvider = combinedProvider.Combine(isInternalProvider);
+
+        context.RegisterSourceOutput(fullProvider, (productionContext, data) =>
+        {
+            var isInternal = data.Right;
+            foreach (var entry in data.Left.Left)
             {
                 if (entry.ParseError != null)
                     productionContext.ReportDiagnostic(Diagnostic.Create(InvalidXmlWarning, Location.None, entry.FilePath, entry.ParseError));
             }
 
-            var provider = data.Left
+            var provider = data.Left.Left
                 .Where(static x => x.Node != null)
                 .Select(static x => (Node: x.Node!, GeneratorMode: x.GeneratorMode!, FilePath: x.FilePath!, Namespace: x.Namespace!))
                 .ToImmutableArray();
@@ -89,7 +98,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 return;
 
             var xmlByPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in data.Right
+            foreach (var entry in data.Left.Right
                          .Where(entry => !string.IsNullOrWhiteSpace(entry.Text)))
             {
                 // Normalize path separators so lookups match across platforms.
@@ -130,14 +139,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
 
                 productionContext.AddSource(
                     $"{GetHintPrefix(group.Key)}.DBusStructs.g.cs",
-                    BuildStructsSource(structDefinitions.Values, group.Key));
+                    BuildStructsSource(structDefinitions.Values, group.Key, isInternal));
             }
 
             var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
             foreach (var group in interfaceContexts.GroupBy(static context => context.UserFacingNamespace, StringComparer.Ordinal))
             {
                 var (dictionaryAliases, bitFlagsAliases) = CollectTypeAliases(group.Select(static context => context.Interface));
-                var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions, group.Key);
+                var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions, group.Key, isInternal);
                 if (!string.IsNullOrWhiteSpace(aliasesSource))
                 {
                     productionContext.AddSource($"{GetHintPrefix(group.Key)}.DBusTypeAliases.g.cs", aliasesSource);
@@ -153,7 +162,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     case "Proxy":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface);
+                            TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface, isInternal);
                             var namespaceDeclaration = NamespaceDeclaration(
                                     ParseName(value.Namespace))
                                 .AddMembers(typeDeclarationSyntax);
@@ -170,7 +179,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     case "Handler":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            var source = BuildHandlerSource(dBusInterface, value.Namespace);
+                            var source = BuildHandlerSource(dBusInterface, value.Namespace, isInternal);
                             productionContext.AddSource(
                                 $"{GetHintPrefix(value.Namespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs",
                                 source);

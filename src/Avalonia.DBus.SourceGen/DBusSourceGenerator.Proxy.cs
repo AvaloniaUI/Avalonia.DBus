@@ -2,11 +2,12 @@ namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
 {
-    private ClassDeclarationSyntax GenerateProxy(DBusInterface dBusInterface)
+    private ClassDeclarationSyntax GenerateProxy(DBusInterface dBusInterface, bool isInternal)
     {
         var identifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
+        var accessModifier = isInternal ? SyntaxKind.InternalKeyword : SyntaxKind.PublicKeyword;
         var cl = ClassDeclaration(identifier)
-            .AddModifiers(Token(SyntaxKind.PublicKeyword));
+            .AddModifiers(Token(accessModifier));
 
         var interfaceConst = MakePrivateStringConst("DefaultInterface", dBusInterface.Name!, PredefinedType(Token(SyntaxKind.StringKeyword)));
         var interfaceField = MakePrivateReadOnlyField("_interface", PredefinedType(Token(SyntaxKind.StringKeyword)));

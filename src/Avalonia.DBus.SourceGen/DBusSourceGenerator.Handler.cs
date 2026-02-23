@@ -2,8 +2,9 @@ namespace Avalonia.DBus.SourceGen;
 
 public partial class DBusSourceGenerator
 {
-    private static string BuildHandlerSource(DBusInterface dBusInterface, string userFacingNamespace)
+    private static string BuildHandlerSource(DBusInterface dBusInterface, string userFacingNamespace, bool isInternal = false)
     {
+        var accessModifier = isInternal ? "internal" : "public";
         var interfaceIdentifier = GetHandlerInterfaceIdentifier(dBusInterface);
         var interfaceTypeName = GetGlobalQualifiedTypeName(userFacingNamespace, interfaceIdentifier);
         var dispatcherIdentifier = GetHandlerDispatcherIdentifier(dBusInterface);
@@ -26,7 +27,7 @@ public partial class DBusSourceGenerator
         sb.AppendLine($"namespace {userFacingNamespace}");
         sb.AppendLine("{");
 
-        sb.AppendLine($"    public interface {interfaceIdentifier}");
+        sb.AppendLine($"    {accessModifier} interface {interfaceIdentifier}");
         sb.AppendLine("    {");
         foreach (var property in properties)
         {
