@@ -14,7 +14,7 @@ readonly struct DBusObjectPath(string value) : IEquatable<DBusObjectPath>
 
     public static implicit operator string(DBusObjectPath path) => path.Value;
 
-    public static explicit operator DBusObjectPath(string value) => new(value);
+    public static implicit operator DBusObjectPath(string value) => new(value);
 
     public bool Equals(DBusObjectPath other) => string.Equals(Value, other.Value, StringComparison.Ordinal);
 

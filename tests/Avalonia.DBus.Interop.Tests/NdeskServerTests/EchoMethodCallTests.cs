@@ -14,7 +14,7 @@ namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 public class EchoMethodCallTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private const string EchoInterface = "org.avalonia.dbus.interop.Echo";
-    private static readonly DBusObjectPath EchoPath = (DBusObjectPath)"/org/avalonia/dbus/interop/Echo";
+    private static readonly DBusObjectPath EchoPath = "/org/avalonia/dbus/interop/Echo";
     private static readonly ObjectPath NdeskEchoPath = new("/org/avalonia/dbus/interop/Echo");
 
     private static string TestName() => $"org.avalonia.dbus.interop.echo.t{Guid.NewGuid():N}";

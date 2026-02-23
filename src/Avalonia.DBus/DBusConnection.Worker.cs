@@ -493,7 +493,7 @@ sealed partial class DBusConnection
         {
             var message = DBusMessage.CreateMethodCall(
                 "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
+                "/org/freedesktop/DBus",
                 "org.freedesktop.DBus",
                 member,
                 body);

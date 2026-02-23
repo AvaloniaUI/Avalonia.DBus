@@ -11,7 +11,7 @@ public
 static class FreedesktopDBusExtensions
 {
     private const string BusDestination = "org.freedesktop.DBus";
-    private static readonly DBusObjectPath BusPath = (DBusObjectPath)"/org/freedesktop/DBus";
+    private static readonly DBusObjectPath BusPath = "/org/freedesktop/DBus";
 
     extension(IDBusConnection connection)
     {

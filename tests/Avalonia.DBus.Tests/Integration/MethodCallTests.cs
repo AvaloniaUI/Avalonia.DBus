@@ -20,7 +20,7 @@ public class MethodCallTests(BusFixture fixture)
         // Ping is on org.freedesktop.DBus.Peer, not on the main interface proxy
         var reply = await connection.CallMethodAsync(
             "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
+            "/org/freedesktop/DBus",
             "org.freedesktop.DBus.Peer",
             "Ping",
             cts.Token);
@@ -37,7 +37,7 @@ public class MethodCallTests(BusFixture fixture)
         var ex = await Assert.ThrowsAsync<DBusException>(async () =>
             await connection.CallMethodAsync(
                 "org.avalonia.dbus.test.nonexistent.service",
-                (DBusObjectPath)"/test",
+                "/test",
                 "org.test.Interface",
                 "SomeMethod",
                 cts.Token));
@@ -54,7 +54,7 @@ public class MethodCallTests(BusFixture fixture)
         var ex = await Assert.ThrowsAsync<DBusException>(async () =>
             await connection.CallMethodAsync(
                 "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
+                "/org/freedesktop/DBus",
                 "org.freedesktop.DBus",
                 "ThisMethodDoesNotExist",
                 cts.Token));

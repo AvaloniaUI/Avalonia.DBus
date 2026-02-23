@@ -25,7 +25,7 @@ public class ObjectRegistrationTests(BusFixture fixture)
         var ex = await Assert.ThrowsAsync<DBusException>(async () =>
             await connection.CallMethodAsync(
                 myName!,
-                (DBusObjectPath)"/nonexistent/object/path",
+                "/nonexistent/object/path",
                 "org.test.Iface",
                 "Method"));
 
@@ -43,11 +43,11 @@ public class ObjectRegistrationTests(BusFixture fixture)
         Assert.NotNull(serverName);
 
         const string leafPath = "/org/a11y/atspi/accessible/root";
-        using var _ = await serverConnection.RegisterObjects((DBusObjectPath)leafPath, [new VirtualPathTarget()]);
+        using var _ = await serverConnection.RegisterObjects(leafPath, [new VirtualPathTarget()]);
 
         var rootReply = await clientConnection.CallMethodAsync(
             serverName!,
-            (DBusObjectPath)"/",
+            "/",
             IntrospectableInterfaceName,
             "Introspect");
         var rootXml = Assert.IsType<string>(Assert.Single(rootReply.Body));
@@ -55,7 +55,7 @@ public class ObjectRegistrationTests(BusFixture fixture)
 
         var orgReply = await clientConnection.CallMethodAsync(
             serverName!,
-            (DBusObjectPath)"/org",
+            "/org",
             IntrospectableInterfaceName,
             "Introspect");
         var orgXml = Assert.IsType<string>(Assert.Single(orgReply.Body));
@@ -63,7 +63,7 @@ public class ObjectRegistrationTests(BusFixture fixture)
 
         var a11yReply = await clientConnection.CallMethodAsync(
             serverName!,
-            (DBusObjectPath)"/org/a11y",
+            "/org/a11y",
             IntrospectableInterfaceName,
             "Introspect");
         var a11yXml = Assert.IsType<string>(Assert.Single(a11yReply.Body));
@@ -71,7 +71,7 @@ public class ObjectRegistrationTests(BusFixture fixture)
 
         var leafReply = await clientConnection.CallMethodAsync(
             serverName!,
-            (DBusObjectPath)leafPath,
+            leafPath,
             IntrospectableInterfaceName,
             "Introspect");
         var leafXml = Assert.IsType<string>(Assert.Single(leafReply.Body));

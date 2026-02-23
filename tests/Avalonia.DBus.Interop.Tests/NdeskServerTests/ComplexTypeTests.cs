@@ -15,7 +15,7 @@ namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 public class ComplexTypeTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private const string TypeTestInterface = "org.avalonia.dbus.interop.TypeTest";
-    private static readonly DBusObjectPath TypeTestPath = (DBusObjectPath)"/org/avalonia/dbus/interop/TypeTest";
+    private static readonly DBusObjectPath TypeTestPath = "/org/avalonia/dbus/interop/TypeTest";
     private static readonly ObjectPath NdeskTypeTestPath = new("/org/avalonia/dbus/interop/TypeTest");
 
     private static string TestName() => $"org.avalonia.dbus.interop.typetest.t{Guid.NewGuid():N}";

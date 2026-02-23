@@ -26,11 +26,11 @@ public class IntrospectionTests(BusFixture fixture)
         Assert.NotNull(serverName);
 
         const string path = "/org/avalonia/test/introspection";
-        using var _ = await serverConnection.RegisterObjects((DBusObjectPath)path, [new IntrospectionTarget()]);
+        using var _ = await serverConnection.RegisterObjects(path, [new IntrospectionTarget()]);
 
         var reply = await clientConnection.CallMethodAsync(
             serverName!,
-            (DBusObjectPath)path,
+            path,
             IntrospectableInterfaceName,
             "Introspect");
 
@@ -86,11 +86,11 @@ public class IntrospectionTests(BusFixture fixture)
         Assert.NotNull(serverName);
 
         const string path = "/org/avalonia/test/bare";
-        using var _ = await serverConnection.RegisterObjects((DBusObjectPath)path, [new BareTarget()]);
+        using var _ = await serverConnection.RegisterObjects(path, [new BareTarget()]);
 
         var reply = await clientConnection.CallMethodAsync(
             serverName!,
-            (DBusObjectPath)path,
+            path,
             IntrospectableInterfaceName,
             "Introspect");
 

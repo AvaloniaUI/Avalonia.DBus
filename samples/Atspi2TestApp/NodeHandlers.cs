@@ -39,7 +39,7 @@ internal sealed class NodeHandlers(AccessibleNode node)
         if (targets.Count == 0)
             return EmptyRegistration.Instance;
 
-        return await connection.RegisterObjects((DBusObjectPath)Node.Path, targets, synchronizationContext);
+        return await connection.RegisterObjects(Node.Path, targets, synchronizationContext);
     }
 
     private sealed class EmptyRegistration : IDisposable

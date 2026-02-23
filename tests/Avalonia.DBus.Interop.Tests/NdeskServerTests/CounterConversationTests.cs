@@ -15,7 +15,7 @@ namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 public class CounterConversationTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private const string CounterInterface = "org.avalonia.dbus.interop.Counter";
-    private static readonly DBusObjectPath CounterPath = (DBusObjectPath)"/org/avalonia/dbus/interop/Counter";
+    private static readonly DBusObjectPath CounterPath = "/org/avalonia/dbus/interop/Counter";
     private static readonly ObjectPath NdeskCounterPath = new("/org/avalonia/dbus/interop/Counter");
 
     private static string TestName() => $"org.avalonia.dbus.interop.counter.t{Guid.NewGuid():N}";

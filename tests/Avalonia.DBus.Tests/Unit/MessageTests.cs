@@ -10,7 +10,7 @@ public class MessageTests
     {
         var msg = DBusMessage.CreateMethodCall(
             "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
+            "/org/freedesktop/DBus",
             "org.freedesktop.DBus",
             "Hello");
 
@@ -27,7 +27,7 @@ public class MessageTests
     {
         var msg = DBusMessage.CreateMethodCall(
             "org.test",
-            (DBusObjectPath)"/test",
+            "/test",
             "org.test.Iface",
             "Method",
             "hello", 42);
@@ -40,7 +40,7 @@ public class MessageTests
     public void CreateSignal_SetsCorrectFields()
     {
         var msg = DBusMessage.CreateSignal(
-            (DBusObjectPath)"/org/freedesktop/DBus",
+            "/org/freedesktop/DBus",
             "org.freedesktop.DBus",
             "NameOwnerChanged",
             "test", "old", "new");
@@ -130,7 +130,7 @@ public class MessageTests
     [Fact]
     public void IsMethodCall_MatchesCorrectly()
     {
-        var msg = DBusMessage.CreateMethodCall("dest", (DBusObjectPath)"/", "org.test", "Ping");
+        var msg = DBusMessage.CreateMethodCall("dest", "/", "org.test", "Ping");
 
         Assert.True(msg.IsMethodCall("org.test", "Ping"));
         Assert.False(msg.IsMethodCall("org.test", "Other"));
@@ -140,7 +140,7 @@ public class MessageTests
     [Fact]
     public void IsSignal_MatchesCorrectly()
     {
-        var msg = DBusMessage.CreateSignal((DBusObjectPath)"/", "org.test", "Changed");
+        var msg = DBusMessage.CreateSignal("/", "org.test", "Changed");
 
         Assert.True(msg.IsSignal("org.test", "Changed"));
         Assert.False(msg.IsSignal("org.test", "Other"));
@@ -162,34 +162,34 @@ public class MessageTests
     public void CreateMethodCall_EmptyDestination_Throws()
     {
         Assert.Throws<ArgumentException>(() =>
-            DBusMessage.CreateMethodCall("", (DBusObjectPath)"/", "org.test", "Method"));
+            DBusMessage.CreateMethodCall("", "/", "org.test", "Method"));
     }
 
     [Fact]
     public void CreateMethodCall_EmptyInterface_Throws()
     {
         Assert.Throws<ArgumentException>(() =>
-            DBusMessage.CreateMethodCall("dest", (DBusObjectPath)"/", "", "Method"));
+            DBusMessage.CreateMethodCall("dest", "/", "", "Method"));
     }
 
     [Fact]
     public void CreateMethodCall_EmptyMember_Throws()
     {
         Assert.Throws<ArgumentException>(() =>
-            DBusMessage.CreateMethodCall("dest", (DBusObjectPath)"/", "org.test", ""));
+            DBusMessage.CreateMethodCall("dest", "/", "org.test", ""));
     }
 
     [Fact]
     public void CreateSignal_EmptyInterface_Throws()
     {
         Assert.Throws<ArgumentException>(() =>
-            DBusMessage.CreateSignal((DBusObjectPath)"/", "", "Member"));
+            DBusMessage.CreateSignal("/", "", "Member"));
     }
 
     [Fact]
     public void CreateSignal_EmptyMember_Throws()
     {
         Assert.Throws<ArgumentException>(() =>
-            DBusMessage.CreateSignal((DBusObjectPath)"/", "org.test", ""));
+            DBusMessage.CreateSignal("/", "org.test", ""));
     }
 }

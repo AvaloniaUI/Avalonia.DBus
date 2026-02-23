@@ -128,7 +128,9 @@ internal static unsafe class DBusMessageMarshaler
     private static DBusObjectPath? ReadObjectPath(DBusNativeMessage* message)
     {
         var path = PtrToStringNullable(dbus_message_get_path(message));
-        return path == null ? null : new DBusObjectPath(path);
+        if (path == null)
+            return null;
+        return new DBusObjectPath(path);
     }
 
     private static IReadOnlyList<object> ReadBody(DBusNativeMessage* message, string signature)

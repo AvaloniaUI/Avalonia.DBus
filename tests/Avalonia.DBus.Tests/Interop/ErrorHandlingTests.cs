@@ -18,7 +18,7 @@ public class ErrorHandlingTests(BusFixture fixture)
         await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
             await connection.CallMethodAsync(
                 "org.freedesktop.DBus",
-                (DBusObjectPath)"/org/freedesktop/DBus",
+                "/org/freedesktop/DBus",
                 "org.freedesktop.DBus",
                 "ListNames"));
     }
@@ -46,7 +46,7 @@ public class ErrorHandlingTests(BusFixture fixture)
         var ex = await Assert.ThrowsAsync<DBusException>(async () =>
             await connection.CallMethodAsync(
                 "org.nonexistent.service.test",
-                (DBusObjectPath)"/test",
+                "/test",
                 "org.test.Iface",
                 "Method"));
 

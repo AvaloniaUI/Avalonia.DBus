@@ -12,7 +12,7 @@ internal static class Program
         // Manual message construction (sent via the public DBusConnection API)
         var reply = await connection.CallMethodAsync(
             "org.freedesktop.DBus",
-            (DBusObjectPath)"/org/freedesktop/DBus",
+            "/org/freedesktop/DBus",
             "org.freedesktop.DBus",
             "ListNames");
         var names = (List<string>)reply.Body[0];
@@ -22,7 +22,7 @@ internal static class Program
 
         using var subscription = await connection.SubscribeAsync(
             sender: null,
-            path: (DBusObjectPath)"/org/freedesktop/Notifications",
+            path: "/org/freedesktop/Notifications",
             iface: "org.freedesktop.Notifications",
             member: "NotificationClosed",
             handler: async message =>

@@ -19,7 +19,7 @@ namespace Avalonia.DBus.Interop.Tests.NdeskServerTests;
 public class IntrospectionInteropTests(InteropFixture fixture, ITestOutputHelper output)
 {
     private const string TestInterfaceName = "org.avalonia.dbus.interop.IntrospectionTest";
-    private static readonly DBusObjectPath AvaloniaPath = (DBusObjectPath)"/org/avalonia/dbus/interop/IntrospectionTest";
+    private static readonly DBusObjectPath AvaloniaPath = "/org/avalonia/dbus/interop/IntrospectionTest";
     private static readonly ObjectPath NdeskPath = new("/org/avalonia/dbus/interop/IntrospectionTest");
 
     private static readonly object MetadataGate = new();

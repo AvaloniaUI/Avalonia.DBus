@@ -294,7 +294,7 @@ internal sealed class AtspiServer
             var cacheHandler = _cacheHandler;
             desiredRegistrations.Add(
                 CachePath,
-                (cacheHandler, () => _a11yConnection.RegisterObjects((DBusObjectPath)CachePath, [cacheHandler])));
+                (cacheHandler, () => _a11yConnection.RegisterObjects(CachePath, [cacheHandler])));
         }
 
         foreach (var (path, active) in _pathRegistrations.ToArray())

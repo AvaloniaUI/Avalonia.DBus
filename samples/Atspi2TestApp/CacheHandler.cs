@@ -37,7 +37,7 @@ internal sealed class CacheHandler(AtspiServer server) : IOrgA11yAtspiCache
     private void EmitSignal(string member, params object[] body)
     {
         var message = DBusMessage.CreateSignal(
-            (DBusObjectPath)CachePath,
+            CachePath,
             IfaceCache,
             member,
             body);

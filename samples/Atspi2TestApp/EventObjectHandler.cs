@@ -21,7 +21,7 @@ internal sealed class EventObjectHandler(AtspiServer server, string path) : IOrg
     private void EmitSignal(string member, params object[] body)
     {
         var message = DBusMessage.CreateSignal(
-            (DBusObjectPath)path,
+            path,
             IfaceEventObject,
             member,
             body);
