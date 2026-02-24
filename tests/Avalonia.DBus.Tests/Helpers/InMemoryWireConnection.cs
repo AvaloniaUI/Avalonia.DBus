@@ -4,7 +4,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Avalonia.DBus.Transport;
 
 namespace Avalonia.DBus.Tests.Helpers;
 
