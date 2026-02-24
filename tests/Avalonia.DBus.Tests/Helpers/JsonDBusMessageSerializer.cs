@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using Avalonia.DBus.Transport;
 
 namespace Avalonia.DBus.Tests.Helpers;
 
