@@ -27,7 +27,7 @@ sealed class DBusMessage
     /// <summary>
     /// Message serial number. Assigned by the connection when sent.
     /// </summary>
-    public uint Serial { get; internal set; }
+    public uint Serial { get; set; }
 
     /// <summary>
     /// For METHOD_RETURN and ERROR: the serial of the METHOD_CALL being replied to.
@@ -62,7 +62,7 @@ sealed class DBusMessage
     /// <summary>
     /// Sender's unique bus name. Set by the message bus.
     /// </summary>
-    public string? Sender { get; internal set; }
+    public string? Sender { get; set; }
 
     /// <summary>
     /// Type signature of the message body. Computed from Body contents.
@@ -82,7 +82,7 @@ sealed class DBusMessage
         }
     }
 
-    internal void SetBodyWithSignature(IReadOnlyList<object> body, string signature)
+    public void SetBodyWithSignature(IReadOnlyList<object> body, string signature)
     {
         _body = body ?? [];
         _signature = new DBusSignature(signature ?? string.Empty);
