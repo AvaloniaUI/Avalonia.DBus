@@ -1,14 +1,11 @@
 using System.IO;
 
-namespace Avalonia.DBus.Transport;
+namespace Avalonia.DBus.Tests.Helpers;
 
 /// <summary>
 /// Serializes and deserializes <see cref="DBusMessage"/> instances to and from streams.
 /// </summary>
-#if !AVDBUS_INTERNAL
-public
-#endif
-interface IDBusMessageSerializer
+internal interface IDBusMessageSerializer
 {
     void Serialize(DBusMessage message, Stream stream);
     DBusMessage Deserialize(Stream stream);
