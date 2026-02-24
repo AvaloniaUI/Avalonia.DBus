@@ -14,7 +14,10 @@ sealed partial class DBusConnection : IDBusConnection
 {
     private readonly ChannelWriter<object> _channel;
 
-    private DBusConnection(DBusWireConnection wire, IDBusDiagnostics? diagnostics)
+    /// <summary>
+    /// Creates a connection using the specified wire transport.
+    /// </summary>
+    public DBusConnection(IDBusWireConnection wire, IDBusDiagnostics? diagnostics = null)
     {
         ArgumentNullException.ThrowIfNull(wire);
 

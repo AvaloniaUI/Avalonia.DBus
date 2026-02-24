@@ -10,7 +10,7 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Low-level connection handling raw DBus message transport.
 /// </summary>
-internal sealed class DBusWireConnection : IAsyncDisposable
+internal sealed class DBusWireConnection : IDBusWireConnection
 {
     private readonly DbusWireWorker _worker;
 
@@ -135,7 +135,7 @@ internal sealed class DBusWireConnection : IAsyncDisposable
     /// Reader for incoming messages (METHOD_CALL, SIGNAL, etc.).
     /// Used by higher-level connection workers.
     /// </summary>
-    internal ChannelReader<DBusMessage> ReceivingReader => _worker.ReceivingReader;
+    public ChannelReader<DBusMessage> ReceivingReader => _worker.ReceivingReader;
 
     /// <summary>
     /// Closes the connection and releases resources.
