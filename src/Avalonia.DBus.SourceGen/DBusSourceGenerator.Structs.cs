@@ -306,7 +306,7 @@ public partial class DBusSourceGenerator
             var parameters = string.Join(", ", definition.Fields.Select((field, index) =>
                 $"{GetTypeName(field)} {GetStructFieldName(definition, index)}"));
 
-            sb.AppendLine($"    {accessModifier} sealed record {typeName}({parameters})");
+            sb.AppendLine($"    {accessModifier} sealed record {typeName}({parameters}) : IDBusStructConvertible");
             sb.AppendLine("    {");
             sb.AppendLine($"        public const string Signature = {signatureLiteral};");
             sb.AppendLine();

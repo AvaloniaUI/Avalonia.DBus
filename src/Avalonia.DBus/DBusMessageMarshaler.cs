@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using Avalonia.DBus.Native;
 using static Avalonia.DBus.DbusHelpers;
 using static Avalonia.DBus.Native.LibDbus;
@@ -431,26 +430,117 @@ internal static unsafe class DBusMessageMarshaler
 
     private static object CreateArrayInstance(string elementSignature, List<object> items)
     {
-        var elementType = DBusSignatureInference.GetTypeForSignature(elementSignature);
-        var listType = typeof(List<>).MakeGenericType(elementType);
-        var list = (IList)Activator.CreateInstance(listType)!;
-        foreach (var item in items)
+        DBusSignatureToken token = elementSignature[0];
+        return token switch
         {
-            list.Add(item);
-        }
-
-        return list;
+            _ when token == DBusSignatureToken.Byte => CreateList<byte>(items),
+            _ when token == DBusSignatureToken.Boolean => CreateList<bool>(items),
+            _ when token == DBusSignatureToken.Int16 => CreateList<short>(items),
+            _ when token == DBusSignatureToken.UInt16 => CreateList<ushort>(items),
+            _ when token == DBusSignatureToken.Int32 => CreateList<int>(items),
+            _ when token == DBusSignatureToken.UInt32 => CreateList<uint>(items),
+            _ when token == DBusSignatureToken.Int64 => CreateList<long>(items),
+            _ when token == DBusSignatureToken.UInt64 => CreateList<ulong>(items),
+            _ when token == DBusSignatureToken.Double => CreateList<double>(items),
+            _ when token == DBusSignatureToken.String => CreateList<string>(items),
+            _ when token == DBusSignatureToken.ObjectPath => CreateList<DBusObjectPath>(items),
+            _ when token == DBusSignatureToken.Signature => CreateList<DBusSignature>(items),
+            _ when token == DBusSignatureToken.UnixFd => CreateList<DBusUnixFd>(items),
+            _ when token == DBusSignatureToken.Variant => CreateList<DBusVariant>(items),
+            _ when token == DBusSignatureToken.StructBegin => CreateList<DBusStruct>(items),
+            _ when token == DBusSignatureToken.Array => CreateList<object>(items),
+            _ => CreateList<object>(items)
+        };
     }
 
     private static object CreateDictInstance(string entrySignature, List<KeyValuePair<object?, object?>> entries)
     {
         var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
-        var keyType = DBusSignatureInference.GetTypeForSignature(keySig);
-        var valueType = DBusSignatureInference.GetTypeForSignature(valueSig);
+        return keySig[0] switch
+        {
+            _ when keySig[0] == DBusSignatureToken.Byte => CreateDictionaryForValue<byte>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.Boolean => CreateDictionaryForValue<bool>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.Int16 => CreateDictionaryForValue<short>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.UInt16 => CreateDictionaryForValue<ushort>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.Int32 => CreateDictionaryForValue<int>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.UInt32 => CreateDictionaryForValue<uint>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.Int64 => CreateDictionaryForValue<long>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.UInt64 => CreateDictionaryForValue<ulong>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.Double => CreateDictionaryForValue<double>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.String => CreateDictionaryForValue<string>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.ObjectPath => CreateDictionaryForValue<DBusObjectPath>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.Signature => CreateDictionaryForValue<DBusSignature>(valueSig, entries),
+            _ when keySig[0] == DBusSignatureToken.UnixFd => CreateDictionaryForValue<DBusUnixFd>(valueSig, entries),
+            _ => CreateDictionary<object, object?>(entries)
+        };
+    }
 
-        var dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
-        var dict = (IDictionary)Activator.CreateInstance(dictType)!;
+    private static List<T> CreateList<T>(IReadOnlyList<object> items)
+    {
+        var list = new List<T>(items.Count);
+        foreach (var item in items)
+        {
+            list.Add((T)item);
+        }
 
+        return list;
+    }
+
+    private static object CreateDictionaryForValue<TKey>(
+        string valueSignature,
+        IReadOnlyList<KeyValuePair<object?, object?>> entries) where TKey : notnull
+    {
+        DBusSignatureToken token = valueSignature[0];
+        if (token == DBusSignatureToken.Array)
+        {
+            var index = 1;
+            var elementSignature = DBusSignatureParser.ReadSingleType(valueSignature, ref index);
+            return elementSignature[0] switch
+            {
+                _ when elementSignature[0] == DBusSignatureToken.Byte => CreateDictionary<TKey, List<byte>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.Boolean => CreateDictionary<TKey, List<bool>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.Int16 => CreateDictionary<TKey, List<short>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.UInt16 => CreateDictionary<TKey, List<ushort>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.Int32 => CreateDictionary<TKey, List<int>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.UInt32 => CreateDictionary<TKey, List<uint>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.Int64 => CreateDictionary<TKey, List<long>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.UInt64 => CreateDictionary<TKey, List<ulong>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.Double => CreateDictionary<TKey, List<double>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.String => CreateDictionary<TKey, List<string>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.ObjectPath => CreateDictionary<TKey, List<DBusObjectPath>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.Signature => CreateDictionary<TKey, List<DBusSignature>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.UnixFd => CreateDictionary<TKey, List<DBusUnixFd>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.Variant => CreateDictionary<TKey, List<DBusVariant>>(entries),
+                _ when elementSignature[0] == DBusSignatureToken.StructBegin => CreateDictionary<TKey, List<DBusStruct>>(entries),
+                _ => CreateDictionary<TKey, object?>(entries)
+            };
+        }
+
+        return token switch
+        {
+            _ when token == DBusSignatureToken.Byte => CreateDictionary<TKey, byte>(entries),
+            _ when token == DBusSignatureToken.Boolean => CreateDictionary<TKey, bool>(entries),
+            _ when token == DBusSignatureToken.Int16 => CreateDictionary<TKey, short>(entries),
+            _ when token == DBusSignatureToken.UInt16 => CreateDictionary<TKey, ushort>(entries),
+            _ when token == DBusSignatureToken.Int32 => CreateDictionary<TKey, int>(entries),
+            _ when token == DBusSignatureToken.UInt32 => CreateDictionary<TKey, uint>(entries),
+            _ when token == DBusSignatureToken.Int64 => CreateDictionary<TKey, long>(entries),
+            _ when token == DBusSignatureToken.UInt64 => CreateDictionary<TKey, ulong>(entries),
+            _ when token == DBusSignatureToken.Double => CreateDictionary<TKey, double>(entries),
+            _ when token == DBusSignatureToken.String => CreateDictionary<TKey, string>(entries),
+            _ when token == DBusSignatureToken.ObjectPath => CreateDictionary<TKey, DBusObjectPath>(entries),
+            _ when token == DBusSignatureToken.Signature => CreateDictionary<TKey, DBusSignature>(entries),
+            _ when token == DBusSignatureToken.UnixFd => CreateDictionary<TKey, DBusUnixFd>(entries),
+            _ when token == DBusSignatureToken.Variant => CreateDictionary<TKey, DBusVariant>(entries),
+            _ when token == DBusSignatureToken.StructBegin => CreateDictionary<TKey, DBusStruct>(entries),
+            _ => CreateDictionary<TKey, object?>(entries)
+        };
+    }
+
+    private static Dictionary<TKey, TValue> CreateDictionary<TKey, TValue>(
+        IReadOnlyList<KeyValuePair<object?, object?>> entries) where TKey : notnull
+    {
+        var dict = new Dictionary<TKey, TValue>(entries.Count);
         foreach (var entry in entries)
         {
             if (entry.Key is null)
@@ -458,7 +548,8 @@ internal static unsafe class DBusMessageMarshaler
                 throw new InvalidOperationException("Dictionary contains null keys.");
             }
 
-            dict.Add(entry.Key, entry.Value);
+            var value = entry.Value is null ? default! : (TValue)entry.Value;
+            dict.Add((TKey)entry.Key, value);
         }
 
         return dict;
@@ -532,13 +623,10 @@ internal static unsafe class DBusMessageMarshaler
             case DBusStruct dbusStruct:
                 AppendStruct(ref iter, dbusStruct);
                 return;
+            case IDBusStructConvertible structConvertible:
+                AppendStruct(ref iter, structConvertible.ToDbusStruct());
+                return;
             default:
-                if (TryConvertToDbusStruct(value, out var convertedStruct))
-                {
-                    AppendStruct(ref iter, convertedStruct);
-                    return;
-                }
-
                 if (DBusCollectionHelpers.TryGetDictionaryTypes(value.GetType(), out _, out _) || value is IDictionary)
                 {
                     AppendDict(ref iter, value);
@@ -691,43 +779,6 @@ internal static unsafe class DBusMessageMarshaler
         {
             dbus_message_iter_close_container(iterPtr, &child);
         }
-    }
-
-    private static readonly Dictionary<Type, MethodInfo?> s_structConverters = new();
-    private static readonly object s_structConvertersLock = new();
-
-    private static bool TryConvertToDbusStruct(object value, out DBusStruct dbusStruct)
-    {
-        if (value is DBusStruct structValue)
-        {
-            dbusStruct = structValue;
-            return true;
-        }
-
-        var type = value.GetType();
-        MethodInfo? method;
-        lock (s_structConvertersLock)
-        {
-            if (!s_structConverters.TryGetValue(type, out method))
-            {
-                method = type.GetMethod("ToDbusStruct", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
-                if (method is not null && method.ReturnType != typeof(DBusStruct))
-                {
-                    method = null;
-                }
-
-                s_structConverters[type] = method;
-            }
-        }
-
-        if (method is null)
-        {
-            dbusStruct = null!;
-            return false;
-        }
-
-        dbusStruct = (DBusStruct)method.Invoke(value, null)!;
-        return true;
     }
 
 }

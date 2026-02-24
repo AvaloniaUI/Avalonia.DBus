@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
+    <IsAotCompatible>true</IsAotCompatible>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>../../avalonia.snk</AssemblyOriginatorKeyFile>
