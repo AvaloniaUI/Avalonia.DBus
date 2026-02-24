@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Avalonia.DBus.Platform;
 
-internal sealed unsafe class LinuxPosixPoll : IPosixPoll
+internal sealed unsafe partial class LinuxPosixPoll : IPosixPoll
 {
     private const int O_NONBLOCK = 0x800;
     private const int O_CLOEXEC = 0x80000;
@@ -30,18 +30,18 @@ internal sealed unsafe class LinuxPosixPoll : IPosixPoll
     public long Write(int fd, void* buf, IntPtr count) => write(fd, buf, count);
     public int Close(int fd) => close(fd);
 
-    [DllImport("libc", SetLastError = true)]
-    private static extern int ppoll(PollFd* fds, IntPtr nfds, IntPtr timeout, IntPtr sigmask);
+    [LibraryImport("libc", SetLastError = true)]
+    private static partial int ppoll(PollFd* fds, IntPtr nfds, IntPtr timeout, IntPtr sigmask);
 
-    [DllImport("libc", SetLastError = true)]
-    private static extern int pipe2(int* pipefd, int flags);
+    [LibraryImport("libc", SetLastError = true)]
+    private static partial int pipe2(int* pipefd, int flags);
 
-    [DllImport("libc", SetLastError = true)]
-    private static extern long read(int fd, void* buf, IntPtr count);
+    [LibraryImport("libc", SetLastError = true)]
+    private static partial long read(int fd, void* buf, IntPtr count);
 
-    [DllImport("libc", SetLastError = true)]
-    private static extern long write(int fd, void* buf, IntPtr count);
+    [LibraryImport("libc", SetLastError = true)]
+    private static partial long write(int fd, void* buf, IntPtr count);
 
-    [DllImport("libc", SetLastError = true)]
-    private static extern int close(int fd);
+    [LibraryImport("libc", SetLastError = true)]
+    private static partial int close(int fd);
 }
