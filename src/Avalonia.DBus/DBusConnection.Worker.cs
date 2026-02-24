@@ -14,7 +14,7 @@ sealed partial class DBusConnection
 {
     private sealed class DBusConnectionWorker(
         IDBusConnection connection,
-        DBusWireConnection wire,
+        IDBusWireConnection wire,
         IDBusDiagnostics? diagnostics,
         ChannelReader<object> controlReader,
         ChannelWriter<object> controlWriter)
@@ -321,7 +321,8 @@ sealed partial class DBusConnection
 
             var matchRule =
                 BuildMatchRule(request.Sender, request.Path, request.Interface, request.Member);
-            await AddMatchAsync(matchRule);
+            if (!wire.IsPeerToPeer)
+                await AddMatchAsync(matchRule);
 
             _subscriptions.Add(
                 request.Token,
@@ -341,7 +342,8 @@ sealed partial class DBusConnection
             if (!_subscriptions.Remove(token, out var subscription))
                 return;
 
-            FireAndForget(RemoveMatchAsync(subscription.MatchRule));
+            if (!wire.IsPeerToPeer)
+                FireAndForget(RemoveMatchAsync(subscription.MatchRule));
         }
 
         private async Task DispatchIncomingAsync(DBusMessage message)
