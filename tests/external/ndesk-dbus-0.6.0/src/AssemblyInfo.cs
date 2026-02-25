@@ -11,3 +11,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("NDesk.DBus.GLib")]
 [assembly: InternalsVisibleTo("NDesk.DBus.Proxies")]
 [assembly: InternalsVisibleTo("NDesk.DBus.Tests")]
+[assembly: InternalsVisibleTo("Avalonia.DBus.WireMarshalling.Tests")]
