@@ -211,14 +211,9 @@ namespace NDesk.DBus
 
 		internal Message ReadMessage ()
 		{
-			byte[] header;
-			byte[] body = null;
-
-			int read;
-
 			//16 bytes is the size of the fixed part of the header
 			byte[] hbuf = new byte[16];
-			read = ns.Read (hbuf, 0, 16);
+			int read = ns.Read (hbuf, 0, 16);
 
 			if (read == 0)
 				return null;
@@ -226,68 +221,22 @@ namespace NDesk.DBus
 			if (read != 16)
 				throw new Exception ("Header read length mismatch: " + read + " of expected " + "16");
 
-			EndianFlag endianness = (EndianFlag)hbuf[0];
-			MessageReader reader = new MessageReader (endianness, hbuf);
+			int total = MessageWire.BytesNeeded (hbuf, 16);
+			if (total < 0)
+				throw new Exception ("Invalid message header");
 
-			//discard the endian byte as we've already read it
-			reader.ReadByte ();
+			byte[] data = new byte[total];
+			Array.Copy (hbuf, 0, data, 0, 16);
 
-			//discard message type and flags, which we don't care about here
-			reader.ReadByte ();
-			reader.ReadByte ();
-
-			byte version = reader.ReadByte ();
-
-			if (version < Protocol.MinVersion || version > Protocol.MaxVersion)
-				throw new NotSupportedException ("Protocol version '" + version.ToString () + "' is not supported");
-
-			if (Protocol.Verbose)
-				if (version != Protocol.Version)
-					Console.Error.WriteLine ("Warning: Protocol version '" + version.ToString () + "' is not explicitly supported but may be compatible");
-
-			uint bodyLength = reader.ReadUInt32 ();
-			//discard serial
-			reader.ReadUInt32 ();
-			uint headerLength = reader.ReadUInt32 ();
-
-			//this check may become relevant if a future version of the protocol allows larger messages
-			/*
-			if (bodyLength > Int32.MaxValue || headerLength > Int32.MaxValue)
-				throw new NotImplementedException ("Long messages are not yet supported");
-			*/
-
-			int bodyLen = (int)bodyLength;
-			int toRead = (int)headerLength;
-
-			//we fixup to include the padding following the header
-			toRead = Protocol.Padded (toRead, 8);
-
-			long msgLength = toRead + bodyLen;
-			if (msgLength > Protocol.MaxMessageLength)
-				throw new Exception ("Message length " + msgLength + " exceeds maximum allowed " + Protocol.MaxMessageLength + " bytes");
-
-			header = new byte[16 + toRead];
-			Array.Copy (hbuf, header, 16);
-
-			read = ns.Read (header, 16, toRead);
-
-			if (read != toRead)
-				throw new Exception ("Message header length mismatch: " + read + " of expected " + toRead);
-
-			//read the body
-			if (bodyLen != 0) {
-				body = new byte[bodyLen];
-				read = ns.Read (body, 0, bodyLen);
-
-				if (read != bodyLen)
-					throw new Exception ("Message body length mismatch: " + read + " of expected " + bodyLen);
+			int toRead = total - 16;
+			if (toRead != 0) {
+				read = ns.Read (data, 16, toRead);
+				if (read != toRead)
+					throw new Exception ("Message length mismatch: " + read + " of expected " + toRead);
 			}
 
-			Message msg = new Message ();
+			Message msg = MessageWire.Demarshal (data);
 			msg.Connection = this;
-			msg.Body = body;
-			msg.SetHeaderData (header);
-
 			return msg;
 		}
 
