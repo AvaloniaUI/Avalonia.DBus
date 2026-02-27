@@ -283,7 +283,7 @@ internal static unsafe class DBusMessageMarshaler
         var signature = signaturePtr == null ? string.Empty : PtrToString(signaturePtr);
         if (signaturePtr != null)
         {
-            NativeMethods.dbus_free(signaturePtr);
+            dbus_free(signaturePtr);
         }
 
         if (string.IsNullOrEmpty(signature))

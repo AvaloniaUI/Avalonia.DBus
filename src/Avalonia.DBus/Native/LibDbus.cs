@@ -14,9 +14,6 @@ namespace Avalonia.DBus.Native
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         public static partial void dbus_error_free(DBusError* error);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void dbus_set_error(DBusError* error, [NativeTypeName("const char *")] byte* name, [NativeTypeName("const char *")] byte* message, __arglist);
-
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         public static partial void dbus_set_error_const(DBusError* error, [NativeTypeName("const char *")] byte* name, [NativeTypeName("const char *")] byte* message);
@@ -83,9 +80,6 @@ namespace Avalonia.DBus.Native
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         public static partial DBusMessage* dbus_message_new_error(DBusMessage* reply_to, [NativeTypeName("const char *")] byte* error_name, [NativeTypeName("const char *")] byte* error_message);
-
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern DBusMessage* dbus_message_new_error_printf(DBusMessage* reply_to, [NativeTypeName("const char *")] byte* error_name, [NativeTypeName("const char *")] byte* error_format, __arglist);
 
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
@@ -265,18 +259,10 @@ namespace Avalonia.DBus.Native
         [return: NativeTypeName("dbus_bool_t")]
         public static partial uint dbus_message_set_container_instance(DBusMessage* message, [NativeTypeName("const char *")] byte* object_path);
 
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_append_args(DBusMessage* message, int first_arg_type, __arglist);
-
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         [return: NativeTypeName("dbus_bool_t")]
         public static partial uint dbus_message_append_args_valist(DBusMessage* message, int first_arg_type, [NativeTypeName("va_list")] __va_list var_args);
-
-        [DllImport("libdbus-1.so.3", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        [return: NativeTypeName("dbus_bool_t")]
-        public static extern uint dbus_message_get_args(DBusMessage* message, DBusError* error, int first_arg_type, __arglist);
 
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
@@ -841,6 +827,10 @@ namespace Avalonia.DBus.Native
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
         public static partial void dbus_bus_remove_match(DBusConnection* connection, [NativeTypeName("const char *")] byte* rule, DBusError* error);
+
+        [LibraryImport("libdbus-1.so.3")]
+        [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+        public static partial void dbus_free(void* memory);
 
         [LibraryImport("libdbus-1.so.3")]
         [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]

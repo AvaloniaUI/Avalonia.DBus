@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Avalonia.DBus.Platform;
 
-internal sealed unsafe class MacOSPosixPoll : IPosixPoll
+internal sealed unsafe partial class MacOSPosixPoll : IPosixPoll
 {
     public int Eintr => 4;
     public int Eagain => 35;
@@ -38,18 +38,18 @@ internal sealed unsafe class MacOSPosixPoll : IPosixPoll
     public long Write(int fd, void* buf, IntPtr count) => write(fd, buf, count);
     public int Close(int fd) => close(fd);
 
-    [DllImport("libSystem.B.dylib", EntryPoint = "poll", SetLastError = true)]
-    private static extern int poll(PollFd* fds, uint nfds, int timeout);
+    [LibraryImport("libSystem.B.dylib", EntryPoint = "poll", SetLastError = true)]
+    private static partial int poll(PollFd* fds, uint nfds, int timeout);
 
-    [DllImport("libSystem.B.dylib", EntryPoint = "pipe", SetLastError = true)]
-    private static extern int pipe(int* pipefd);
+    [LibraryImport("libSystem.B.dylib", EntryPoint = "pipe", SetLastError = true)]
+    private static partial int pipe(int* pipefd);
 
-    [DllImport("libSystem.B.dylib", EntryPoint = "read", SetLastError = true)]
-    private static extern long read(int fd, void* buf, IntPtr count);
+    [LibraryImport("libSystem.B.dylib", EntryPoint = "read", SetLastError = true)]
+    private static partial long read(int fd, void* buf, IntPtr count);
 
-    [DllImport("libSystem.B.dylib", EntryPoint = "write", SetLastError = true)]
-    private static extern long write(int fd, void* buf, IntPtr count);
+    [LibraryImport("libSystem.B.dylib", EntryPoint = "write", SetLastError = true)]
+    private static partial long write(int fd, void* buf, IntPtr count);
 
-    [DllImport("libSystem.B.dylib", EntryPoint = "close", SetLastError = true)]
-    private static extern int close(int fd);
+    [LibraryImport("libSystem.B.dylib", EntryPoint = "close", SetLastError = true)]
+    private static partial int close(int fd);
 }
