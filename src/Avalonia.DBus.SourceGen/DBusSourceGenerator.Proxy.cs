@@ -699,7 +699,8 @@ public partial class DBusSourceGenerator
 
     private static string BuildGeneratedPrivateImplementationSource(
         IEnumerable<ProxyRegistration> proxyRegistrations,
-        IEnumerable<HandlerRegistration> handlerRegistrations)
+        IEnumerable<HandlerRegistration> handlerRegistrations,
+        IEnumerable<StructRegistration> structRegistrations)
     {
         var proxyRegistrationArray = proxyRegistrations
             .OrderBy(static registration => registration.ProxyTypeName, StringComparer.Ordinal)
@@ -707,7 +708,10 @@ public partial class DBusSourceGenerator
         var handlerRegistrationArray = handlerRegistrations
             .OrderBy(static registration => registration.HandlerMetadataTypeName, StringComparer.Ordinal)
             .ToArray();
-        if (proxyRegistrationArray.Length == 0 && handlerRegistrationArray.Length == 0)
+        var structRegistrationArray = structRegistrations
+            .OrderBy(static registration => registration.TypeName, StringComparer.Ordinal)
+            .ToArray();
+        if (proxyRegistrationArray.Length == 0 && handlerRegistrationArray.Length == 0 && structRegistrationArray.Length == 0)
             return string.Empty;
 
         StringBuilder sb = new();
@@ -747,6 +751,10 @@ public partial class DBusSourceGenerator
             sb.AppendLine($"                    WriteIntrospectionXml = {registration.HandlerMetadataTypeName}.WriteIntrospectionXml");
             sb.AppendLine("                });");
         }
+        foreach (var registration in structRegistrationArray)
+        {
+            sb.AppendLine($"            DBusStructSignatureRegistry.Register(typeof({registration.TypeName}), {registration.SignatureLiteral});");
+        }
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("}");
@@ -767,5 +775,12 @@ public partial class DBusSourceGenerator
         public string HandlerInterfaceTypeName { get; } = handlerInterfaceTypeName;
 
         public string HandlerMetadataTypeName { get; } = handlerMetadataTypeName;
+    }
+
+    private readonly struct StructRegistration(string typeName, string signatureLiteral)
+    {
+        public string TypeName { get; } = typeName;
+
+        public string SignatureLiteral { get; } = signatureLiteral;
     }
 }

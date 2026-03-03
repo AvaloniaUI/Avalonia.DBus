@@ -162,6 +162,9 @@ internal static class DBusSignatureInference
         }
         if (typeof(IDBusStructConvertible).IsAssignableFrom(type))
         {
+            if (DBusStructSignatureRegistry.TryGetSignature(type, out var sig) 
+                && !string.IsNullOrEmpty(sig))
+                return sig;
             throw new NotSupportedException($"{type.FullName} requires value-based signature inference.");
         }
         if (DBusCollectionHelpers.TryGetDictionaryTypes(type, out var keyType, out var valueType))
@@ -516,7 +519,7 @@ internal static class DBusSignatureInference
 
     private static string InferArrayElementSignature(object array, Type elementType)
     {
-        if (RequiresValueBasedInference(elementType))
+        if (elementType == typeof(DBusStruct))
         {
             return InferArrayElementSignatureFromItems(array);
         }
@@ -566,7 +569,7 @@ internal static class DBusSignatureInference
     }
 
     private static bool RequiresValueBasedInference(Type type)
-        => type == typeof(DBusStruct) || typeof(IDBusStructConvertible).IsAssignableFrom(type);
+        => type == typeof(DBusStruct);
 
     private static string InferArrayElementSignatureFromItems(object array)
     {
