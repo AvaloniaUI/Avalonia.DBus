@@ -131,6 +131,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             ApplyStructAliases(dBusInterfaces, structAliases);
 
             var structMetadata = LoadStructDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
+            var allStructRegistrations = new Dictionary<string, StructRegistration>(StringComparer.Ordinal);
             foreach (var group in interfaceContexts.GroupBy(static context => context.UserFacingNamespace, StringComparer.Ordinal))
             {
                 var structDefinitions = CollectStructDefinitions(group.Select(static context => context.Interface), structMetadata);
@@ -140,6 +141,13 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 productionContext.AddSource(
                     $"{GetHintPrefix(group.Key)}.DBusStructs.g.cs",
                     BuildStructsSource(structDefinitions.Values, group.Key, isInternal));
+
+                foreach (var definition in structDefinitions.Values)
+                {
+                    var qualifiedTypeName = GetGlobalQualifiedTypeName(group.Key, SanitizeIdentifier(definition.Name));
+                    var signatureLiteral = SymbolDisplay.FormatLiteral(definition.Signature, quote: true);
+                    allStructRegistrations[qualifiedTypeName] = new StructRegistration(qualifiedTypeName, signatureLiteral);
+                }
             }
 
             var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
@@ -194,11 +202,12 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 }
             }
 
-            if (proxyRegistrations.Count > 0 || handlerRegistrations.Count > 0)
+            if (proxyRegistrations.Count > 0 || handlerRegistrations.Count > 0 || allStructRegistrations.Count > 0)
             {
                 var metadataSource = BuildGeneratedPrivateImplementationSource(
                     proxyRegistrations.Values,
-                    handlerRegistrations.Values);
+                    handlerRegistrations.Values,
+                    allStructRegistrations.Values);
                 if (!string.IsNullOrWhiteSpace(metadataSource))
                 {
                     productionContext.AddSource(
