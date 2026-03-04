@@ -1,4 +1,4 @@
-using System.Xml.Serialization;
+using System.Xml.Linq;
 
 namespace Avalonia.DBus.SourceGen.Tests;
 
@@ -17,9 +17,7 @@ public class StructGenerationTests
             </Types>
             """;
 
-        var serializer = new XmlSerializer(typeof(AvTypesDocument));
-        using var reader = new StringReader(xml);
-        var doc = serializer.Deserialize(reader) as AvTypesDocument;
+        var doc = XDocumentParser.ParseTypesDocument(XDocument.Parse(xml));
 
         Assert.NotNull(doc);
         var s = Assert.Single(doc!.Structs!);
@@ -40,9 +38,7 @@ public class StructGenerationTests
             </Types>
             """;
 
-        var serializer = new XmlSerializer(typeof(AvTypesDocument));
-        using var reader = new StringReader(xml);
-        var doc = serializer.Deserialize(reader) as AvTypesDocument;
+        var doc = XDocumentParser.ParseTypesDocument(XDocument.Parse(xml));
 
         Assert.NotNull(doc);
         var d = Assert.Single(doc!.Dictionaries!);
@@ -65,9 +61,7 @@ public class StructGenerationTests
             </Types>
             """;
 
-        var serializer = new XmlSerializer(typeof(AvTypesDocument));
-        using var reader = new StringReader(xml);
-        var doc = serializer.Deserialize(reader) as AvTypesDocument;
+        var doc = XDocumentParser.ParseTypesDocument(XDocument.Parse(xml));
 
         Assert.NotNull(doc);
         var bf = Assert.Single(doc!.BitFlags!);
@@ -92,9 +86,7 @@ public class StructGenerationTests
             </Types>
             """;
 
-        var serializer = new XmlSerializer(typeof(AvTypesDocument));
-        using var reader = new StringReader(xml);
-        var doc = serializer.Deserialize(reader) as AvTypesDocument;
+        var doc = XDocumentParser.ParseTypesDocument(XDocument.Parse(xml));
 
         Assert.NotNull(doc);
         Assert.Equal(2, doc!.Structs!.Length);
@@ -117,9 +109,7 @@ public class StructGenerationTests
             </node>
             """;
 
-        var serializer = new XmlSerializer(typeof(DBusNode));
-        using var reader = new StringReader(xml);
-        var node = serializer.Deserialize(reader) as DBusNode;
+        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
 
         Assert.NotNull(node);
         Assert.Single(node!.Interfaces!);
@@ -152,9 +142,7 @@ public class StructGenerationTests
             </node>
             """;
 
-        var serializer = new XmlSerializer(typeof(DBusNode));
-        using var reader = new StringReader(xml);
-        var node = serializer.Deserialize(reader) as DBusNode;
+        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
 
         Assert.NotNull(node);
         Assert.NotNull(node!.Interfaces);

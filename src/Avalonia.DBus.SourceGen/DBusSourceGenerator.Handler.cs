@@ -70,7 +70,7 @@ public partial class DBusSourceGenerator
         sb.AppendLine();
         sb.AppendLine($"            if (target is not {interfaceTypeName} typedTarget)");
         sb.AppendLine("            {");
-        sb.AppendLine($"                return message.CreateError(\"org.freedesktop.DBus.Error.UnknownInterface\", \"Target does not implement interface {dBusInterface.Name}.\");");
+        sb.AppendLine($"                return message.CreateError(\"org.freedesktop.DBus.Error.UnknownInterface\", \"Target does not implement interface \" + {interfaceNameLiteral} + \".\");");
         sb.AppendLine("            }");
         sb.AppendLine();
         sb.AppendLine("            switch (message.Member)");
@@ -219,17 +219,17 @@ public partial class DBusSourceGenerator
         return sb.ToString();
     }
 
-    private static string GetHandlerInterfaceIdentifier(DBusInterface dBusInterface) => $"I{Pascalize(dBusInterface.Name!.AsSpan())}";
+    private static string GetHandlerInterfaceIdentifier(DBusInterface dBusInterface) => $"I{dBusInterface.SafeName}";
 
-    private static string GetHandlerDispatcherIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}Dispatcher";
+    private static string GetHandlerDispatcherIdentifier(DBusInterface dBusInterface) => $"{dBusInterface.SafeName}Dispatcher";
 
-    private static string GetHandlerRegistrationHelperIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name!.AsSpan())}HandlerMetadata";
+    private static string GetHandlerRegistrationHelperIdentifier(DBusInterface dBusInterface) => $"{dBusInterface.SafeName}HandlerMetadata";
 
     private static string GetInterfaceMethodIdentifier(DBusMethod method)
-        => $"{Pascalize(method.Name!.AsSpan())}Async";
+        => $"{method.SafeName}Async";
 
     private static string GetPropertyIdentifier(DBusProperty property)
-        => SanitizeIdentifier(Pascalize(property.Name!.AsSpan()));
+        => property.SafeName!;
 
     private static string GetParameterIdentifier(DBusValue argument, int index)
         => argument.Name is not null

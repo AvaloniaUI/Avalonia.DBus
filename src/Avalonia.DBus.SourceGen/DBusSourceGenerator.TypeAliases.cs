@@ -200,7 +200,6 @@ public partial class DBusSourceGenerator
     private static IReadOnlyDictionary<string, AvBitFlagsDefinition> LoadBitFlagsDefinitions(
         IEnumerable<string> importPaths,
         IReadOnlyDictionary<string, string> xmlByPath,
-        XmlSerializer serializer,
         XmlReaderSettings readerSettings)
     {
         Dictionary<string, AvBitFlagsDefinition> definitions = new(StringComparer.Ordinal);
@@ -213,8 +212,8 @@ public partial class DBusSourceGenerator
             try
             {
                 using var reader = XmlReader.Create(new StringReader(xmlText), readerSettings);
-                if (serializer.Deserialize(reader) is not AvTypesDocument document)
-                    continue;
+                var doc = XDocument.Load(reader);
+                var document = XDocumentParser.ParseTypesDocument(doc);
 
                 if (document.BitFlags is null)
                     continue;
@@ -239,7 +238,6 @@ public partial class DBusSourceGenerator
     private static IReadOnlyDictionary<string, AvStructDefinition> LoadStructDefinitions(
         IEnumerable<string> importPaths,
         IReadOnlyDictionary<string, string> xmlByPath,
-        XmlSerializer serializer,
         XmlReaderSettings readerSettings)
     {
         Dictionary<string, AvStructDefinition> definitions = new(StringComparer.Ordinal);
@@ -254,8 +252,8 @@ public partial class DBusSourceGenerator
             try
             {
                 using var reader = XmlReader.Create(new StringReader(xmlText), readerSettings);
-                if (serializer.Deserialize(reader) is not AvTypesDocument document)
-                    continue;
+                var doc = XDocument.Load(reader);
+                var document = XDocumentParser.ParseTypesDocument(doc);
 
                 if (document.Structs is null)
                     continue;
@@ -282,6 +280,7 @@ public partial class DBusSourceGenerator
         IReadOnlyDictionary<string, DBusDotnetType> bitFlagsAliases,
         IReadOnlyDictionary<string, AvBitFlagsDefinition> bitFlagDefinitions,
         string userFacingNamespace,
+        List<Diagnostic>? diagnostics = null,
         bool isInternal = false)
     {
         if (dictionaryAliases.Count == 0 && bitFlagsAliases.Count == 0)
@@ -337,7 +336,7 @@ public partial class DBusSourceGenerator
                     foreach (var flag in flags)
                     {
                         var flagName = SanitizeIdentifier(flag.Name!);
-                        var flagValue = FormatEnumValue(flag.Value, underlyingType);
+                        var flagValue = FormatEnumValue(flag.Value, underlyingType, flag.Name, diagnostics);
                         sb.AppendLine($"        {flagName} = {flagValue},");
                     }
                 }
@@ -369,19 +368,41 @@ public partial class DBusSourceGenerator
         return [];
     }
 
-    private static string FormatEnumValue(string? rawValue, string underlyingType)
+    private static string FormatEnumValue(string? rawValue, string underlyingType, string? flagName, List<Diagnostic>? diagnostics)
     {
         if (string.IsNullOrWhiteSpace(rawValue))
             return "0";
 
-        if (!ulong.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
-            return rawValue!;
-
-        return underlyingType switch
+        if (ulong.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
         {
-            "uint" => value.ToString(CultureInfo.InvariantCulture) + "u",
-            "ulong" => value.ToString(CultureInfo.InvariantCulture) + "ul",
-            _ => value.ToString(CultureInfo.InvariantCulture)
-        };
+            return underlyingType switch
+            {
+                "uint" => value.ToString(CultureInfo.InvariantCulture) + "u",
+                "ulong" => value.ToString(CultureInfo.InvariantCulture) + "ul",
+                _ => value.ToString(CultureInfo.InvariantCulture)
+            };
+        }
+
+        // Try signed integers (e.g. -1 for all-bits-set sentinel on signed types)
+        if (long.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var signedValue))
+        {
+            return signedValue.ToString(CultureInfo.InvariantCulture);
+        }
+
+        // Try hex literals (0x prefix)
+        if (rawValue!.StartsWith("0x", StringComparison.OrdinalIgnoreCase) &&
+            ulong.TryParse(rawValue.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value))
+        {
+            return underlyingType switch
+            {
+                "uint" => "0x" + value.ToString("X", CultureInfo.InvariantCulture) + "u",
+                "ulong" => "0x" + value.ToString("X", CultureInfo.InvariantCulture) + "ul",
+                _ => "0x" + value.ToString("X", CultureInfo.InvariantCulture)
+            };
+        }
+
+        // Non-numeric value — report warning and default to 0
+        diagnostics?.Add(Diagnostic.Create(InvalidEnumValueWarning, Location.None, flagName ?? "unknown", rawValue));
+        return "0";
     }
 }

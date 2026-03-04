@@ -13,6 +13,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor InvalidEnumValueWarning = new(
+        id: "ADBUS002",
+        title: "Invalid enum value in type metadata",
+        messageFormat: "BitFlag '{0}' has non-numeric value '{1}' which cannot be used as an enum member value. Defaulting to 0.",
+        category: "Avalonia.DBus",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     private readonly struct XmlParseResult(
         DBusNode? node,
         string? generatorMode,
@@ -29,11 +37,10 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        XmlSerializer xmlSerializer = new(typeof(DBusNode));
-        XmlSerializer typesSerializer = new(typeof(AvTypesDocument));
         XmlReaderSettings xmlReaderSettings = new()
         {
-            DtdProcessing = DtdProcessing.Ignore,
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
             IgnoreWhitespace = true,
             IgnoreComments = true
         };
@@ -48,8 +55,8 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     return default;
                 try
                 {
-                    if (xmlSerializer.Deserialize(XmlReader.Create(new StringReader(x.Left.GetText()!.ToString()), xmlReaderSettings)) is not DBusNode dBusNode)
-                        return default;
+                    var doc = XDocument.Load(XmlReader.Create(new StringReader(x.Left.GetText()!.ToString()), xmlReaderSettings));
+                    var dBusNode = XDocumentParser.ParseNode(doc);
 
                     if (dBusNode.Interfaces is null)
                         return default;
@@ -130,7 +137,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
             var structAliases = CollectStructAliases(dBusInterfaces);
             ApplyStructAliases(dBusInterfaces, structAliases);
 
-            var structMetadata = LoadStructDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
+            var structMetadata = LoadStructDefinitions(importPaths, xmlByPath, xmlReaderSettings);
             var allStructRegistrations = new Dictionary<string, StructRegistration>(StringComparer.Ordinal);
             foreach (var group in interfaceContexts.GroupBy(static context => context.UserFacingNamespace, StringComparer.Ordinal))
             {
@@ -150,11 +157,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                 }
             }
 
-            var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, typesSerializer, xmlReaderSettings);
+            var bitFlagDefinitions = LoadBitFlagsDefinitions(importPaths, xmlByPath, xmlReaderSettings);
             foreach (var group in interfaceContexts.GroupBy(static context => context.UserFacingNamespace, StringComparer.Ordinal))
             {
                 var (dictionaryAliases, bitFlagsAliases) = CollectTypeAliases(group.Select(static context => context.Interface));
-                var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions, group.Key, isInternal);
+                var diagnosticsList = new List<Diagnostic>();
+                var aliasesSource = BuildTypeAliasesSource(dictionaryAliases, bitFlagsAliases, bitFlagDefinitions, group.Key, diagnosticsList, isInternal);
+                foreach (var diagnostic in diagnosticsList)
+                    productionContext.ReportDiagnostic(diagnostic);
                 if (!string.IsNullOrWhiteSpace(aliasesSource))
                 {
                     productionContext.AddSource($"{GetHintPrefix(group.Key)}.DBusTypeAliases.g.cs", aliasesSource);
@@ -178,7 +188,7 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                             productionContext.AddSource(
                                 $"{GetHintPrefix(value.Namespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs",
                                 compilationUnit.GetText(Encoding.UTF8));
-                            var proxyIdentifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
+                            var proxyIdentifier = $"{dBusInterface.SafeName}Proxy";
                             var proxyTypeName = GetGlobalQualifiedTypeName(value.Namespace, proxyIdentifier);
                             proxyRegistrations[proxyTypeName] = new ProxyRegistration(proxyTypeName, dBusInterface.Name!);
                         }
