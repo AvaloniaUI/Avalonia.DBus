@@ -84,14 +84,11 @@ public class XDocumentParserTests
         var iface = Assert.Single(node.Interfaces!);
         // Special chars replaced with '_', then Pascalized
         Assert.Equal("org.test;evil(){}", iface.Name);
-        Assert.NotNull(iface.SafeName);
-        // SafeName should be a valid C# identifier (no special chars)
-        Assert.DoesNotMatch(@"[^a-zA-Z0-9_@]", iface.SafeName);
+        Assert.Equal("OrgTest_evil____", iface.SafeName);
 
         var method = Assert.Single(iface.Methods!);
         Assert.Equal("do-something!weird", method.Name);
-        Assert.NotNull(method.SafeName);
-        Assert.DoesNotMatch(@"[^a-zA-Z0-9_@]", method.SafeName);
+        Assert.Equal("Do_something_weird", method.SafeName);
     }
 
     [Fact]
