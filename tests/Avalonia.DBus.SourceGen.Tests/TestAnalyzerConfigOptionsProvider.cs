@@ -20,7 +20,7 @@ internal sealed class TestAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsP
     public TestAnalyzerConfigOptionsProvider(
         Dictionary<string, string?> modeByPath, string projectDir, string rootNamespace)
     {
-        _modeByPath = modeByPath;
+        _modeByPath = new Dictionary<string, string?>(modeByPath, StringComparer.OrdinalIgnoreCase);
         _projectDir = projectDir;
         _rootNamespace = rootNamespace;
     }

@@ -20,11 +20,10 @@ public class SanitizationTests
         var compilationDiags = outputCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compilationDiags);
-        // The hint name is derived from the raw Pascalized interface name (not the sanitized SafeName),
-        // so special chars cause a CS8785 warning and no source tree is generated.
-        // Assert that the Pascalized form "OrgTest;evil(){}" appears in the hint-name failure message.
-        var cs8785 = Assert.Single(result.Diagnostics.Where(d => d.Id == "CS8785"));
-        Assert.Contains("OrgTest;evil(){}", cs8785.GetMessage());
+        // Hint names now use SafeName (OrgTest_evil____), so no CS8785 is emitted and source is generated.
+        Assert.Empty(result.Diagnostics.Where(d => d.Id == "CS8785"));
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        Assert.Contains("OrgTest_evil____", generatedSource);
     }
 
     [Fact]

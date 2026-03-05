@@ -180,13 +180,14 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     case "Proxy":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
+                            if (string.IsNullOrWhiteSpace(dBusInterface.SafeName)) continue;
                             TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface, isInternal);
                             var namespaceDeclaration = NamespaceDeclaration(
                                     ParseName(value.Namespace))
                                 .AddMembers(typeDeclarationSyntax);
                             var compilationUnit = MakeCompilationUnit(namespaceDeclaration);
                             productionContext.AddSource(
-                                $"{GetHintPrefix(value.Namespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Proxy.g.cs",
+                                $"{GetHintPrefix(value.Namespace)}.{dBusInterface.SafeName}Proxy.g.cs",
                                 compilationUnit.GetText(Encoding.UTF8));
                             var proxyIdentifier = $"{dBusInterface.SafeName}Proxy";
                             var proxyTypeName = GetGlobalQualifiedTypeName(value.Namespace, proxyIdentifier);
@@ -197,9 +198,10 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     case "Handler":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
+                            if (string.IsNullOrWhiteSpace(dBusInterface.SafeName)) continue;
                             var source = BuildHandlerSource(dBusInterface, value.Namespace, isInternal);
                             productionContext.AddSource(
-                                $"{GetHintPrefix(value.Namespace)}.{Pascalize(dBusInterface.Name.AsSpan())}Handler.g.cs",
+                                $"{GetHintPrefix(value.Namespace)}.{dBusInterface.SafeName}Handler.g.cs",
                                 source);
                             var handlerHelperIdentifier = GetHandlerRegistrationHelperIdentifier(dBusInterface);
                             var handlerInterfaceIdentifier = GetHandlerInterfaceIdentifier(dBusInterface);

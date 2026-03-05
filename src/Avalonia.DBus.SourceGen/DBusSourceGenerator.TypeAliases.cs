@@ -386,6 +386,9 @@ public partial class DBusSourceGenerator
         // Try signed integers (e.g. -1 for all-bits-set sentinel on signed types)
         if (long.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var signedValue))
         {
+            // Unsigned underlying types cannot hold a negative literal directly; wrap in unchecked cast.
+            if (signedValue < 0 && (underlyingType == "uint" || underlyingType == "ulong"))
+                return $"unchecked(({underlyingType}){signedValue.ToString(CultureInfo.InvariantCulture)})";
             return signedValue.ToString(CultureInfo.InvariantCulture);
         }
 

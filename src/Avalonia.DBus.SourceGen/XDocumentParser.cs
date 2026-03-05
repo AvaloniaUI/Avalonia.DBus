@@ -12,7 +12,8 @@ internal static class XDocumentParser
             throw new InvalidOperationException($"Expected root element 'node' but found '{root.Name.LocalName}'.");
 
         var importTypes = root.Elements(Av + "ImportTypes")
-            .Select(e => e.Value)
+            .Select(e => e.Value.Trim())
+            .Where(v => v.Length != 0)
             .ToArray();
 
         var interfaces = root.Elements("interface")
