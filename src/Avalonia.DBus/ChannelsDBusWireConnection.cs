@@ -77,7 +77,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         return _outboundWriter.WriteAsync(serialized, cancellationToken).AsTask();
     }
 
-    public Task<DBusMessage> SendWithReplyAsync(DBusMessage message, CancellationToken cancellationToken = default)
+    public async Task<DBusMessage> SendWithReplyAsync(DBusMessage message, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
@@ -93,21 +93,34 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingReplies[message.Serial] = tcs;
 
-        // Wire up cancellation
+        // Wire up cancellation with proper registration lifetime (F4)
+        CancellationTokenRegistration reg = default;
         if (cancellationToken.CanBeCanceled)
         {
-            cancellationToken.Register(() =>
+            reg = cancellationToken.Register(() =>
             {
                 if (_pendingReplies.TryRemove(message.Serial, out var removed))
                     removed.TrySetCanceled(cancellationToken);
             });
+
+            // Dispose registration when TCS completes (prevents leak for long-lived tokens)
+            _ = tcs.Task.ContinueWith(_ => reg.Dispose(), TaskContinuationOptions.ExecuteSynchronously);
         }
 
-        // Serialize and write to outbound channel
+        // Serialize and write to outbound channel (F1: use WriteAsync, not TryWrite)
         var serialized = _serializer.Serialize(message);
-        _outboundWriter.TryWrite(serialized);
+        try
+        {
+            await _outboundWriter.WriteAsync(serialized, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            _pendingReplies.TryRemove(message.Serial, out _);
+            reg.Dispose();
+            throw;
+        }
 
-        return tcs.Task;
+        return await tcs.Task.ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()

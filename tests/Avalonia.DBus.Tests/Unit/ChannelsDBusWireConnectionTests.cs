@@ -300,4 +300,70 @@ public class ChannelsDBusWireConnectionTests
         await conn.DisposeAsync();
         await conn.DisposeAsync(); // should not throw
     }
+
+    [Fact]
+    public async Task SendWithReplyAsync_ChannelCompleted_Throws()
+    {
+        var (conn, _, outbound) = CreateConnection();
+        await using (conn)
+        {
+            // Complete the outbound channel before sending
+            outbound.Writer.TryComplete();
+
+            var call = DBusMessage.CreateMethodCall(":1.2", "/test", "org.test.I", "M");
+
+            // Should throw, not hang forever
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => conn.SendWithReplyAsync(call, cts.Token));
+        }
+    }
+
+    [Fact]
+    public async Task SendWithReplyAsync_Cancelled_ThrowsAndCleansUp()
+    {
+        var (conn, _, outbound) = CreateConnection();
+        await using (conn)
+        {
+            using var cts = new CancellationTokenSource();
+
+            var call = DBusMessage.CreateMethodCall(":1.2", "/test", "org.test.I", "M");
+            var replyTask = conn.SendWithReplyAsync(call, cts.Token);
+
+            // Consume the outgoing message
+            await outbound.Reader.ReadAsync();
+
+            // Cancel before reply arrives
+            cts.Cancel();
+
+            await Assert.ThrowsAsync<TaskCanceledException>(() => replyTask);
+        }
+    }
+
+    [Fact]
+    public async Task DisposeAsync_ConcurrentSend_DoesNotHang()
+    {
+        var (conn, _, outbound) = CreateConnection();
+
+        // Start several sends with replies
+        var calls = new Task<DBusMessage>[10];
+        for (int i = 0; i < calls.Length; i++)
+        {
+            var call = DBusMessage.CreateMethodCall(":1.2", "/test", "org.test.I", $"M{i}");
+            calls[i] = conn.SendWithReplyAsync(call);
+        }
+
+        // Drain outbound
+        for (int i = 0; i < calls.Length; i++)
+            await outbound.Reader.ReadAsync();
+
+        // Dispose while replies are pending
+        await conn.DisposeAsync();
+
+        // All pending replies should be faulted (not hanging)
+        foreach (var t in calls)
+        {
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => t);
+        }
+    }
 }
