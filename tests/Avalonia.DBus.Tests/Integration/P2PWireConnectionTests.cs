@@ -31,13 +31,13 @@ public class P2PWireConnectionTests
             await clientSocket.ConnectAsync(new UnixDomainSocketEndPoint(path));
             using var serverSocket = await listener.AcceptAsync();
 
-            var (clientReader, clientWriter) = DBusTransport.FromSocket(clientSocket);
-            var (serverReader, serverWriter) = DBusTransport.FromSocket(serverSocket);
+            var (clientReader, clientWriter, clientCts, _, _) = DBusTransport.FromSocket(clientSocket);
+            var (serverReader, serverWriter, serverCts, _, _) = DBusTransport.FromSocket(serverSocket);
 
             await using var client = new ChannelsDBusWireConnection(
-                clientReader, clientWriter, isPeerToPeer: true);
+                clientReader, clientWriter, socket: clientSocket, cts: clientCts, isPeerToPeer: true);
             await using var server = new ChannelsDBusWireConnection(
-                serverReader, serverWriter, isPeerToPeer: true);
+                serverReader, serverWriter, socket: serverSocket, cts: serverCts, isPeerToPeer: true);
 
             await testAction(client, server);
         }

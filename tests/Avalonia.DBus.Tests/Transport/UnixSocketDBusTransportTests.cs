@@ -42,8 +42,8 @@ public class UnixSocketDBusTransportTests
         var (clientSocket, serverSocket, path) = await CreateSocketPairAsync();
         try
         {
-            var (clientReader, clientWriter) = DBusTransport.FromSocket(clientSocket);
-            var (serverReader, serverWriter) = DBusTransport.FromSocket(serverSocket);
+            var (clientReader, clientWriter, clientCts, _, _) = DBusTransport.FromSocket(clientSocket);
+            var (serverReader, serverWriter, serverCts, _, _) = DBusTransport.FromSocket(serverSocket);
 
             // Send a message from client to server
             var original = CreateTestMessage("hello-roundtrip", serial: 42);
@@ -62,8 +62,8 @@ public class UnixSocketDBusTransportTests
             Assert.Equal("hello-roundtrip", deserialized.Body[0]);
 
             // Cleanup: complete writers so reader tasks exit
-            clientWriter.TryComplete();
-            serverWriter.TryComplete();
+            clientCts.Cancel();
+            serverCts.Cancel();
         }
         finally
         {
@@ -79,8 +79,8 @@ public class UnixSocketDBusTransportTests
         var (clientSocket, serverSocket, path) = await CreateSocketPairAsync();
         try
         {
-            var (clientReader, clientWriter) = DBusTransport.FromSocket(clientSocket);
-            var (serverReader, serverWriter) = DBusTransport.FromSocket(serverSocket);
+            var (clientReader, clientWriter, clientCts, _, _) = DBusTransport.FromSocket(clientSocket);
+            var (serverReader, serverWriter, serverCts, _, _) = DBusTransport.FromSocket(serverSocket);
 
             const int messageCount = 10;
 
@@ -101,8 +101,8 @@ public class UnixSocketDBusTransportTests
                 Assert.Equal($"msg-{i}", deserialized.Body[0]);
             }
 
-            clientWriter.TryComplete();
-            serverWriter.TryComplete();
+            clientCts.Cancel();
+            serverCts.Cancel();
         }
         finally
         {
@@ -118,8 +118,8 @@ public class UnixSocketDBusTransportTests
         var (clientSocket, serverSocket, path) = await CreateSocketPairAsync();
         try
         {
-            var (clientReader, clientWriter) = DBusTransport.FromSocket(clientSocket);
-            var (serverReader, serverWriter) = DBusTransport.FromSocket(serverSocket);
+            var (clientReader, clientWriter, clientCts, _, _) = DBusTransport.FromSocket(clientSocket);
+            var (serverReader, serverWriter, serverCts, _, _) = DBusTransport.FromSocket(serverSocket);
 
             // Send from client to server
             var clientMsg = CreateTestMessage("from-client", serial: 1);
@@ -141,8 +141,8 @@ public class UnixSocketDBusTransportTests
             var deserializedByClient = s_serializer.Deserialize(receivedByClient);
             Assert.Equal("from-server", deserializedByClient.Body[0]);
 
-            clientWriter.TryComplete();
-            serverWriter.TryComplete();
+            clientCts.Cancel();
+            serverCts.Cancel();
         }
         finally
         {
