@@ -9,7 +9,7 @@ global using System.Text;
 global using System.Threading;
 global using System.Threading.Tasks;
 global using System.Xml;
-global using System.Xml.Serialization;
+global using System.Xml.Linq;
 global using Microsoft.CodeAnalysis;
 global using Microsoft.CodeAnalysis.CSharp;
 global using Microsoft.CodeAnalysis.CSharp.Syntax;

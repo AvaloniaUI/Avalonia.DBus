@@ -66,10 +66,7 @@ public partial class DBusSourceGenerator
                     dbusValues.Select((dbusValue, i) => TupleElement(
                                 dbusValue.DBusDotnetType.ToTypeSyntax())
                             .WithIdentifier(
-                                Identifier(dbusValue.Name is not null
-                                    ? SanitizeIdentifier(
-                                        Pascalize(dbusValue.Name.AsSpan()))
-                                    : $"Item{i + 1}")))
+                                Identifier(dbusValue.SafeName ?? $"Item{i + 1}")))
                         .ToArray())
         };
     }
@@ -117,11 +114,24 @@ public partial class DBusSourceGenerator
 
     private static string SanitizeIdentifier(in string identifier)
     {
-        var isAnyKeyword = SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None;
-        return isAnyKeyword ? $"@{identifier}" : identifier;
+        // Character-level filtering: only allow letters, digits, and underscores.
+        // Mirrors the pattern used by SanitizeNamespaceSegment.
+        var filtered = new string(identifier.Select(static ch => char.IsLetterOrDigit(ch) || ch == '_' ? ch : '_').ToArray());
+
+        if (string.IsNullOrWhiteSpace(filtered))
+            filtered = "_";
+
+        // Ensure identifier starts with a letter or underscore
+        if (!char.IsLetter(filtered[0]) && filtered[0] != '_')
+            filtered = "_" + filtered;
+
+        var isAnyKeyword = SyntaxFacts.GetKeywordKind(filtered) != SyntaxKind.None || SyntaxFacts.GetContextualKeywordKind(filtered) != SyntaxKind.None;
+        return isAnyKeyword ? $"@{filtered}" : filtered;
     }
 
-    private static string GetPropertiesClassIdentifier(DBusInterface dBusInterface) => $"{Pascalize(dBusInterface.Name.AsSpan())}Properties";
+    internal static string MakeSafeIdentifier(string rawName) => SanitizeIdentifier(Pascalize(rawName.AsSpan()));
+
+    private static string GetPropertiesClassIdentifier(DBusInterface dBusInterface) => $"{dBusInterface.SafeName}Properties";
 
     public class DBusDotnetType
     {

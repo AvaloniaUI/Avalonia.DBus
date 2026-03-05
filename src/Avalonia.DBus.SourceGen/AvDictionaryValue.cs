@@ -1,10 +1,8 @@
 namespace Avalonia.DBus.SourceGen;
 
-[Serializable]
-[DesignerCategory("code")]
-[XmlType(AnonymousType = true, Namespace = AvDbusXml.Namespace)]
 public class AvDictionaryValue : AvTypeContainer
 {
-    [XmlAttribute("Name")]
     public string? Name { get; set; }
+
+    public string? SafeName { get; set; }
 }

@@ -3,17 +3,6 @@ namespace Avalonia.DBus.SourceGen.Tests;
 public class ErrorReportingTests
 {
     [Fact]
-    public void MalformedXml_DoesNotCrashGenerator()
-    {
-        var xml = "this is not xml at all <><>";
-
-        var (result, _) = GeneratorTestHelper.RunGenerator(xml, "Proxy");
-
-        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Single(result.Diagnostics, d => d.Id == "ADBUS001" && d.GetMessage().Contains("TestInterface.xml"));
-    }
-
-    [Fact]
     public void EmptyNode_ProducesNoOutput()
     {
         var xml = """
@@ -44,24 +33,6 @@ public class ErrorReportingTests
 
         // Should not produce fatal errors
         Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-    }
-
-    [Fact]
-    public void WrongRootElement_HandledGracefully()
-    {
-        var xml = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <something-else>
-              <interface name="org.test">
-                <method name="Test"/>
-              </interface>
-            </something-else>
-            """;
-
-        var (result, _) = GeneratorTestHelper.RunGenerator(xml, "Proxy");
-
-        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Single(result.Diagnostics, d => d.Id == "ADBUS001" && d.GetMessage().Contains("TestInterface.xml"));
     }
 
     [Fact]

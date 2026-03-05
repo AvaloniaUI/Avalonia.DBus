@@ -130,4 +130,27 @@ public class ProxyGenerationTests
 
         Assert.Contains("DoWorkAsync", generatedSource);
     }
+
+    [Fact]
+    public void ProxyGeneration_NamespacedDbusElements_GeneratesOutput()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node xmlns="urn:test">
+              <interface name="org.test.Namespaced">
+                <method name="Ping">
+                  <arg direction="out" type="s"/>
+                </method>
+              </interface>
+            </node>
+            """;
+
+        var (result, outputCompilation) = GeneratorTestHelper.RunGenerator(xml, "Proxy");
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        Assert.Contains("PingAsync", generatedSource);
+    }
 }
