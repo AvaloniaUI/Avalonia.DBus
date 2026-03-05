@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -27,7 +28,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
     private readonly Task _receiveLoopTask;
 
     private uint _nextSerial;
-    private bool _disposed;
+    private int _disposed;
 
     public ChannelsDBusWireConnection(
         ChannelReader<DBusSerializedMessage> reader,
@@ -53,7 +54,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
 
     public Task SendAsync(DBusMessage message, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
 
         // Assign serial if not set
@@ -70,7 +71,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
 
     public Task<DBusMessage> SendWithReplyAsync(DBusMessage message, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
 
         // Assign serial
@@ -103,10 +104,8 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
-
-        _disposed = true;
 
         // Cancel the background receive loop
         _cts.Cancel();
