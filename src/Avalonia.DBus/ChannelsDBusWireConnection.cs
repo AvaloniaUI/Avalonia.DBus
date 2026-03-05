@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
@@ -162,9 +163,13 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                 {
                     message = _serializer.Deserialize(serialized);
                 }
-                catch
+                catch (Exception ex) when (ex is InvalidDataException
+                    or NotSupportedException
+                    or InvalidOperationException
+                    or FormatException)
                 {
-                    // Skip malformed messages
+                    // TODO: Replace Debug.WriteLine with a unified logging system
+                    Debug.WriteLine($"Skipping malformed D-Bus message: {ex.Message}");
                     continue;
                 }
 

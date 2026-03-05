@@ -268,6 +268,31 @@ public class ChannelsDBusWireConnectionTests
     }
 
     [Fact]
+    public async Task ReceiveLoop_MalformedMessage_SkipsAndContinues()
+    {
+        var (conn, inbound, _) = CreateConnection();
+        await using (conn)
+        {
+            // Write a malformed message (garbage bytes)
+            var malformed = new DBusSerializedMessage(new byte[] { 0xFF, 0x00, 0x01 }, []);
+            await inbound.Writer.WriteAsync(malformed);
+
+            // Write a valid signal after the malformed one
+            var signal = DBusMessage.CreateSignal("/org/test", "org.test.Iface", "Ping", "hello");
+            signal.Serial = 99;
+            var valid = s_serializer.Serialize(signal);
+            await inbound.Writer.WriteAsync(valid);
+
+            // The valid signal should be delivered despite the earlier malformed message
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var received = await conn.ReceivingReader.ReadAsync(cts.Token);
+
+            Assert.Equal(DBusMessageType.Signal, received.Type);
+            Assert.Equal("Ping", received.Member);
+        }
+    }
+
+    [Fact]
     public async Task DisposeAsync_DoubleDispose_NoThrow()
     {
         var (conn, _, _) = CreateConnection();
