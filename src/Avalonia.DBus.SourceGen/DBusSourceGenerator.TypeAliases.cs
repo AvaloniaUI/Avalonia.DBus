@@ -396,12 +396,32 @@ public partial class DBusSourceGenerator
         if (rawValue!.StartsWith("0x", StringComparison.OrdinalIgnoreCase) &&
             ulong.TryParse(rawValue.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value))
         {
-            return underlyingType switch
+            string hexLiteral = "0x" + value.ToString("X", CultureInfo.InvariantCulture);
+
+            // Unsigned underlying types keep the suffix-based formatting.
+            if (underlyingType == "uint")
+                return hexLiteral + "u";
+            if (underlyingType == "ulong")
+                return hexLiteral + "ul";
+
+            // For signed underlying types, values with the high bit set are not representable
+            // as plain literals of that type and need an unchecked cast.
+            if (underlyingType == "int" || underlyingType == "short" || underlyingType == "sbyte" || underlyingType == "long")
             {
-                "uint" => "0x" + value.ToString("X", CultureInfo.InvariantCulture) + "u",
-                "ulong" => "0x" + value.ToString("X", CultureInfo.InvariantCulture) + "ul",
-                _ => "0x" + value.ToString("X", CultureInfo.InvariantCulture)
-            };
+                ulong maxForType = underlyingType switch
+                {
+                    "sbyte" => (ulong)sbyte.MaxValue,
+                    "short" => (ulong)short.MaxValue,
+                    "int" => (ulong)int.MaxValue,
+                    "long" => (ulong)long.MaxValue,
+                    _ => ulong.MaxValue
+                };
+
+                if (value > maxForType)
+                    return $"unchecked(({underlyingType}){hexLiteral})";
+            }
+
+            return hexLiteral;
         }
 
         // Non-numeric value — report warning and default to 0
