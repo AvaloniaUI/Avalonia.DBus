@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace Avalonia.DBus.Transport;
 
@@ -18,14 +19,20 @@ static class DBusTransport
     /// </summary>
     /// <param name="socket">A connected stream socket (e.g., Unix domain socket).</param>
     /// <returns>
-    /// A tuple of (reader, writer) where:
+    /// A 5-tuple of (Reader, Writer, Cts, ReaderTask, WriterTask) where:
     /// <list type="bullet">
-    ///   <item><c>reader</c> — read D-Bus messages arriving on the socket</item>
-    ///   <item><c>writer</c> — write D-Bus messages to send over the socket</item>
+    ///   <item><c>Reader</c> — read D-Bus messages arriving on the socket</item>
+    ///   <item><c>Writer</c> — write D-Bus messages to send over the socket</item>
+    ///   <item><c>Cts</c> — the <see cref="CancellationTokenSource"/> controlling the background tasks</item>
+    ///   <item><c>ReaderTask</c> — the background task reading from the socket</item>
+    ///   <item><c>WriterTask</c> — the background task writing to the socket</item>
     /// </list>
     /// </returns>
-    public static (ChannelReader<DBusSerializedMessage> reader,
-                   ChannelWriter<DBusSerializedMessage> writer)
+    public static (ChannelReader<DBusSerializedMessage> Reader,
+                   ChannelWriter<DBusSerializedMessage> Writer,
+                   CancellationTokenSource Cts,
+                   Task ReaderTask,
+                   Task WriterTask)
         FromSocket(Socket socket)
     {
         var inbound = Channel.CreateUnbounded<DBusSerializedMessage>(
@@ -35,13 +42,10 @@ static class DBusTransport
 
         var cts = new CancellationTokenSource();
 
-        // Start the background reader (socket → inbound channel)
-        _ = UnixSocketDBusTransport.StartReaderAsync(socket, inbound.Writer, cts.Token);
+        var readerTask = UnixSocketDBusTransport.StartReaderAsync(socket, inbound.Writer, cts.Token);
+        var writerTask = UnixSocketDBusTransport.StartWriterAsync(socket, outbound.Reader, cts.Token);
 
-        // Start the background writer (outbound channel → socket)
-        _ = UnixSocketDBusTransport.StartWriterAsync(socket, outbound.Reader, cts.Token);
-
-        return (inbound.Reader, outbound.Writer);
+        return (inbound.Reader, outbound.Writer, cts, readerTask, writerTask);
     }
 
     /// <summary>
@@ -55,7 +59,7 @@ static class DBusTransport
         var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         socket.Connect(new UnixDomainSocketEndPoint(socketPath));
 
-        var (reader, writer) = FromSocket(socket);
-        return new ChannelsDBusWireConnection(reader, writer);
+        var (reader, writer, cts, _, _) = FromSocket(socket);
+        return new ChannelsDBusWireConnection(reader, writer, socket: socket, cts: cts);
     }
 }
