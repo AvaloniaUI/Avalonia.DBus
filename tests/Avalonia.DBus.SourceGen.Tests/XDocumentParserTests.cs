@@ -215,4 +215,147 @@ public class XDocumentParserTests
         Assert.Equal("FieldTwo", structDef.Properties[1].SafeName);
         Assert.Equal("i", structDef.Properties[1].Type);
     }
+
+    [Fact]
+    public void ParseNode_NullName_YieldsNullSafeName()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface>
+                <method/>
+              </interface>
+            </node>
+            """;
+
+        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
+
+        var iface = Assert.Single(node.Interfaces!);
+        Assert.Null(iface.Name);
+        Assert.Null(iface.SafeName);
+
+        var method = Assert.Single(iface.Methods!);
+        Assert.Null(method.Name);
+        Assert.Null(method.SafeName);
+    }
+
+    [Fact]
+    public void ParseNode_NumericStartingName_PrefixedWithUnderscore()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface name="org.test.Numbers">
+                <method name="123abc"/>
+              </interface>
+            </node>
+            """;
+
+        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
+
+        var method = Assert.Single(node.Interfaces![0].Methods!);
+        Assert.Equal("123abc", method.Name);
+        Assert.Equal("_123abc", method.SafeName);
+    }
+
+    [Fact]
+    public void ParseNode_EmptyInterfaces_YieldsNullNotEmptyArray()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node/>
+            """;
+
+        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
+
+        Assert.Null(node.Interfaces);
+    }
+
+    [Fact]
+    public void ParseNode_InterfaceWithNoChildren_AllChildCollectionsAreNull()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface name="org.test.Empty"/>
+            </node>
+            """;
+
+        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
+
+        var iface = Assert.Single(node.Interfaces!);
+        Assert.Null(iface.Methods);
+        Assert.Null(iface.Signals);
+        Assert.Null(iface.Properties);
+    }
+
+    [Fact]
+    public void ParseNode_ArgumentWithNoName_NameAndSafeNameAreNull()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface name="org.test.Anon">
+                <method name="Send">
+                  <arg direction="in" type="s"/>
+                </method>
+              </interface>
+            </node>
+            """;
+
+        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
+
+        var arg = node.Interfaces![0].Methods![0].Arguments![0];
+        Assert.Null(arg.Name);
+        Assert.Null(arg.SafeName);
+        Assert.Equal("s", arg.Type);
+        Assert.Equal("in", arg.Direction);
+    }
+
+    [Fact]
+    public void ParseTypesDocument_Dictionary_PopulatesKeyAndValue()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Types xmlns="http://avaloniaui.net/dbus/1.0">
+              <Dictionary Name="my_map">
+                <Key Name="the_key"/>
+                <Value Name="the_value"/>
+              </Dictionary>
+            </Types>
+            """;
+
+        var typesDoc = XDocumentParser.ParseTypesDocument(XDocument.Parse(xml));
+
+        Assert.NotNull(typesDoc.Dictionaries);
+        var dict = Assert.Single(typesDoc.Dictionaries);
+        Assert.Equal("my_map", dict.Name);
+        Assert.Equal("MyMap", dict.SafeName);
+
+        Assert.NotNull(dict.Key);
+        Assert.Equal("the_key", dict.Key!.Name);
+        Assert.Equal("TheKey", dict.Key.SafeName);
+
+        Assert.NotNull(dict.Value);
+        Assert.Equal("the_value", dict.Value!.Name);
+        Assert.Equal("TheValue", dict.Value.SafeName);
+    }
+
+    [Fact]
+    public void ParseTypesDocument_EmptyBitFlags_ChildrenAreNull()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Types xmlns="http://avaloniaui.net/dbus/1.0">
+              <BitFlags Name="Empty"/>
+            </Types>
+            """;
+
+        var typesDoc = XDocumentParser.ParseTypesDocument(XDocument.Parse(xml));
+
+        var bf = Assert.Single(typesDoc.BitFlags!);
+        Assert.Equal("Empty", bf.Name);
+        Assert.Null(bf.BitFlags);
+        Assert.Null(bf.Flags);
+    }
 }
