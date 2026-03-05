@@ -20,6 +20,11 @@ public class SanitizationTests
         var compilationDiags = outputCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compilationDiags);
+        // The hint name is derived from the raw Pascalized interface name (not the sanitized SafeName),
+        // so special chars cause a CS8785 warning and no source tree is generated.
+        // Assert that the Pascalized form "OrgTest;evil(){}" appears in the hint-name failure message.
+        var cs8785 = Assert.Single(result.Diagnostics.Where(d => d.Id == "CS8785"));
+        Assert.Contains("OrgTest;evil(){}", cs8785.GetMessage());
     }
 
     [Fact]
@@ -42,6 +47,8 @@ public class SanitizationTests
         var compilationDiags = outputCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compilationDiags);
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        Assert.Contains("foo_bar__", generatedSource);
     }
 
     [Fact]
@@ -62,6 +69,8 @@ public class SanitizationTests
         var compilationDiags = outputCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compilationDiags);
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        Assert.Contains("Foo_bar__", generatedSource);
     }
 
     [Fact]
@@ -146,5 +155,75 @@ public class SanitizationTests
         var compilationDiags = outputCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compilationDiags);
+    }
+
+    [Fact]
+    public void CSharpKeyword_AsArgumentName_EscapedWithAt()
+    {
+        // Argument names are Camelized. "class" → Camelize → "class" → C# keyword → "@class".
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface name="org.test.Keywords">
+                <method name="Send">
+                  <arg direction="in" name="class" type="s"/>
+                  <arg direction="in" name="event" type="s"/>
+                </method>
+              </interface>
+            </node>
+            """;
+
+        var (result, outputCompilation) = GeneratorTestHelper.RunGenerator(xml, "Handler");
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        Assert.Contains("@class", generatedSource);
+        Assert.Contains("@event", generatedSource);
+    }
+
+    [Fact]
+    public void NumericStartingName_PrefixedWithUnderscore()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface name="org.test.Numeric">
+                <method name="123abc"/>
+              </interface>
+            </node>
+            """;
+
+        var (result, outputCompilation) = GeneratorTestHelper.RunGenerator(xml, "Handler");
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        Assert.Contains("_123abc", generatedSource);
+    }
+
+    [Fact]
+    public void WriteonlyProperty_GeneratesSetOnlyAccessor()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface name="org.test.WriteOnly">
+                <property name="Sink" type="s" access="write"/>
+              </interface>
+            </node>
+            """;
+
+        var (result, outputCompilation) = GeneratorTestHelper.RunGenerator(xml, "Handler");
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        // write-only interface property should declare set; but not get;
+        Assert.Contains("Sink { set; }", generatedSource);
+        Assert.DoesNotContain("Sink { get;", generatedSource);
     }
 }
