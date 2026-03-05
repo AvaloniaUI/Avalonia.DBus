@@ -180,7 +180,16 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     case "Proxy":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            if (string.IsNullOrWhiteSpace(dBusInterface.SafeName)) continue;
+                            if (string.IsNullOrWhiteSpace(dBusInterface.SafeName))
+                            {
+                                productionContext.ReportDiagnostic(Diagnostic.Create(
+                                    InvalidXmlWarning,
+                                    Location.None,
+                                    value.FilePath,
+                                    "Interface element is missing required 'name' attribute."));
+                                continue;
+                            }
+
                             TypeDeclarationSyntax typeDeclarationSyntax = GenerateProxy(dBusInterface, isInternal);
                             var namespaceDeclaration = NamespaceDeclaration(
                                     ParseName(value.Namespace))
@@ -198,7 +207,16 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     case "Handler":
                         foreach (var dBusInterface in value.Node.Interfaces!)
                         {
-                            if (string.IsNullOrWhiteSpace(dBusInterface.SafeName)) continue;
+                            if (string.IsNullOrWhiteSpace(dBusInterface.SafeName))
+                            {
+                                productionContext.ReportDiagnostic(Diagnostic.Create(
+                                    InvalidXmlWarning,
+                                    Location.None,
+                                    value.FilePath,
+                                    "Interface element is missing required 'name' attribute."));
+                                continue;
+                            }
+
                             var source = BuildHandlerSource(dBusInterface, value.Namespace, isInternal);
                             productionContext.AddSource(
                                 $"{GetHintPrefix(value.Namespace)}.{dBusInterface.SafeName}Handler.g.cs",

@@ -50,6 +50,24 @@ public class DiagnosticEmissionTests
         Assert.Single(result.Diagnostics, d => d.Id == "ADBUS001");
     }
 
+    [Fact]
+    public void MissingInterfaceName_EmitsADbus001()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface>
+                <method name="Ping"/>
+              </interface>
+            </node>
+            """;
+
+        var (result, _) = GeneratorTestHelper.RunGenerator(xml, "Proxy");
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "ADBUS001");
+        Assert.True(diag.GetMessage().Contains("missing required 'name'", StringComparison.OrdinalIgnoreCase));
+    }
+
     // ── ADBUS002 ─────────────────────────────────────────────────────────────
 
     private static (GeneratorDriverRunResult, Compilation) RunWithBadFlagValue(string flagName, string flagValue)

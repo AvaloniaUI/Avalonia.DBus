@@ -27,6 +27,33 @@ public class SanitizationTests
     }
 
     [Fact]
+    public void SpecialChars_InProxyIdentifiers_ProducesValidCode()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node>
+              <interface name="org.test;evil(){}">
+                <method name="do-something!weird"/>
+                <signal name="name-acquired!"/>
+                <property name="foo;bar()" type="s" access="readwrite"/>
+              </interface>
+            </node>
+            """;
+
+        var (result, outputCompilation) = GeneratorTestHelper.RunGenerator(xml, "Proxy");
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generatedSource = string.Join("\n", result.GeneratedTrees.Select(t => t.GetText().ToString()));
+        Assert.Contains("class OrgTest_evil____Proxy", generatedSource);
+        Assert.Contains("Do_something_weirdAsync", generatedSource);
+        Assert.Contains("WatchName_acquired_Async", generatedSource);
+        Assert.Contains("GetFoo_bar__PropertyAsync", generatedSource);
+        Assert.Contains("SetFoo_bar__PropertyAsync", generatedSource);
+    }
+
+    [Fact]
     public void SpecialChars_InMethodArgName_ProducesValidCode()
     {
         var xml = """

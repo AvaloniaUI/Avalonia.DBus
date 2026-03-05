@@ -67,6 +67,30 @@ public class XDocumentParserTests
     }
 
     [Fact]
+    public void ParseNode_NamespacedDbusElements_AreParsedByLocalName()
+    {
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <node xmlns="urn:test">
+              <interface name="org.test.Namespaced">
+                <method name="Ping">
+                  <arg direction="out" type="s"/>
+                </method>
+              </interface>
+            </node>
+            """;
+
+        var doc = XDocument.Parse(xml);
+        var node = XDocumentParser.ParseNode(doc);
+
+        var iface = Assert.Single(node.Interfaces!);
+        Assert.Equal("org.test.Namespaced", iface.Name);
+        Assert.Equal("OrgTestNamespaced", iface.SafeName);
+        var method = Assert.Single(iface.Methods!);
+        Assert.Equal("Ping", method.Name);
+    }
+
+    [Fact]
     public void ParseNode_SpecialCharsInName_SanitizedInSafeName()
     {
         var xml = """
@@ -217,26 +241,19 @@ public class XDocumentParserTests
     }
 
     [Fact]
-    public void ParseNode_NullName_YieldsNullSafeName()
+    public void ParseNode_MissingInterfaceName_Throws()
     {
         var xml = """
             <?xml version="1.0" encoding="UTF-8"?>
             <node>
               <interface>
-                <method/>
+                <method name="Ping"/>
               </interface>
             </node>
             """;
 
-        var node = XDocumentParser.ParseNode(XDocument.Parse(xml));
-
-        var iface = Assert.Single(node.Interfaces!);
-        Assert.Null(iface.Name);
-        Assert.Null(iface.SafeName);
-
-        var method = Assert.Single(iface.Methods!);
-        Assert.Null(method.Name);
-        Assert.Null(method.SafeName);
+        var ex = Assert.Throws<InvalidOperationException>(() => XDocumentParser.ParseNode(XDocument.Parse(xml)));
+        Assert.Contains("Interface element is missing required 'name' attribute.", ex.Message);
     }
 
     [Fact]

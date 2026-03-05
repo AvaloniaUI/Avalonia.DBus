@@ -4,7 +4,7 @@ public partial class DBusSourceGenerator
 {
     private ClassDeclarationSyntax GenerateProxy(DBusInterface dBusInterface, bool isInternal)
     {
-        var identifier = $"{Pascalize(dBusInterface.Name.AsSpan())}Proxy";
+        var identifier = $"{dBusInterface.SafeName}Proxy";
         var accessModifier = isInternal ? SyntaxKind.InternalKeyword : SyntaxKind.PublicKeyword;
         var cl = ClassDeclaration(identifier)
             .AddModifiers(Token(accessModifier));
@@ -95,7 +95,7 @@ public partial class DBusSourceGenerator
             var outArgs = dBusMethod.Arguments?.Where(static m => m.Direction == "out").ToArray();
 
             var proxyMethod = MethodDeclaration(
-                    ParseTaskReturnType(outArgs), $"{Pascalize(dBusMethod.Name.AsSpan())}Async")
+                    ParseTaskReturnType(outArgs), $"{dBusMethod.SafeName}Async")
                 .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.AsyncKeyword));
 
             if (inArgs is not null)
@@ -207,11 +207,13 @@ public partial class DBusSourceGenerator
             var parametersWithSender = ParameterList()
                 .AddParameters(handlerParameter, senderParameter, emitOnCapturedContextParameter);
 
+            var watchSignalMethodName = $"Watch{dBusSignal.SafeName}Async";
+
             var watchSignalMethodWithSender = MethodDeclaration(
                     GenericName("Task")
                         .AddTypeArgumentListArguments(
                             IdentifierName("IDisposable")),
-                    $"Watch{Pascalize(dBusSignal.Name.AsSpan())}Async")
+                    watchSignalMethodName)
                 .AddModifiers(
                     Token(SyntaxKind.PublicKeyword))
                 .WithParameterList(parametersWithSender)
@@ -240,7 +242,7 @@ public partial class DBusSourceGenerator
                     GenericName("Task")
                         .AddTypeArgumentListArguments(
                             IdentifierName("IDisposable")),
-                    $"Watch{Pascalize(dBusSignal.Name.AsSpan())}Async")
+                    watchSignalMethodName)
                 .AddModifiers(
                     Token(SyntaxKind.PublicKeyword))
                 .WithParameterList(parameters)
@@ -248,7 +250,7 @@ public partial class DBusSourceGenerator
                     Block(
                         ReturnStatement(
                             InvocationExpression(
-                                    IdentifierName($"Watch{Pascalize(dBusSignal.Name.AsSpan())}Async"))
+                                    IdentifierName(watchSignalMethodName))
                                 .AddArgumentListArguments(
                                     Argument(
                                         IdentifierName("handler")),
@@ -407,7 +409,7 @@ public partial class DBusSourceGenerator
                     MakeMemberAccessExpression("variant", "Value"))));
 
         return MethodDeclaration(
-                ParseTaskReturnType([dBusProperty]), $"Get{Pascalize(dBusProperty.Name.AsSpan())}PropertyAsync")
+                ParseTaskReturnType([dBusProperty]), $"Get{dBusProperty.SafeName}PropertyAsync")
             .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.AsyncKeyword))
             .WithBody(body);
     }
@@ -436,7 +438,7 @@ public partial class DBusSourceGenerator
 
         return MethodDeclaration(
                 IdentifierName("Task"),
-                $"Set{Pascalize(dBusProperty.Name.AsSpan())}PropertyAsync")
+                $"Set{dBusProperty.SafeName}PropertyAsync")
             .AddModifiers(
                 Token(SyntaxKind.PublicKeyword),
                 Token(SyntaxKind.AsyncKeyword))
@@ -511,7 +513,7 @@ public partial class DBusSourceGenerator
                 MakeGetSetProperty(
                     DBusDotnetType.FromDBusValue(property)
                         .ToTypeSyntax(),
-                    Pascalize(property.Name.AsSpan()),
+                    property.SafeName!,
                     Token(SyntaxKind.PublicKeyword))));
 
         cl = cl.AddMembers(propertiesClass);
@@ -522,9 +524,9 @@ public partial class DBusSourceGenerator
         var switchSections = (from property in dBusInterface.Properties!
                               let statements = new List<StatementSyntax>
             {
-                ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, MakeMemberAccessExpression("props", Pascalize(property.Name.AsSpan())), MakeFromDbusValueExpression(property.DBusDotnetType, MakeMemberAccessExpression("entry", "Value", "Value")))),
+                ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, MakeMemberAccessExpression("props", property.SafeName!), MakeFromDbusValueExpression(property.DBusDotnetType, MakeMemberAccessExpression("entry", "Value", "Value")))),
                 ExpressionStatement(ConditionalAccessExpression(IdentifierName("changed"), InvocationExpression(MemberBindingExpression(IdentifierName("Add")))
-                    .AddArgumentListArguments(Argument(MakeLiteralExpression(Pascalize(property.Name.AsSpan())))))),
+                    .AddArgumentListArguments(Argument(MakeLiteralExpression(property.SafeName!))))),
                 BreakStatement()
             }
                               select SwitchSection()

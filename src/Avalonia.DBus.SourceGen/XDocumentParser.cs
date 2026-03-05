@@ -16,7 +16,7 @@ internal static class XDocumentParser
             .Where(v => v.Length != 0)
             .ToArray();
 
-        var interfaces = root.Elements("interface")
+        var interfaces = ElementsByLocalName(root, "interface")
             .Select(ParseInterface)
             .ToArray();
 
@@ -54,41 +54,53 @@ internal static class XDocumentParser
     private static DBusInterface ParseInterface(XElement el)
     {
         var name = (string?)el.Attribute("name");
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Interface element is missing required 'name' attribute.");
+
         return new DBusInterface
         {
             Name = name,
             SafeName = MakeSafeName(name),
-            Methods = NullIfEmpty(el.Elements("method").Select(ParseMethod).ToArray()),
-            Signals = NullIfEmpty(el.Elements("signal").Select(ParseSignal).ToArray()),
-            Properties = NullIfEmpty(el.Elements("property").Select(ParseProperty).ToArray())
+            Methods = NullIfEmpty(ElementsByLocalName(el, "method").Select(ParseMethod).ToArray()),
+            Signals = NullIfEmpty(ElementsByLocalName(el, "signal").Select(ParseSignal).ToArray()),
+            Properties = NullIfEmpty(ElementsByLocalName(el, "property").Select(ParseProperty).ToArray())
         };
     }
 
     private static DBusMethod ParseMethod(XElement el)
     {
         var name = (string?)el.Attribute("name");
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Method element is missing required 'name' attribute.");
+
         return new DBusMethod
         {
             Name = name,
             SafeName = MakeSafeName(name),
-            Arguments = NullIfEmpty(el.Elements("arg").Select(ParseArgument).ToArray())
+            Arguments = NullIfEmpty(ElementsByLocalName(el, "arg").Select(ParseArgument).ToArray())
         };
     }
 
     private static DBusSignal ParseSignal(XElement el)
     {
         var name = (string?)el.Attribute("name");
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Signal element is missing required 'name' attribute.");
+
         return new DBusSignal
         {
             Name = name,
             SafeName = MakeSafeName(name),
-            Arguments = NullIfEmpty(el.Elements("arg").Select(ParseArgument).ToArray())
+            Arguments = NullIfEmpty(ElementsByLocalName(el, "arg").Select(ParseArgument).ToArray())
         };
     }
 
     private static DBusProperty ParseProperty(XElement el)
     {
         var name = (string?)el.Attribute("name");
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Property element is missing required 'name' attribute.");
+
         return new DBusProperty
         {
             Name = name,
@@ -278,6 +290,9 @@ internal static class XDocumentParser
 
     private static string? MakeSafeName(string? rawName) =>
         rawName is not null ? DBusSourceGenerator.MakeSafeIdentifier(rawName) : null;
+
+    private static IEnumerable<XElement> ElementsByLocalName(XElement parent, string localName) =>
+        parent.Elements().Where(element => string.Equals(element.Name.LocalName, localName, StringComparison.Ordinal));
 
     private static T[]? NullIfEmpty<T>(T[] array) =>
         array is { Length: > 0 } ? array : null;
