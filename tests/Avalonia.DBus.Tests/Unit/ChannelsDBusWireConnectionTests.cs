@@ -1,4 +1,5 @@
 using System;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -22,8 +23,8 @@ public class ChannelsDBusWireConnectionTests
         var connection = new ChannelsDBusWireConnection(
             inbound.Reader,
             outbound.Writer,
-            uniqueName,
-            isPeerToPeer);
+            uniqueName: uniqueName,
+            isPeerToPeer: isPeerToPeer);
 
         return (connection, inbound, outbound);
     }
@@ -230,5 +231,48 @@ public class ChannelsDBusWireConnectionTests
             Assert.Equal("r2", result2.Body[0]);
             Assert.Equal("r3", result3.Body[0]);
         }
+    }
+
+    [Fact]
+    public async Task DisposeAsync_ClosesSocket()
+    {
+        var inbound = Channel.CreateUnbounded<DBusSerializedMessage>();
+        var outbound = Channel.CreateUnbounded<DBusSerializedMessage>();
+        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+
+        var conn = new ChannelsDBusWireConnection(
+            inbound.Reader, outbound.Writer,
+            socket: socket);
+
+        await conn.DisposeAsync();
+
+        // After disposal, operations on the socket should throw ObjectDisposedException
+        Assert.Throws<ObjectDisposedException>(() => socket.Send(Array.Empty<byte>()));
+    }
+
+    [Fact]
+    public async Task DisposeAsync_CancelsCts()
+    {
+        var inbound = Channel.CreateUnbounded<DBusSerializedMessage>();
+        var outbound = Channel.CreateUnbounded<DBusSerializedMessage>();
+        var cts = new CancellationTokenSource();
+        var token = cts.Token; // capture before dispose
+
+        var conn = new ChannelsDBusWireConnection(
+            inbound.Reader, outbound.Writer,
+            cts: cts);
+
+        await conn.DisposeAsync();
+
+        Assert.True(token.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_DoubleDispose_NoThrow()
+    {
+        var (conn, _, _) = CreateConnection();
+
+        await conn.DisposeAsync();
+        await conn.DisposeAsync(); // should not throw
     }
 }

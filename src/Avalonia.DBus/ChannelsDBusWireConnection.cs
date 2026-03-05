@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -26,6 +27,8 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
     private readonly ConcurrentDictionary<uint, TaskCompletionSource<DBusMessage>> _pendingReplies = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _receiveLoopTask;
+    private readonly Socket? _socket;
+    private readonly CancellationTokenSource? _transportCts;
 
     private uint _nextSerial;
     private int _disposed;
@@ -33,11 +36,15 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
     public ChannelsDBusWireConnection(
         ChannelReader<DBusSerializedMessage> reader,
         ChannelWriter<DBusSerializedMessage> writer,
+        Socket? socket = null,
+        CancellationTokenSource? cts = null,
         string? uniqueName = null,
         bool isPeerToPeer = true)
     {
         _uniqueName = uniqueName;
         _isPeerToPeer = isPeerToPeer;
+        _socket = socket;
+        _transportCts = cts;
         _outboundWriter = writer;
         _serializer = new ManagedDBusMessageSerializer();
         _receiving = Channel.CreateUnbounded<DBusMessage>(
@@ -107,7 +114,10 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        // Cancel the background receive loop
+        // 1. Signal transport background tasks to stop
+        _transportCts?.Cancel();
+
+        // 2. Cancel our own receive loop
         _cts.Cancel();
 
         try
@@ -119,10 +129,17 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
             // Expected
         }
 
-        // Complete the outbound writer
+        // 3. Complete the outbound writer
         _outboundWriter.TryComplete();
 
-        // Fail all pending replies
+        // 4. Close socket (causes background reader/writer to exit via SocketException)
+        _socket?.Dispose();
+
+        // 5. Dispose CTS resources
+        _transportCts?.Dispose();
+        _cts.Dispose();
+
+        // 6. Fail all pending replies
         var disposedEx = new ObjectDisposedException(nameof(ChannelsDBusWireConnection));
         foreach (var kvp in _pendingReplies)
         {
@@ -130,10 +147,8 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                 tcs.TrySetException(disposedEx);
         }
 
-        // Complete the internal receiving channel
+        // 7. Complete the internal receiving channel
         _receiving.Writer.TryComplete();
-
-        _cts.Dispose();
     }
 
     private async Task RunReceiveLoopAsync(ChannelReader<DBusSerializedMessage> reader, CancellationToken cancellationToken)
