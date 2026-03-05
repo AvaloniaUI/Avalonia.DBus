@@ -1,5 +1,6 @@
 extern alias managed;
 
+using System.Collections.Generic;
 using NDesk.DBus;
 using Xunit;
 
@@ -9,6 +10,7 @@ using ManagedMessageType = managed::Avalonia.DBus.DBusMessageType;
 using ManagedMessageFlags = managed::Avalonia.DBus.DBusMessageFlags;
 using ManagedObjectPath = managed::Avalonia.DBus.DBusObjectPath;
 using ManagedSerializedMessage = managed::Avalonia.DBus.DBusSerializedMessage;
+using ManagedDBusVariant = managed::Avalonia.DBus.DBusVariant;
 using NDeskMessage = NDesk.DBus.Message;
 using NDeskMessageType = NDesk.DBus.MessageType;
 using NDeskSignature = NDesk.DBus.Signature;
@@ -735,6 +737,84 @@ public class ManagedSerializerCrossValidationTests
         Assert.Equal(managedBytes[9], ndeskBytes[9]);
         Assert.Equal(managedBytes[10], ndeskBytes[10]);
         Assert.Equal(managedBytes[11], ndeskBytes[11]);
+    }
+
+    // -------------------------------------------------------------------
+    // Test 6: Container types (arrays, variants, dicts)
+    // -------------------------------------------------------------------
+
+    [Fact]
+    public void ManagedSerialize_NDeskDemarshal_ArrayOfInt32()
+    {
+        var msg = new ManagedMessage
+        {
+            Type = ManagedMessageType.MethodCall,
+            Serial = 100,
+            Path = new ManagedObjectPath("/test"),
+            Interface = "com.test.Iface",
+            Member = "Send",
+            Destination = "com.test.Svc",
+            Body = new object[] { new List<int> { 1, 2, 3, 42 } }
+        };
+
+        var serialized = _serializer.Serialize(msg);
+        var ndeskMsg = MessageWire.Demarshal(serialized.Message);
+
+        Assert.Equal(NDeskMessageType.MethodCall, ndeskMsg.Header.MessageType);
+        Assert.Equal("ai", ndeskMsg.Signature.Value);
+
+        var reader = new MessageReader(ndeskMsg);
+        var arr = reader.ReadArray(typeof(int));
+        Assert.Equal(new[] { 1, 2, 3, 42 }, arr);
+    }
+
+    [Fact]
+    public void ManagedSerialize_NDeskDemarshal_NestedVariant()
+    {
+        var msg = new ManagedMessage
+        {
+            Type = ManagedMessageType.MethodCall,
+            Serial = 101,
+            Path = new ManagedObjectPath("/test"),
+            Interface = "com.test.Iface",
+            Member = "Send",
+            Destination = "com.test.Svc",
+            Body = new object[] { new ManagedDBusVariant(
+                new ManagedDBusVariant(42u)) }
+        };
+
+        var serialized = _serializer.Serialize(msg);
+        var ndeskMsg = MessageWire.Demarshal(serialized.Message);
+
+        Assert.Equal(NDeskMessageType.MethodCall, ndeskMsg.Header.MessageType);
+        Assert.Equal("v", ndeskMsg.Signature.Value);
+    }
+
+    [Fact]
+    public void ManagedRoundTrip_DictStringVariant()
+    {
+        var dict = new Dictionary<string, ManagedDBusVariant>
+        {
+            ["key1"] = new ManagedDBusVariant("value1"),
+            ["key2"] = new ManagedDBusVariant(42u),
+        };
+
+        var msg = new ManagedMessage
+        {
+            Type = ManagedMessageType.MethodCall,
+            Serial = 102,
+            Path = new ManagedObjectPath("/test"),
+            Interface = "com.test.Iface",
+            Member = "Send",
+            Destination = "com.test.Svc",
+            Body = new object[] { dict }
+        };
+
+        var serialized = _serializer.Serialize(msg);
+        var roundTripped = _serializer.Deserialize(new ManagedSerializedMessage(serialized.Message, []));
+
+        Assert.Equal(ManagedMessageType.MethodCall, roundTripped.Type);
+        Assert.NotNull(roundTripped.Body);
     }
 
     // -------------------------------------------------------------------
