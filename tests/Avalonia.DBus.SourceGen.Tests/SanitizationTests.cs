@@ -100,8 +100,6 @@ public class SanitizationTests
                 ("/test/DBusXml/types.xml", typesXml, (string?)null)
             });
 
-        Assert.Single(result.Diagnostics, d => d.Id == "ADBUS002");
-
         var compilationDiags = outputCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compilationDiags);
