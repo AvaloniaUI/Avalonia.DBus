@@ -111,6 +111,7 @@ public class SanitizationTests
         var compilationDiags = outputCompilation.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(compilationDiags);
+        Assert.Single(result.Diagnostics, d => d.Id == "ADBUS002");
     }
 
     [Fact]
