@@ -10,11 +10,11 @@ namespace Avalonia.DBus;
 /// <summary>
 /// Low-level connection handling raw DBus message transport.
 /// </summary>
-internal sealed class DBusWireConnection : IDBusWireConnection
+internal sealed class LibDBusWireConnection : IDBusWireConnection
 {
     private readonly DbusWireWorker _worker;
 
-    private DBusWireConnection(DbusWireWorker worker)
+    private LibDBusWireConnection(DbusWireWorker worker)
     {
         _worker = worker ?? throw new ArgumentNullException(nameof(worker));
     }
@@ -22,12 +22,12 @@ internal sealed class DBusWireConnection : IDBusWireConnection
     /// <summary>
     /// Connects to a D-Bus bus at the specified address.
     /// </summary>
-    public static Task<DBusWireConnection> ConnectAsync(
+    public static Task<LibDBusWireConnection> ConnectAsync(
         string address,
         CancellationToken cancellationToken = default)
         => ConnectAsync(address, diagnostics: null, cancellationToken);
 
-    internal static Task<DBusWireConnection> ConnectAsync(
+    internal static Task<LibDBusWireConnection> ConnectAsync(
         string address,
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
@@ -43,39 +43,39 @@ internal sealed class DBusWireConnection : IDBusWireConnection
 
         cancellationToken.ThrowIfCancellationRequested();
         var worker = DbusWireWorker.OpenAddress(address, diagnostics);
-        return Task.FromResult(new DBusWireConnection(worker));
+        return Task.FromResult(new LibDBusWireConnection(worker));
     }
 
     /// <summary>
     /// Connects to the session bus.
     /// </summary>
-    public static Task<DBusWireConnection> ConnectSessionAsync(
+    public static Task<LibDBusWireConnection> ConnectSessionAsync(
         CancellationToken cancellationToken = default)
         => ConnectSessionAsync(diagnostics: null, cancellationToken);
 
-    internal static Task<DBusWireConnection> ConnectSessionAsync(
+    internal static Task<LibDBusWireConnection> ConnectSessionAsync(
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SESSION, diagnostics);
-        return Task.FromResult(new DBusWireConnection(worker));
+        return Task.FromResult(new LibDBusWireConnection(worker));
     }
 
     /// <summary>
     /// Connects to the system bus.
     /// </summary>
-    public static Task<DBusWireConnection> ConnectSystemAsync(
+    public static Task<LibDBusWireConnection> ConnectSystemAsync(
         CancellationToken cancellationToken = default)
         => ConnectSystemAsync(diagnostics: null, cancellationToken);
 
-    internal static Task<DBusWireConnection> ConnectSystemAsync(
+    internal static Task<LibDBusWireConnection> ConnectSystemAsync(
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SYSTEM, diagnostics);
-        return Task.FromResult(new DBusWireConnection(worker));
+        return Task.FromResult(new LibDBusWireConnection(worker));
     }
 
     /// <summary>

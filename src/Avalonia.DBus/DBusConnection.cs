@@ -47,7 +47,7 @@ sealed partial class DBusConnection : IDBusConnection
         string address,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectAsync(address, cancellationToken).ConfigureAwait(false);
+        var wire = await LibDBusWireConnection.ConnectAsync(address, cancellationToken).ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics: null);
     }
 
@@ -59,7 +59,7 @@ sealed partial class DBusConnection : IDBusConnection
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectAsync(address, diagnostics, cancellationToken)
+        var wire = await LibDBusWireConnection.ConnectAsync(address, diagnostics, cancellationToken)
             .ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics);
     }
@@ -70,7 +70,7 @@ sealed partial class DBusConnection : IDBusConnection
     public static async Task<DBusConnection> ConnectSessionAsync(
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSessionAsync(cancellationToken).ConfigureAwait(false);
+        var wire = await LibDBusWireConnection.ConnectSessionAsync(cancellationToken).ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics: null);
     }
 
@@ -81,7 +81,7 @@ sealed partial class DBusConnection : IDBusConnection
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSessionAsync(diagnostics, cancellationToken)
+        var wire = await LibDBusWireConnection.ConnectSessionAsync(diagnostics, cancellationToken)
             .ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics);
     }
@@ -92,7 +92,7 @@ sealed partial class DBusConnection : IDBusConnection
     public static async Task<DBusConnection> ConnectSystemAsync(
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSystemAsync(cancellationToken).ConfigureAwait(false);
+        var wire = await LibDBusWireConnection.ConnectSystemAsync(cancellationToken).ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics: null);
     }
 
@@ -103,7 +103,7 @@ sealed partial class DBusConnection : IDBusConnection
         IDBusDiagnostics? diagnostics,
         CancellationToken cancellationToken = default)
     {
-        var wire = await DBusWireConnection.ConnectSystemAsync(diagnostics, cancellationToken)
+        var wire = await LibDBusWireConnection.ConnectSystemAsync(diagnostics, cancellationToken)
             .ConfigureAwait(false);
         return new DBusConnection(wire, diagnostics);
     }

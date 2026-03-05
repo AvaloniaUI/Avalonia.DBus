@@ -146,13 +146,13 @@ internal sealed partial class DbusWireWorker
         }
         else if (_disposed || Volatile.Read(ref _disposeRequested) != 0)
         {
-            FailMessage(message, new ObjectDisposedException(nameof(DBusWireConnection)));
+            FailMessage(message, new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return false;
         }
 
         if (!_messageQueue.Writer.TryWrite(message))
         {
-            FailMessage(message, new ObjectDisposedException(nameof(DBusWireConnection)));
+            FailMessage(message, new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return false;
         }
 
@@ -308,7 +308,7 @@ internal sealed partial class DbusWireWorker
     {
         while (_messageQueue.Reader.TryRead(out var message))
         {
-            FailMessage(message, new ObjectDisposedException(nameof(DBusWireConnection)));
+            FailMessage(message, new ObjectDisposedException(nameof(LibDBusWireConnection)));
         }
     }
 
@@ -340,7 +340,7 @@ internal sealed partial class DbusWireWorker
     {
         if (_disposed || Volatile.Read(ref _disposeRequested) != 0)
         {
-            fetch.ReturnTcs.TrySetException(new ObjectDisposedException(nameof(DBusWireConnection)));
+            fetch.ReturnTcs.TrySetException(new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return;
         }
 
@@ -358,7 +358,7 @@ internal sealed partial class DbusWireWorker
     {
         if (_disposed || Volatile.Read(ref _disposeRequested) != 0)
         {
-            send.Completion.TrySetException(new ObjectDisposedException(nameof(DBusWireConnection)));
+            send.Completion.TrySetException(new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return;
         }
 
@@ -697,7 +697,7 @@ internal sealed partial class DbusWireWorker
 
         foreach (var kvp in _pendingReplies)
         {
-            kvp.Value.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
+            kvp.Value.Fail(new ObjectDisposedException(nameof(LibDBusWireConnection)));
         }
 
         _pendingReplies.Clear();
