@@ -27,7 +27,8 @@ internal static class UnixSocketDBusTransport
     public static Task StartReaderAsync(
         Socket socket,
         ChannelWriter<DBusSerializedMessage> inboundWriter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IDBusDiagnostics? diagnostics)
     {
         return Task.Run(async () =>
         {
@@ -109,6 +110,8 @@ internal static class UnixSocketDBusTransport
                     }
 
                     // 8. Write to inbound channel
+                    // Intentional for now: managed Socket APIs do not currently expose recvmsg/SCM_RIGHTS,
+                    // so ancillary Unix file descriptors cannot be reconstructed on this transport yet.
                     var msg = new DBusSerializedMessage(messageBytes, []);
                     await inboundWriter.WriteAsync(msg, cancellationToken).ConfigureAwait(false);
                 }
@@ -117,13 +120,13 @@ internal static class UnixSocketDBusTransport
             {
                 // Normal shutdown
             }
-            catch (IOException)
+            catch (IOException ex)
             {
-                // Connection closed or broken
+                DBusTransportLog.SocketTransportStopped(diagnostics, "reader", ex);
             }
-            catch (SocketException)
+            catch (SocketException ex)
             {
-                // Connection closed or broken
+                DBusTransportLog.SocketTransportStopped(diagnostics, "reader", ex);
             }
             finally
             {
@@ -139,7 +142,8 @@ internal static class UnixSocketDBusTransport
     public static Task StartWriterAsync(
         Socket socket,
         ChannelReader<DBusSerializedMessage> outboundReader,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IDBusDiagnostics? diagnostics)
     {
         return Task.Run(async () =>
         {
@@ -147,6 +151,13 @@ internal static class UnixSocketDBusTransport
             {
                 await foreach (var msg in outboundReader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
                 {
+                    if (msg.Fds.Length > 0)
+                    {
+                        // Intentional for now: managed Socket APIs do not currently expose sendmsg/SCM_RIGHTS,
+                        // so ancillary Unix file descriptors cannot be sent on this transport yet.
+                        DBusTransportLog.UnsupportedUnixFdTransport(diagnostics, msg.Fds.Length);
+                    }
+
                     var data = msg.Message;
                     var totalSent = 0;
 
@@ -172,13 +183,13 @@ internal static class UnixSocketDBusTransport
             {
                 // Outbound channel completed — normal shutdown
             }
-            catch (IOException)
+            catch (IOException ex)
             {
-                // Connection closed or broken
+                DBusTransportLog.SocketTransportStopped(diagnostics, "writer", ex);
             }
-            catch (SocketException)
+            catch (SocketException ex)
             {
-                // Connection closed or broken
+                DBusTransportLog.SocketTransportStopped(diagnostics, "writer", ex);
             }
         }, cancellationToken);
     }

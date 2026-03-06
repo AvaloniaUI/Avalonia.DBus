@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -30,6 +29,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
     private readonly Task _receiveLoopTask;
     private readonly Socket? _socket;
     private readonly CancellationTokenSource? _transportCts;
+    private readonly IDBusDiagnostics? _diagnostics;
 
     private uint _nextSerial;
     private int _disposed;
@@ -41,13 +41,39 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         CancellationTokenSource? cts = null,
         string? uniqueName = null,
         bool isPeerToPeer = true)
+        : this(reader, writer, socket, cts, uniqueName, isPeerToPeer, diagnostics: null, serializer: null)
+    {
+    }
+
+    public ChannelsDBusWireConnection(
+        ChannelReader<DBusSerializedMessage> reader,
+        ChannelWriter<DBusSerializedMessage> writer,
+        Socket? socket,
+        CancellationTokenSource? cts,
+        string? uniqueName,
+        bool isPeerToPeer,
+        IDBusDiagnostics? diagnostics)
+        : this(reader, writer, socket, cts, uniqueName, isPeerToPeer, diagnostics, serializer: null)
+    {
+    }
+
+    internal ChannelsDBusWireConnection(
+        ChannelReader<DBusSerializedMessage> reader,
+        ChannelWriter<DBusSerializedMessage> writer,
+        Socket? socket,
+        CancellationTokenSource? cts,
+        string? uniqueName,
+        bool isPeerToPeer,
+        IDBusDiagnostics? diagnostics,
+        IDBusMessageSerializer? serializer)
     {
         _uniqueName = uniqueName;
         _isPeerToPeer = isPeerToPeer;
         _socket = socket;
         _transportCts = cts;
         _outboundWriter = writer;
-        _serializer = new ManagedDBusMessageSerializer();
+        _diagnostics = diagnostics;
+        _serializer = serializer ?? new ManagedDBusMessageSerializer();
         _receiving = Channel.CreateUnbounded<DBusMessage>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
@@ -108,9 +134,9 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         }
 
         // Serialize and write to outbound channel (F1: use WriteAsync, not TryWrite)
-        var serialized = _serializer.Serialize(message);
         try
         {
+            var serialized = _serializer.Serialize(message);
             await _outboundWriter.WriteAsync(serialized, cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -181,8 +207,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                     or InvalidOperationException
                     or FormatException)
                 {
-                    // TODO: Replace Debug.WriteLine with a unified logging system
-                    Debug.WriteLine($"Skipping malformed D-Bus message: {ex.Message}");
+                    DBusTransportLog.MalformedMessageSkipped(_diagnostics, ex);
                     continue;
                 }
 
@@ -199,6 +224,9 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                     await _receiving.Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
                 }
             }
+
+            if (!cancellationToken.IsCancellationRequested && Volatile.Read(ref _disposed) == 0)
+                DBusTransportLog.InboundTransportCompleted(_diagnostics);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

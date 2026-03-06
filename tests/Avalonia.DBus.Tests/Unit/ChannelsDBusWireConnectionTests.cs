@@ -15,16 +15,28 @@ public class ChannelsDBusWireConnectionTests
     private static (ChannelsDBusWireConnection Connection,
         Channel<DBusSerializedMessage> Inbound,
         Channel<DBusSerializedMessage> Outbound)
-        CreateConnection(string? uniqueName = null, bool isPeerToPeer = true)
+        CreateConnection(
+            string? uniqueName = null,
+            bool isPeerToPeer = true,
+            IDBusDiagnostics? diagnostics = null)
     {
         var inbound = Channel.CreateUnbounded<DBusSerializedMessage>();
         var outbound = Channel.CreateUnbounded<DBusSerializedMessage>();
 
-        var connection = new ChannelsDBusWireConnection(
-            inbound.Reader,
-            outbound.Writer,
-            uniqueName: uniqueName,
-            isPeerToPeer: isPeerToPeer);
+        var connection = diagnostics == null
+            ? new ChannelsDBusWireConnection(
+                inbound.Reader,
+                outbound.Writer,
+                uniqueName: uniqueName,
+                isPeerToPeer: isPeerToPeer)
+            : new ChannelsDBusWireConnection(
+                inbound.Reader,
+                outbound.Writer,
+                socket: null,
+                cts: null,
+                uniqueName: uniqueName,
+                isPeerToPeer: isPeerToPeer,
+                diagnostics: diagnostics);
 
         return (connection, inbound, outbound);
     }
@@ -270,7 +282,8 @@ public class ChannelsDBusWireConnectionTests
     [Fact]
     public async Task ReceiveLoop_MalformedMessage_SkipsAndContinues()
     {
-        var (conn, inbound, _) = CreateConnection();
+        var diagnostics = new CollectingDiagnostics();
+        var (conn, inbound, _) = CreateConnection(diagnostics: diagnostics);
         await using (conn)
         {
             // Write a malformed message (garbage bytes)
@@ -289,6 +302,48 @@ public class ChannelsDBusWireConnectionTests
 
             Assert.Equal(DBusMessageType.Signal, received.Type);
             Assert.Equal("Ping", received.Member);
+            Assert.Contains(
+                diagnostics.Logs,
+                log => log.Level == DBusLogLevel.Warning
+                    && log.Message.Contains("Skipping malformed D-Bus message", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public async Task SendWithReplyAsync_SerializationFailure_DoesNotLeavePendingReply()
+    {
+        var (conn, inbound, _) = CreateConnection(uniqueName: ":1.1");
+        await using (conn)
+        {
+            var invalidCall = new DBusMessage
+            {
+                Type = DBusMessageType.MethodCall,
+                Destination = ":1.2",
+                Path = "/test",
+                Interface = "org.test.I",
+                Member = "Broken"
+            };
+            invalidCall.SetBodyWithSignature([new object()], "v");
+
+            await Assert.ThrowsAsync<NotSupportedException>(() => conn.SendWithReplyAsync(invalidCall));
+            Assert.Equal(1u, invalidCall.Serial);
+
+            var reply = new DBusMessage
+            {
+                Type = DBusMessageType.MethodReturn,
+                ReplySerial = invalidCall.Serial,
+                Destination = ":1.1",
+                Body = ["reply"]
+            };
+
+            await inbound.Writer.WriteAsync(s_serializer.Serialize(reply));
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var received = await conn.ReceivingReader.ReadAsync(cts.Token);
+
+            Assert.Equal(DBusMessageType.MethodReturn, received.Type);
+            Assert.Equal(invalidCall.Serial, received.ReplySerial);
+            Assert.Equal("reply", received.Body[0]);
         }
     }
 
@@ -365,5 +420,15 @@ public class ChannelsDBusWireConnectionTests
         {
             await Assert.ThrowsAsync<ObjectDisposedException>(() => t);
         }
+    }
+
+    private sealed class CollectingDiagnostics : IDBusDiagnostics
+    {
+        public System.Collections.Generic.List<(DBusLogLevel Level, string Message)> Logs { get; } = [];
+        public System.Collections.Generic.List<Exception> UnobservedExceptions { get; } = [];
+
+        public void Log(DBusLogLevel level, string message) => Logs.Add((level, message));
+
+        public void OnUnobservedException(Exception exception) => UnobservedExceptions.Add(exception);
     }
 }
