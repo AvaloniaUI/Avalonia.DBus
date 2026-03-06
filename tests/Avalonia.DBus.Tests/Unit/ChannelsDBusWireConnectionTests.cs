@@ -1,5 +1,6 @@
 using System;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -69,6 +70,26 @@ public class ChannelsDBusWireConnectionTests
             await conn.SendAsync(msg);
 
             Assert.NotEqual(0u, msg.Serial);
+        }
+    }
+
+    [Fact]
+    public async Task SendAsync_SerialWraparound_SkipsZero()
+    {
+        var (conn, _, outbound) = CreateConnection();
+        await using (conn)
+        {
+            var nextSerialField = typeof(ChannelsDBusWireConnection)
+                .GetField("_nextSerial", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(nextSerialField);
+            nextSerialField!.SetValue(conn, uint.MaxValue);
+
+            var msg = DBusMessage.CreateSignal("/org/test", "org.test.Iface", "Ping");
+
+            await conn.SendAsync(msg);
+            await outbound.Reader.ReadAsync();
+
+            Assert.Equal(1u, msg.Serial);
         }
     }
 

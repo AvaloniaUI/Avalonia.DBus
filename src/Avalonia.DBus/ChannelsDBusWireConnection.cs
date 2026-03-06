@@ -127,7 +127,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         cancellationToken.ThrowIfCancellationRequested();
 
         if (message.Serial == 0)
-            message.Serial = Interlocked.Increment(ref _nextSerial);
+            message.Serial = GetNextSerial();
 
         message.Sender ??= _uniqueName;
 
@@ -144,7 +144,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         cancellationToken.ThrowIfCancellationRequested();
 
         if (message.Serial == 0)
-            message.Serial = Interlocked.Increment(ref _nextSerial);
+            message.Serial = GetNextSerial();
 
         message.Sender ??= _uniqueName;
 
@@ -261,5 +261,16 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         {
             // The inbound channel was completed — normal shutdown
         }
+    }
+
+    private uint GetNextSerial()
+    {
+        uint serial;
+        do
+        {
+            serial = Interlocked.Increment(ref _nextSerial);
+        } while (serial == 0);
+
+        return serial;
     }
 }

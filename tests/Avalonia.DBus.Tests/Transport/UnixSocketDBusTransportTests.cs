@@ -151,4 +151,45 @@ public class UnixSocketDBusTransportTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task FromSocket_InvalidFraming_LogsAndStopsReader()
+    {
+        var (clientSocket, serverSocket, path) = await CreateSocketPairAsync();
+        try
+        {
+            var diagnostics = new CollectingDiagnostics();
+            var (serverReader, _, serverCts, readerTask, _) = DBusTransport.FromSocket(serverSocket, diagnostics);
+
+            await clientSocket.SendAsync(new byte[16], SocketFlags.None);
+
+            await readerTask;
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAsync<ChannelClosedException>(() => serverReader.ReadAsync(cts.Token).AsTask());
+            Assert.Contains(
+                diagnostics.Logs,
+                log => log.Level == DBusLogLevel.Warning
+                    && log.Message.Contains("D-Bus socket transport reader stopped: InvalidDataException", StringComparison.Ordinal));
+
+            serverCts.Cancel();
+        }
+        finally
+        {
+            clientSocket.Dispose();
+            serverSocket.Dispose();
+            File.Delete(path);
+        }
+    }
+
+    private sealed class CollectingDiagnostics : IDBusDiagnostics
+    {
+        public System.Collections.Generic.List<(DBusLogLevel Level, string Message)> Logs { get; } = [];
+
+        public void Log(DBusLogLevel level, string message) => Logs.Add((level, message));
+
+        public void OnUnobservedException(Exception exception)
+        {
+        }
+    }
 }

@@ -16,7 +16,7 @@ namespace Avalonia.DBus.Transport;
 internal static class UnixSocketDBusTransport
 {
     /// <summary>
-    /// Exclusive upper bound for accepted message sizes. Totals at or above 128 MiB are rejected.
+    /// Maximum accepted message size in bytes. Totals above 128 MiB are rejected.
     /// </summary>
     private const int MaxMessageLength = 134217728;
 
@@ -79,7 +79,7 @@ internal static class UnixSocketDBusTransport
                         throw new InvalidDataException("D-Bus message length overflow.", ex);
                     }
 
-                    if (total >= MaxMessageLength)
+                    if (total > MaxMessageLength)
                         throw new InvalidDataException(
                             $"D-Bus message length {total} exceeds maximum {MaxMessageLength}.");
 
@@ -110,6 +110,10 @@ internal static class UnixSocketDBusTransport
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+            }
+            catch (InvalidDataException ex)
+            {
+                DBusTransportLog.SocketTransportStopped(diagnostics, "reader", ex);
             }
             catch (IOException ex)
             {
@@ -205,15 +209,6 @@ internal static class UnixSocketDBusTransport
 
             totalRead += read;
         }
-    }
-
-    /// <summary>
-    /// Rounds <paramref name="pos"/> up to the next multiple of <paramref name="alignment"/>.
-    /// </summary>
-    internal static int Padded(int pos, int alignment)
-    {
-        var remainder = pos % alignment;
-        return remainder == 0 ? pos : pos + (alignment - remainder);
     }
 
     private static long AlignUp(long value, int alignment)
