@@ -6,7 +6,7 @@ using DBusWatchPtr = System.IntPtr;
 
 namespace Avalonia.DBus;
 
-internal sealed partial class LibDbusWireWorker
+internal sealed partial class LibDBusWireWorker
 {
 
     internal abstract record WireWorkerMessage;
@@ -32,7 +32,7 @@ internal sealed partial class LibDbusWireWorker
     private sealed record CancelSendItemMessage(SendWorkItem WorkItem) : WireWorkerMessage;
 
     private record WatchState(int Fd, PollEvents Events, bool Enabled);
-    private record CancelRegistrationState(LibDbusWireWorker Worker, SendWorkItem WorkItem);
+    private record CancelRegistrationState(LibDBusWireWorker Worker, SendWorkItem WorkItem);
 
     private record SendWorkItem(
         DBusMessage Message,

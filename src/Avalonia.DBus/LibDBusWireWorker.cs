@@ -17,7 +17,7 @@ using DBusWatchPtr = System.IntPtr;
 
 namespace Avalonia.DBus;
 
-internal sealed partial class LibDbusWireWorker
+internal sealed partial class LibDBusWireWorker
 {
     private static readonly unsafe DBusAddWatchFunction AddWatchDelegate = AddWatchCallback;
     private static readonly unsafe DBusRemoveWatchFunction RemoveWatchDelegate = RemoveWatchCallback;
@@ -35,7 +35,7 @@ internal sealed partial class LibDbusWireWorker
     private static readonly DBusNativeMessagePtr
         HandleMsgPtr = Marshal.GetFunctionPointerForDelegate(HandleMsgDelegate);
 
-    private static readonly ConcurrentDictionary<int, LibDbusWireWorker> ActiveWorkers = new();
+    private static readonly ConcurrentDictionary<int, LibDBusWireWorker> ActiveWorkers = new();
     private static int _activeWorkerCounter;
 
     private readonly unsafe DBusNativeConnection* _connection;
@@ -69,7 +69,7 @@ internal sealed partial class LibDbusWireWorker
     internal ChannelReader<DBusMessage> ReceivingReader => _receiving.Reader;
     internal Task DisposeTask => _disposeCompletion.Task;
 
-    private unsafe LibDbusWireWorker(DBusNativeConnection* connection, bool closeOnDispose, IDBusDiagnostics? diagnostics)
+    private unsafe LibDBusWireWorker(DBusNativeConnection* connection, bool closeOnDispose, IDBusDiagnostics? diagnostics)
     {
         _poll = PosixPollFactory.Create();
         _curWakeupFd = new WakeupFd(_poll);
@@ -99,7 +99,7 @@ internal sealed partial class LibDbusWireWorker
         StartEventLoop();
     }
 
-    internal static unsafe LibDbusWireWorker OpenBus(DBusBusType busType, IDBusDiagnostics? diagnostics = null)
+    internal static unsafe LibDBusWireWorker OpenBus(DBusBusType busType, IDBusDiagnostics? diagnostics = null)
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
@@ -110,10 +110,10 @@ internal sealed partial class LibDbusWireWorker
             ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.");
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
-        return new LibDbusWireWorker(connection, closeOnDispose: true, diagnostics);
+        return new LibDBusWireWorker(connection, closeOnDispose: true, diagnostics);
     }
 
-    internal static unsafe LibDbusWireWorker OpenAddress(string address, IDBusDiagnostics? diagnostics = null)
+    internal static unsafe LibDBusWireWorker OpenAddress(string address, IDBusDiagnostics? diagnostics = null)
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
@@ -134,7 +134,7 @@ internal sealed partial class LibDbusWireWorker
         }
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
-        return new LibDbusWireWorker(connection, closeOnDispose: true, diagnostics);
+        return new LibDBusWireWorker(connection, closeOnDispose: true, diagnostics);
     }
 
     internal bool TryEnqueue(WireWorkerMessage message)
