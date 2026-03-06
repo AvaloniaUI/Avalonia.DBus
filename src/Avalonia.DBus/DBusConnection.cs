@@ -41,7 +41,7 @@ sealed partial class DBusConnection : IDBusConnection
     }
 
     /// <summary>
-    /// Connects to a D-Bus bus at the specified address.
+    /// Connects to a D-Bus address or one of the built-in <c>session</c>/<c>system</c> aliases.
     /// </summary>
     public static async Task<DBusConnection> ConnectAsync(
         string address,
@@ -52,7 +52,7 @@ sealed partial class DBusConnection : IDBusConnection
     }
 
     /// <summary>
-    /// Connects to a D-Bus bus at the specified address.
+    /// Connects to a D-Bus address or one of the built-in <c>session</c>/<c>system</c> aliases.
     /// </summary>
     public static async Task<DBusConnection> ConnectAsync(
         string address,

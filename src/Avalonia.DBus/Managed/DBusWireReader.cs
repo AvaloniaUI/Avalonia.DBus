@@ -77,7 +77,7 @@ internal sealed class DBusWireReader
     }
 
     /// <summary>
-    /// Reads a signed 16-bit integer, 2-byte aligned, little-endian.
+    /// Reads a 2-byte aligned signed 16-bit integer using the configured byte order.
     /// </summary>
     public short ReadInt16()
     {
@@ -92,7 +92,7 @@ internal sealed class DBusWireReader
     }
 
     /// <summary>
-    /// Reads an unsigned 16-bit integer, 2-byte aligned, little-endian.
+    /// Reads a 2-byte aligned unsigned 16-bit integer using the configured byte order.
     /// </summary>
     public ushort ReadUInt16()
     {
@@ -107,7 +107,7 @@ internal sealed class DBusWireReader
     }
 
     /// <summary>
-    /// Reads a signed 32-bit integer, 4-byte aligned, little-endian.
+    /// Reads a 4-byte aligned signed 32-bit integer using the configured byte order.
     /// </summary>
     public int ReadInt32()
     {
@@ -122,7 +122,7 @@ internal sealed class DBusWireReader
     }
 
     /// <summary>
-    /// Reads an unsigned 32-bit integer, 4-byte aligned, little-endian.
+    /// Reads a 4-byte aligned unsigned 32-bit integer using the configured byte order.
     /// </summary>
     public uint ReadUInt32()
     {
@@ -137,7 +137,7 @@ internal sealed class DBusWireReader
     }
 
     /// <summary>
-    /// Reads a signed 64-bit integer, 8-byte aligned, little-endian.
+    /// Reads an 8-byte aligned signed 64-bit integer using the configured byte order.
     /// </summary>
     public long ReadInt64()
     {
@@ -152,7 +152,7 @@ internal sealed class DBusWireReader
     }
 
     /// <summary>
-    /// Reads an unsigned 64-bit integer, 8-byte aligned, little-endian.
+    /// Reads an 8-byte aligned unsigned 64-bit integer using the configured byte order.
     /// </summary>
     public ulong ReadUInt64()
     {
@@ -167,7 +167,7 @@ internal sealed class DBusWireReader
     }
 
     /// <summary>
-    /// Reads a double (8 bytes, 8-byte aligned, little-endian).
+    /// Reads an 8-byte aligned IEEE 754 double using the configured byte order.
     /// Reads as int64 and converts via <see cref="BitConverter.Int64BitsToDouble"/>.
     /// </summary>
     public double ReadDouble()

@@ -8,7 +8,7 @@ using Avalonia.DBus.Native;
 namespace Avalonia.DBus;
 
 /// <summary>
-/// Low-level connection handling raw DBus message transport.
+/// A libdbus-backed <see cref="IDBusWireConnection"/> implementation.
 /// </summary>
 internal sealed class LibDBusWireConnection : IDBusWireConnection
 {
@@ -20,7 +20,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
     }
 
     /// <summary>
-    /// Connects to a D-Bus bus at the specified address.
+    /// Connects to a D-Bus address or one of the built-in <c>session</c>/<c>system</c> aliases.
     /// </summary>
     public static Task<LibDBusWireConnection> ConnectAsync(
         string address,
@@ -80,7 +80,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
 
     /// <summary>
     /// The unique name assigned by the message bus (e.g., ":1.42").
-    /// Null if not connected to a message bus.
+    /// Null if the connection is not attached to a message bus.
     /// </summary>
     public Task<string?> GetUniqueNameAsync()
     {

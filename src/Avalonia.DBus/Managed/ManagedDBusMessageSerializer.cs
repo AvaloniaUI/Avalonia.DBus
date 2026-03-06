@@ -8,6 +8,7 @@ namespace Avalonia.DBus.Managed;
 /// <summary>
 /// Converts between <see cref="DBusMessage"/> and <see cref="DBusSerializedMessage"/>
 /// using the managed <see cref="DBusWireWriter"/> and <see cref="DBusWireReader"/>.
+/// Serialization emits little-endian D-Bus messages; deserialization accepts either D-Bus byte order.
 /// </summary>
 internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 {
@@ -26,7 +27,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        // Step 1: Write body first to get body bytes and collect fds
+        // Serialize the body first so the header can advertise its byte length and Unix FD count.
         var fds = new List<int>();
         byte[] bodyBytes;
 
@@ -48,10 +49,9 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         var bodyLength = (uint)bodyBytes.Length;
 
-        // Step 2: Write header
         var headerWriter = new DBusWireWriter();
 
-        // Fixed header (12 bytes)
+        // Write the fixed header fields that precede the header-fields array length.
         headerWriter.WriteByte((byte)'l'); // little-endian
         headerWriter.WriteByte((byte)message.Type);
         headerWriter.WriteByte((byte)message.Flags);
@@ -60,14 +60,12 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         headerWriter.WriteUInt32(bodyLength);
         headerWriter.WriteUInt32(message.Serial);
 
-        // Header fields array
-        // Write placeholder for array length
+        // Reserve the header-fields array length for backpatching after the variants are written.
         var arrayLengthPos = headerWriter.Position;
         headerWriter.WriteUInt32(0); // placeholder
 
         var arrayStartPos = headerWriter.Position;
 
-        // Write header fields
         if (message.Path.HasValue)
         {
             WriteHeaderField(headerWriter, FieldPath, "o", writer => writer.WriteObjectPath(message.Path.Value.Value));
@@ -115,16 +113,14 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         var arrayEndPos = headerWriter.Position;
 
-        // Backpatch array length
+        // Backpatch the header-fields array byte length.
         var arrayLength = CheckedLength(arrayEndPos - arrayStartPos, "Header fields array");
         headerWriter.SetPosition(arrayLengthPos);
         headerWriter.WriteUInt32(arrayLength);
         headerWriter.SetPosition(arrayEndPos);
 
-        // Pad to 8-byte boundary after header fields
         headerWriter.WritePad(8);
 
-        // Step 3: Combine header and body
         var headerBytes = headerWriter.ToArray();
         var fullMessageLength = (long)headerBytes.Length + bodyBytes.Length;
         if (fullMessageLength > int.MaxValue)
@@ -148,7 +144,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
                 $"D-Bus message is too short ({serialized.Message.Length} bytes). Minimum header size is 16 bytes.");
         }
 
-        // Peek at endianness byte to create the reader with the correct byte order
+        // Select the reader byte order from the message header before parsing aligned values.
         var endiannessByte = serialized.Message[0];
         var bigEndian = endiannessByte switch
         {
@@ -160,7 +156,6 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         var reader = new DBusWireReader(serialized.Message, bigEndian);
 
-        // Read fixed header (bytes 0-3)
         reader.ReadByte(); // consume endianness byte (already parsed above)
 
         var type = (DBusMessageType)reader.ReadByte();
@@ -172,11 +167,9 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
             throw new NotSupportedException($"Unsupported protocol version: {protocolVersion}");
         }
 
-        // Read body length and serial (bytes 4-11)
         var bodyLength = reader.ReadUInt32();
         var serial = reader.ReadUInt32();
 
-        // Read header fields array
         var arrayByteLength = reader.ReadUInt32();
         var arrayEndPos = ComputeBoundedEndPosition(reader, arrayByteLength, "header fields array");
 
@@ -226,7 +219,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
                     signature = reader.ReadSignature();
                     break;
                 case FieldUnixFds:
-                    reader.ReadUInt32(); // we get the fds from the serialized message
+                    reader.ReadUInt32(); // The actual descriptors travel separately in serialized.Fds.
                     break;
                 default:
                     // Skip unknown field by reading the variant value according to its signature
@@ -235,15 +228,12 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
             }
         }
 
-        // Ensure we're at the end of the header fields array
         reader.Position = arrayEndPos;
 
-        // Pad to 8-byte boundary after header fields
         reader.ReadPad(8);
         var bodyStart = reader.Position;
         var bodyEnd = ComputeBoundedEndPosition(reader, bodyLength, "message body");
 
-        // Read body
         var body = new List<object>();
         if (!string.IsNullOrEmpty(signature))
         {
@@ -399,7 +389,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         var elementSignature = arraySignature.Substring(1);
 
-        // Write uint32 placeholder for array byte length
+        // Reserve the array byte length for backpatching after the elements are written.
         var lengthPos = writer.Position;
         writer.WriteUInt32(0); // placeholder
 
@@ -416,7 +406,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         var dataEndPos = writer.Position;
 
-        // Backpatch array byte length
+        // Backpatch the array byte length.
         var arrayByteLength = CheckedLength(dataEndPos - dataStartPos, "Array");
         writer.SetPosition(lengthPos);
         writer.WriteUInt32(arrayByteLength);
@@ -433,7 +423,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
             throw new InvalidOperationException("Invalid dictionary signature.");
         }
 
-        // Write uint32 placeholder for array byte length
+        // Reserve the array byte length for backpatching after the entries are written.
         var lengthPos = writer.Position;
         writer.WriteUInt32(0); // placeholder
 
@@ -451,7 +441,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         var dataEndPos = writer.Position;
 
-        // Backpatch array byte length
+        // Backpatch the array byte length.
         var arrayByteLength = CheckedLength(dataEndPos - dataStartPos, "Dictionary array");
         writer.SetPosition(lengthPos);
         writer.WriteUInt32(arrayByteLength);
@@ -726,7 +716,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         return (int)endPos;
     }
 
-    // --- Array/Dict instance creation (mirrors LibDBusMessageMarshaler) ---
+    // --- Array and dictionary instance creation ---
 
     private static object CreateArrayInstance(string elementSignature, List<object> items)
     {

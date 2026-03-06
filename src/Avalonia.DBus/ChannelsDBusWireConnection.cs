@@ -10,9 +10,9 @@ using Avalonia.DBus.Managed;
 namespace Avalonia.DBus;
 
 /// <summary>
-/// An implementation of <see cref="IDBusWireConnection"/> backed by
-/// <see cref="Channel{T}"/> pairs of <see cref="DBusSerializedMessage"/>,
-/// with reply correlation and serial assignment.
+/// An <see cref="IDBusWireConnection"/> implementation that exchanges
+/// <see cref="DBusSerializedMessage"/> values through channels, assigns
+/// request serials, and correlates replies on a background receive loop.
 /// </summary>
 #if !AVDBUS_INTERNAL
 public
@@ -34,6 +34,17 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
     private uint _nextSerial;
     private int _disposed;
 
+    /// <summary>
+    /// Creates a channel-backed wire connection.
+    /// </summary>
+    /// <param name="reader">Produces serialized inbound messages.</param>
+    /// <param name="writer">Consumes serialized outbound messages.</param>
+    /// <param name="socket">An optional socket to dispose with the connection.</param>
+    /// <param name="cts">An optional cancellation source controlling the underlying transport tasks.</param>
+    /// <param name="uniqueName">
+    /// The bus-assigned unique name for this connection, or <see langword="null"/> for peer-to-peer transports.
+    /// </param>
+    /// <param name="isPeerToPeer"><see langword="true"/> when the connection is not attached to a message bus.</param>
     public ChannelsDBusWireConnection(
         ChannelReader<DBusSerializedMessage> reader,
         ChannelWriter<DBusSerializedMessage> writer,
@@ -45,6 +56,18 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
     {
     }
 
+    /// <summary>
+    /// Creates a channel-backed wire connection with diagnostics hooks.
+    /// </summary>
+    /// <param name="reader">Produces serialized inbound messages.</param>
+    /// <param name="writer">Consumes serialized outbound messages.</param>
+    /// <param name="socket">An optional socket to dispose with the connection.</param>
+    /// <param name="cts">An optional cancellation source controlling the underlying transport tasks.</param>
+    /// <param name="uniqueName">
+    /// The bus-assigned unique name for this connection, or <see langword="null"/> for peer-to-peer transports.
+    /// </param>
+    /// <param name="isPeerToPeer"><see langword="true"/> when the connection is not attached to a message bus.</param>
+    /// <param name="diagnostics">Receives transport warnings such as malformed inbound messages.</param>
     public ChannelsDBusWireConnection(
         ChannelReader<DBusSerializedMessage> reader,
         ChannelWriter<DBusSerializedMessage> writer,
@@ -80,46 +103,55 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         _receiveLoopTask = RunReceiveLoopAsync(reader, _cts.Token);
     }
 
+    /// <summary>
+    /// Gets a value indicating whether this connection is peer-to-peer and therefore has no message bus.
+    /// </summary>
     public bool IsPeerToPeer => _isPeerToPeer;
 
+    /// <summary>
+    /// Gets the reader for inbound messages that were not matched to a pending reply.
+    /// </summary>
     public ChannelReader<DBusMessage> ReceivingReader => _receiving.Reader;
 
+    /// <summary>
+    /// Returns the bus-assigned unique name supplied at construction time, or <see langword="null"/> for peer-to-peer transports.
+    /// </summary>
     public Task<string?> GetUniqueNameAsync() => Task.FromResult(_uniqueName);
 
+    /// <summary>
+    /// Serializes and sends a message without waiting for a reply.
+    /// </summary>
     public Task SendAsync(DBusMessage message, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Assign serial if not set
         if (message.Serial == 0)
             message.Serial = Interlocked.Increment(ref _nextSerial);
 
-        // Stamp sender
         message.Sender ??= _uniqueName;
 
-        // Serialize and write to outbound channel
         var serialized = _serializer.Serialize(message);
         return _outboundWriter.WriteAsync(serialized, cancellationToken).AsTask();
     }
 
+    /// <summary>
+    /// Serializes and sends a message, then waits for a reply whose reply serial matches the request serial.
+    /// </summary>
     public async Task<DBusMessage> SendWithReplyAsync(DBusMessage message, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Assign serial
         if (message.Serial == 0)
             message.Serial = Interlocked.Increment(ref _nextSerial);
 
-        // Stamp sender
         message.Sender ??= _uniqueName;
 
-        // Register pending reply
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingReplies[message.Serial] = tcs;
 
-        // Wire up cancellation with proper registration lifetime (F4)
+        // Remove canceled waits from the pending-reply table.
         CancellationTokenRegistration reg = default;
         if (cancellationToken.CanBeCanceled)
         {
@@ -129,11 +161,10 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                     removed.TrySetCanceled(cancellationToken);
             });
 
-            // Dispose registration when TCS completes (prevents leak for long-lived tokens)
+            // Dispose the registration when the wait completes to avoid leaking long-lived tokens.
             _ = tcs.Task.ContinueWith(_ => reg.Dispose(), TaskContinuationOptions.ExecuteSynchronously);
         }
 
-        // Serialize and write to outbound channel (F1: use WriteAsync, not TryWrite)
         try
         {
             var serialized = _serializer.Serialize(message);
@@ -149,15 +180,16 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         return await tcs.Task.ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Stops the receive loop, shuts down the underlying transport, and fails outstanding reply waiters.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        // 1. Signal transport background tasks to stop
         _transportCts?.Cancel();
 
-        // 2. Cancel our own receive loop
         _cts.Cancel();
 
         try
@@ -166,20 +198,16 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         }
         catch (OperationCanceledException)
         {
-            // Expected
         }
 
-        // 3. Complete the outbound writer
         _outboundWriter.TryComplete();
 
-        // 4. Close socket (causes background reader/writer to exit via SocketException)
         _socket?.Dispose();
 
-        // 5. Dispose CTS resources
         _transportCts?.Dispose();
         _cts.Dispose();
 
-        // 6. Fail all pending replies
+        // Fail outstanding reply waiters after transport shutdown.
         var disposedEx = new ObjectDisposedException(nameof(ChannelsDBusWireConnection));
         foreach (var kvp in _pendingReplies)
         {
@@ -187,7 +215,6 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                 tcs.TrySetException(disposedEx);
         }
 
-        // 7. Complete the internal receiving channel
         _receiving.Writer.TryComplete();
     }
 
@@ -211,7 +238,6 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                     continue;
                 }
 
-                // Check if this is a reply to a pending request
                 if (message.Type is DBusMessageType.MethodReturn or DBusMessageType.Error
                     && message.ReplySerial != 0
                     && _pendingReplies.TryRemove(message.ReplySerial, out var pendingTcs))
@@ -220,7 +246,6 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                 }
                 else
                 {
-                    // Non-reply message: deliver to the receiving channel
                     await _receiving.Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
                 }
             }

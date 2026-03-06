@@ -9,14 +9,14 @@ using System.Threading.Tasks;
 namespace Avalonia.DBus.Transport;
 
 /// <summary>
-/// Internal helper that manages the background reader and writer tasks
-/// bridging a <see cref="Socket"/> to <see cref="Channel{T}"/> of
-/// <see cref="DBusSerializedMessage"/> using D-Bus wire framing.
+/// Internal helper that pumps serialized D-Bus messages between a connected
+/// <see cref="Socket"/> and channel-based transport endpoints.
+/// This managed socket transport does not transfer ancillary Unix file descriptors.
 /// </summary>
 internal static class UnixSocketDBusTransport
 {
     /// <summary>
-    /// Maximum D-Bus message length: 128 MiB (2^27).
+    /// Exclusive upper bound for accepted message sizes. Totals at or above 128 MiB are rejected.
     /// </summary>
     private const int MaxMessageLength = 134217728;
 
@@ -38,10 +38,8 @@ internal static class UnixSocketDBusTransport
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    // 1. Read the 16-byte fixed header
                     await ReadExactAsync(socket, headerBuf, cancellationToken).ConfigureAwait(false);
 
-                    // 2. Parse endianness
                     var endianByte = headerBuf[0];
                     bool isLittleEndian;
                     if (endianByte == (byte)'l')
@@ -52,7 +50,6 @@ internal static class UnixSocketDBusTransport
                         throw new InvalidDataException(
                             $"Invalid D-Bus endianness byte: 0x{endianByte:X2}");
 
-                    // 3. Parse body length (bytes 4-7) and header fields array length (bytes 12-15)
                     uint bodyLen;
                     uint headerFieldsLen;
 
@@ -71,7 +68,6 @@ internal static class UnixSocketDBusTransport
                             headerBuf.AsSpan(12, 4));
                     }
 
-                    // 4. Compute total message length with checked arithmetic
                     var paddedHeaderFieldsLen = AlignUp(headerFieldsLen, 8);
                     long total;
                     try
@@ -83,7 +79,6 @@ internal static class UnixSocketDBusTransport
                         throw new InvalidDataException("D-Bus message length overflow.", ex);
                     }
 
-                    // 5. Validate
                     if (total >= MaxMessageLength)
                         throw new InvalidDataException(
                             $"D-Bus message length {total} exceeds maximum {MaxMessageLength}.");
@@ -96,11 +91,9 @@ internal static class UnixSocketDBusTransport
 
                     var totalInt = (int)total;
 
-                    // 6. Allocate full buffer and copy header
                     var messageBytes = new byte[totalInt];
                     Array.Copy(headerBuf, 0, messageBytes, 0, 16);
 
-                    // 7. Read the remaining bytes
                     if (totalInt > 16)
                     {
                         await ReadExactAsync(
@@ -109,16 +102,14 @@ internal static class UnixSocketDBusTransport
                             cancellationToken).ConfigureAwait(false);
                     }
 
-                    // 8. Write to inbound channel
-                    // Intentional for now: managed Socket APIs do not currently expose recvmsg/SCM_RIGHTS,
-                    // so ancillary Unix file descriptors cannot be reconstructed on this transport yet.
+                    // Managed Socket APIs do not currently expose recvmsg/SCM_RIGHTS,
+                    // so this transport cannot reconstruct ancillary Unix file descriptors.
                     var msg = new DBusSerializedMessage(messageBytes, []);
                     await inboundWriter.WriteAsync(msg, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // Normal shutdown
             }
             catch (IOException ex)
             {
@@ -153,8 +144,8 @@ internal static class UnixSocketDBusTransport
                 {
                     if (msg.Fds.Length > 0)
                     {
-                        // Intentional for now: managed Socket APIs do not currently expose sendmsg/SCM_RIGHTS,
-                        // so ancillary Unix file descriptors cannot be sent on this transport yet.
+                        // Managed Socket APIs do not currently expose sendmsg/SCM_RIGHTS,
+                        // so this transport logs and drops ancillary Unix file descriptors.
                         DBusTransportLog.UnsupportedUnixFdTransport(diagnostics, msg.Fds.Length);
                     }
 
@@ -177,11 +168,9 @@ internal static class UnixSocketDBusTransport
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // Normal shutdown
             }
             catch (ChannelClosedException)
             {
-                // Outbound channel completed — normal shutdown
             }
             catch (IOException ex)
             {

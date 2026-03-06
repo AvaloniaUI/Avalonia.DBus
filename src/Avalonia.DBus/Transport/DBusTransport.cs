@@ -7,7 +7,7 @@ using Avalonia.DBus;
 namespace Avalonia.DBus.Transport;
 
 /// <summary>
-/// Provides factory methods for bridging connected stream sockets to D-Bus wire framing.
+/// Provides factory methods for bridging connected stream sockets to raw D-Bus wire framing.
 /// </summary>
 #if !AVDBUS_INTERNAL
 public
@@ -28,9 +28,9 @@ static class DBusTransport
     ///   <item><c>ReaderTask</c> — the background task reading from the socket</item>
     ///   <item><c>WriterTask</c> — the background task writing to the socket</item>
     /// </list>
-    /// This helper intentionally transports only the inline D-Bus message bytes for now.
-    /// Managed <see cref="Socket"/> APIs do not currently expose sendmsg/recvmsg-style
-    /// SCM_RIGHTS support, so Unix FD passing is logged but not transferred on this path.
+    /// This helper transports only the inline D-Bus message bytes.
+    /// Inbound ancillary Unix file descriptors are not reconstructed on the returned reader,
+    /// and outbound file descriptors are logged and dropped by the writer path.
     /// </returns>
     public static (ChannelReader<DBusSerializedMessage> Reader,
                    ChannelWriter<DBusSerializedMessage> Writer,
@@ -40,6 +40,25 @@ static class DBusTransport
         FromSocket(Socket socket)
         => FromSocket(socket, diagnostics: null);
 
+    /// <summary>
+    /// Bridges a connected <see cref="Socket"/> to a pair of channels carrying
+    /// <see cref="DBusSerializedMessage"/> using D-Bus wire framing.
+    /// </summary>
+    /// <param name="socket">Any already-connected stream socket supplied by the caller.</param>
+    /// <param name="diagnostics">Receives warnings and unobserved background task failures from the transport.</param>
+    /// <returns>
+    /// A 5-tuple of (Reader, Writer, Cts, ReaderTask, WriterTask) where:
+    /// <list type="bullet">
+    ///   <item><c>Reader</c> reads D-Bus messages arriving on the socket.</item>
+    ///   <item><c>Writer</c> writes D-Bus messages to send over the socket.</item>
+    ///   <item><c>Cts</c> controls the background reader and writer tasks.</item>
+    ///   <item><c>ReaderTask</c> is the background task reading from the socket.</item>
+    ///   <item><c>WriterTask</c> is the background task writing to the socket.</item>
+    /// </list>
+    /// This helper transports only the inline D-Bus message bytes.<br/><br/>
+    /// For now, inbound ancillary Unix file descriptors are not reconstructed on the returned reader,
+    /// and outbound file descriptors are logged and dropped by the writer path.
+    /// </returns>
     public static (ChannelReader<DBusSerializedMessage> Reader,
                    ChannelWriter<DBusSerializedMessage> Writer,
                    CancellationTokenSource Cts,
@@ -65,13 +84,22 @@ static class DBusTransport
 
     /// <summary>
     /// Convenience helper that opens a Unix domain stream socket and returns a
-    /// <see cref="ChannelsDBusWireConnection"/> using raw D-Bus wire framing over it.
+    /// peer-to-peer <see cref="ChannelsDBusWireConnection"/> using raw D-Bus wire framing over it.
+    /// This helper does not perform D-Bus authentication or the bus <c>Hello</c> exchange.
     /// </summary>
     /// <param name="socketPath">The file-system path of the Unix domain socket.</param>
     /// <returns>A <see cref="ChannelsDBusWireConnection"/> connected to the socket.</returns>
     public static ChannelsDBusWireConnection ConnectUnix(string socketPath)
         => ConnectUnix(socketPath, diagnostics: null);
 
+    /// <summary>
+    /// Convenience helper that opens a Unix domain stream socket and returns a
+    /// peer-to-peer <see cref="ChannelsDBusWireConnection"/> using raw D-Bus wire framing over it.
+    /// This helper does not perform D-Bus authentication or the bus <c>Hello</c> exchange.
+    /// </summary>
+    /// <param name="socketPath">The file-system path of the Unix domain socket.</param>
+    /// <param name="diagnostics">Receives warnings and unobserved background task failures from the transport.</param>
+    /// <returns>A <see cref="ChannelsDBusWireConnection"/> connected to the socket.</returns>
     public static ChannelsDBusWireConnection ConnectUnix(string socketPath, IDBusDiagnostics? diagnostics)
     {
         var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
