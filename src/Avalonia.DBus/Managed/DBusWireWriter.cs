@@ -11,6 +11,13 @@ namespace Avalonia.DBus.Managed;
 /// </summary>
 internal sealed class DBusWireWriter
 {
+    private const int Int16Size = sizeof(short);
+    private const int UInt16Size = sizeof(ushort);
+    private const int Int32Size = sizeof(int);
+    private const int UInt32Size = sizeof(uint);
+    private const int Int64Size = sizeof(long);
+    private const int UInt64Size = sizeof(ulong);
+
     private readonly MemoryStream _stream = new();
 
     /// <summary>
@@ -49,8 +56,8 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteInt16(short value)
     {
-        WritePad(2);
-        Span<byte> buf = stackalloc byte[2];
+        WritePad(Int16Size);
+        Span<byte> buf = stackalloc byte[Int16Size];
         BinaryPrimitives.WriteInt16LittleEndian(buf, value);
         _stream.Write(buf);
     }
@@ -60,8 +67,8 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteUInt16(ushort value)
     {
-        WritePad(2);
-        Span<byte> buf = stackalloc byte[2];
+        WritePad(UInt16Size);
+        Span<byte> buf = stackalloc byte[UInt16Size];
         BinaryPrimitives.WriteUInt16LittleEndian(buf, value);
         _stream.Write(buf);
     }
@@ -71,8 +78,8 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteInt32(int value)
     {
-        WritePad(4);
-        Span<byte> buf = stackalloc byte[4];
+        WritePad(Int32Size);
+        Span<byte> buf = stackalloc byte[Int32Size];
         BinaryPrimitives.WriteInt32LittleEndian(buf, value);
         _stream.Write(buf);
     }
@@ -82,8 +89,8 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteUInt32(uint value)
     {
-        WritePad(4);
-        Span<byte> buf = stackalloc byte[4];
+        WritePad(UInt32Size);
+        Span<byte> buf = stackalloc byte[UInt32Size];
         BinaryPrimitives.WriteUInt32LittleEndian(buf, value);
         _stream.Write(buf);
     }
@@ -93,8 +100,8 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteInt64(long value)
     {
-        WritePad(8);
-        Span<byte> buf = stackalloc byte[8];
+        WritePad(Int64Size);
+        Span<byte> buf = stackalloc byte[Int64Size];
         BinaryPrimitives.WriteInt64LittleEndian(buf, value);
         _stream.Write(buf);
     }
@@ -104,8 +111,8 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteUInt64(ulong value)
     {
-        WritePad(8);
-        Span<byte> buf = stackalloc byte[8];
+        WritePad(UInt64Size);
+        Span<byte> buf = stackalloc byte[UInt64Size];
         BinaryPrimitives.WriteUInt64LittleEndian(buf, value);
         _stream.Write(buf);
     }
@@ -124,7 +131,8 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteString(string value)
     {
-        byte[] utf8Data = Encoding.UTF8.GetBytes(value);
+        ArgumentNullException.ThrowIfNull(value);
+        var utf8Data = Encoding.UTF8.GetBytes(value);
         WriteUInt32((uint)utf8Data.Length);
         _stream.Write(utf8Data, 0, utf8Data.Length);
         WriteNull();
@@ -135,6 +143,7 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteObjectPath(string value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         WriteString(value);
     }
 
@@ -144,7 +153,14 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WriteSignature(string value)
     {
-        byte[] asciiData = Encoding.ASCII.GetBytes(value);
+        ArgumentNullException.ThrowIfNull(value);
+        var asciiData = Encoding.ASCII.GetBytes(value);
+        if (asciiData.Length > byte.MaxValue)
+        {
+            throw new InvalidOperationException(
+                $"D-Bus signature length {asciiData.Length} exceeds max {byte.MaxValue} bytes.");
+        }
+
         WriteByte((byte)asciiData.Length);
         _stream.Write(asciiData, 0, asciiData.Length);
         WriteNull();
@@ -156,12 +172,15 @@ internal sealed class DBusWireWriter
     /// </summary>
     public void WritePad(int alignment)
     {
-        int pos = (int)_stream.Position;
-        int pad = pos % alignment;
+        if (alignment <= 0)
+            throw new ArgumentOutOfRangeException(nameof(alignment), alignment, "Alignment must be greater than 0.");
+
+        var pos = checked((int)_stream.Position);
+        var pad = pos % alignment;
         if (pad != 0)
         {
-            int needed = alignment - pad;
-            for (int i = 0; i < needed; i++)
+            var needed = alignment - pad;
+            for (var i = 0; i < needed; i++)
                 _stream.WriteByte(0);
         }
     }

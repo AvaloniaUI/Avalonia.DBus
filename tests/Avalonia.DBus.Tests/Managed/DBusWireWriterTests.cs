@@ -379,6 +379,15 @@ public class DBusWireWriterTests
         Assert.Equal(0, bytes[3]); // null terminator
     }
 
+    [Fact]
+    public void WriteSignature_LengthAbove255_ThrowsInvalidOperationException()
+    {
+        var writer = new DBusWireWriter();
+        var tooLongSignature = new string('s', 256);
+
+        Assert.Throws<InvalidOperationException>(() => writer.WriteSignature(tooLongSignature));
+    }
+
     // --- WritePad ---
 
     [Fact]
@@ -421,6 +430,13 @@ public class DBusWireWriterTests
         writer.WritePad(alignment);
 
         Assert.Equal(expectedPosition, writer.Position);
+    }
+
+    [Fact]
+    public void WritePad_ZeroAlignment_ThrowsArgumentOutOfRangeException()
+    {
+        var writer = new DBusWireWriter();
+        Assert.Throws<ArgumentOutOfRangeException>(() => writer.WritePad(0));
     }
 
     // --- WriteNull ---

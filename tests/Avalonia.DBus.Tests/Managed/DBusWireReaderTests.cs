@@ -1,5 +1,6 @@
 using System;
 using System.Buffers.Binary;
+using System.IO;
 using System.Text;
 using Avalonia.DBus.Managed;
 using Xunit;
@@ -307,6 +308,19 @@ public class DBusWireReaderTests
         Assert.Equal("AB", reader.ReadString());
     }
 
+    [Fact]
+    public void ReadString_TruncatedPayload_ThrowsInvalidDataException()
+    {
+        // length = 5, but only 3 bytes + null terminator present
+        var data = new byte[4 + 3 + 1];
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0, 4), 5);
+        Encoding.UTF8.GetBytes("abc").CopyTo(data, 4);
+        data[7] = 0;
+
+        var reader = new DBusWireReader(data);
+        Assert.Throws<InvalidDataException>(() => reader.ReadString());
+    }
+
     // --- ReadObjectPath ---
 
     [Fact]
@@ -411,6 +425,13 @@ public class DBusWireReaderTests
         Assert.Equal(expectedPosition, reader.Position);
     }
 
+    [Fact]
+    public void ReadPad_ZeroAlignment_ThrowsArgumentOutOfRangeException()
+    {
+        var reader = new DBusWireReader(new byte[8]);
+        Assert.Throws<ArgumentOutOfRangeException>(() => reader.ReadPad(0));
+    }
+
     // --- ReadNull ---
 
     [Fact]
@@ -452,6 +473,28 @@ public class DBusWireReaderTests
         reader.ReadInt32(); // read 42
         reader.Position = 0; // seek back
         Assert.Equal(42, reader.ReadInt32()); // re-read
+    }
+
+    [Fact]
+    public void Position_SetNegative_ThrowsArgumentOutOfRangeException()
+    {
+        var reader = new DBusWireReader(new byte[4]);
+        Assert.Throws<ArgumentOutOfRangeException>(() => reader.Position = -1);
+    }
+
+    [Fact]
+    public void Position_SetPastBufferEnd_ThrowsArgumentOutOfRangeException()
+    {
+        var reader = new DBusWireReader(new byte[4]);
+        Assert.Throws<ArgumentOutOfRangeException>(() => reader.Position = 5);
+    }
+
+    [Fact]
+    public void ReadByte_AtEndOfBuffer_ThrowsInvalidDataException()
+    {
+        var reader = new DBusWireReader(new byte[] { 0x01 });
+        Assert.Equal(0x01, reader.ReadByte());
+        Assert.Throws<InvalidDataException>(() => reader.ReadByte());
     }
 
     // ========================================================================
@@ -596,5 +639,160 @@ public class DBusWireReaderTests
         Assert.Equal(double.NegativeInfinity, reader.ReadDouble());
         Assert.Equal(double.PositiveInfinity, reader.ReadDouble());
         Assert.True(double.IsNaN(reader.ReadDouble()));
+    }
+
+    // ========================================================================
+    // Big-endian reader tests
+    // ========================================================================
+
+    private static byte[] WriteBigEndian(Action<byte[], int> write, int size)
+    {
+        var data = new byte[size];
+        write(data, 0);
+        return data;
+    }
+
+    [Fact]
+    public void BigEndian_ReadInt16()
+    {
+        var data = new byte[2];
+        BinaryPrimitives.WriteInt16BigEndian(data, 0x1234);
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(0x1234, reader.ReadInt16());
+    }
+
+    [Fact]
+    public void BigEndian_ReadUInt16()
+    {
+        var data = new byte[2];
+        BinaryPrimitives.WriteUInt16BigEndian(data, 0xABCD);
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(0xABCD, reader.ReadUInt16());
+    }
+
+    [Fact]
+    public void BigEndian_ReadInt32()
+    {
+        var data = new byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(data, 0x12345678);
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(0x12345678, reader.ReadInt32());
+    }
+
+    [Fact]
+    public void BigEndian_ReadUInt32()
+    {
+        var data = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(data, 0xDEADBEEF);
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(0xDEADBEEF, reader.ReadUInt32());
+    }
+
+    [Fact]
+    public void BigEndian_ReadInt64()
+    {
+        var data = new byte[8];
+        BinaryPrimitives.WriteInt64BigEndian(data, 0x123456789ABCDEF0);
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(0x123456789ABCDEF0, reader.ReadInt64());
+    }
+
+    [Fact]
+    public void BigEndian_ReadUInt64()
+    {
+        var data = new byte[8];
+        BinaryPrimitives.WriteUInt64BigEndian(data, 0xFEDCBA9876543210);
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(0xFEDCBA9876543210, reader.ReadUInt64());
+    }
+
+    [Fact]
+    public void BigEndian_ReadBoolean()
+    {
+        var data = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(data, 1);
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.True(reader.ReadBoolean());
+    }
+
+    [Fact]
+    public void BigEndian_ReadDouble()
+    {
+        var data = new byte[8];
+        BinaryPrimitives.WriteInt64BigEndian(data, BitConverter.DoubleToInt64Bits(3.14));
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(3.14, reader.ReadDouble());
+    }
+
+    [Fact]
+    public void BigEndian_ReadString()
+    {
+        // String: uint32 length (BE) + UTF-8 bytes + null terminator
+        var data = new byte[4 + 5 + 1]; // "Hello" = 5 bytes
+        BinaryPrimitives.WriteUInt32BigEndian(data, 5);
+        Encoding.UTF8.GetBytes("Hello").CopyTo(data, 4);
+        data[9] = 0; // null terminator
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal("Hello", reader.ReadString());
+    }
+
+    [Fact]
+    public void BigEndian_ReadString_WouldMisreadAsLittleEndian()
+    {
+        // Verify that a BE-encoded string length is correctly interpreted.
+        // Length 5 in BE = [0x00, 0x00, 0x00, 0x05]
+        // If misread as LE, length would be 0x05000000 (83886080) — way too large.
+        var data = new byte[4 + 5 + 1];
+        BinaryPrimitives.WriteUInt32BigEndian(data, 5);
+        Encoding.UTF8.GetBytes("Hello").CopyTo(data, 4);
+        data[9] = 0;
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal("Hello", reader.ReadString());
+    }
+
+    [Fact]
+    public void BigEndian_AllTypes_SequentialRead()
+    {
+        // Build a BE buffer manually: byte, boolean(uint32), int16, uint16, int32, uint32
+        using var ms = new System.IO.MemoryStream();
+        // byte (pos 0)
+        ms.WriteByte(0x42);
+        // boolean: pad to 4, write uint32=1 (pos 1 -> pad to 4, then 4 bytes)
+        ms.WriteByte(0); ms.WriteByte(0); ms.WriteByte(0); // pad to 4
+        var buf4 = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(buf4, 1);
+        ms.Write(buf4); // pos 4-7
+        // int16: pad to 2 (pos 8, already aligned)
+        var buf2 = new byte[2];
+        BinaryPrimitives.WriteInt16BigEndian(buf2, -100);
+        ms.Write(buf2); // pos 8-9
+        // uint16: pad to 2 (pos 10, already aligned)
+        BinaryPrimitives.WriteUInt16BigEndian(buf2, 65535);
+        ms.Write(buf2); // pos 10-11
+        // int32: pad to 4 (pos 12, already aligned)
+        BinaryPrimitives.WriteInt32BigEndian(buf4, -2_000_000);
+        ms.Write(buf4); // pos 12-15
+        // uint32: pad to 4 (pos 16, already aligned)
+        BinaryPrimitives.WriteUInt32BigEndian(buf4, 4_000_000_000);
+        ms.Write(buf4); // pos 16-19
+
+        var data = ms.ToArray();
+        var reader = new DBusWireReader(data, bigEndian: true);
+        Assert.Equal(0x42, reader.ReadByte());
+        Assert.True(reader.ReadBoolean());
+        Assert.Equal((short)-100, reader.ReadInt16());
+        Assert.Equal((ushort)65535, reader.ReadUInt16());
+        Assert.Equal(-2_000_000, reader.ReadInt32());
+        Assert.Equal(4_000_000_000u, reader.ReadUInt32());
+    }
+
+    [Fact]
+    public void DefaultConstructor_IsLittleEndian()
+    {
+        // Verify the default (no bigEndian param) still reads LE correctly
+        var data = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(data, 42);
+        var reader = new DBusWireReader(data);
+        Assert.Equal(42u, reader.ReadUInt32());
     }
 }

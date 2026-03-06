@@ -1,4 +1,8 @@
+using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using Avalonia.DBus.Managed;
 using Xunit;
 
@@ -806,5 +810,272 @@ public class ManagedDBusMessageSerializerTests
         var v = Assert.IsType<DBusVariant>(result.Body[0]);
         var resultList = Assert.IsType<List<string>>(v.Value);
         Assert.Equal(new List<string> { "x", "y", "z" }, resultList);
+    }
+
+    // ========================================================================
+    // Big-endian deserialization tests
+    // ========================================================================
+
+    /// <summary>
+    /// Helper to build a big-endian D-Bus message manually.
+    /// </summary>
+    private static byte[] BuildBigEndianMessage(
+        DBusMessageType type, uint serial, byte flags,
+        Action<MemoryStream> writeHeaderFields,
+        byte[]? bodyBytes = null)
+    {
+        bodyBytes ??= [];
+        var ms = new MemoryStream();
+
+        // Fixed header (12 bytes)
+        ms.WriteByte((byte)'B'); // big-endian
+        ms.WriteByte((byte)type);
+        ms.WriteByte(flags);
+        ms.WriteByte(1); // protocol version
+
+        var buf4 = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(buf4, (uint)bodyBytes.Length);
+        ms.Write(buf4); // body length
+
+        BinaryPrimitives.WriteUInt32BigEndian(buf4, serial);
+        ms.Write(buf4); // serial
+
+        // Header fields array — write to temp stream to get length
+        var fieldsMs = new MemoryStream();
+        writeHeaderFields(fieldsMs);
+        var fieldsBytes = fieldsMs.ToArray();
+
+        BinaryPrimitives.WriteUInt32BigEndian(buf4, (uint)fieldsBytes.Length);
+        ms.Write(buf4); // array byte length
+        ms.Write(fieldsBytes);
+
+        // Pad to 8-byte boundary
+        while (ms.Position % 8 != 0)
+            ms.WriteByte(0);
+
+        ms.Write(bodyBytes);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Writes a BE header field: struct { byte code, variant { signature, value } }
+    /// </summary>
+    private static void WriteBeHeaderFieldString(MemoryStream ms, byte fieldCode, string sigChar, string value)
+    {
+        // Pad struct to 8
+        while (ms.Position % 8 != 0)
+            ms.WriteByte(0);
+
+        ms.WriteByte(fieldCode);
+
+        // Variant: signature + value
+        ms.WriteByte(1); // sig length
+        ms.Write(Encoding.ASCII.GetBytes(sigChar));
+        ms.WriteByte(0); // sig null
+
+        if (sigChar == "o" || sigChar == "s")
+        {
+            // Pad to 4 for uint32 string length
+            while (ms.Position % 4 != 0)
+                ms.WriteByte(0);
+
+            var utf8 = Encoding.UTF8.GetBytes(value);
+            var buf = new byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(buf, (uint)utf8.Length);
+            ms.Write(buf);
+            ms.Write(utf8);
+            ms.WriteByte(0); // null terminator
+        }
+        else if (sigChar == "g")
+        {
+            var ascii = Encoding.ASCII.GetBytes(value);
+            ms.WriteByte((byte)ascii.Length);
+            ms.Write(ascii);
+            ms.WriteByte(0);
+        }
+    }
+
+    private static void WriteBeHeaderFieldUInt32(MemoryStream ms, byte fieldCode, uint value)
+    {
+        while (ms.Position % 8 != 0)
+            ms.WriteByte(0);
+
+        ms.WriteByte(fieldCode);
+
+        ms.WriteByte(1); // sig length
+        ms.WriteByte((byte)'u');
+        ms.WriteByte(0); // sig null
+
+        // Pad to 4 for uint32
+        while (ms.Position % 4 != 0)
+            ms.WriteByte(0);
+
+        var buf = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(buf, value);
+        ms.Write(buf);
+    }
+
+    [Fact]
+    public void Deserialize_BigEndian_MethodCall_NoBody()
+    {
+        var msgBytes = BuildBigEndianMessage(
+            DBusMessageType.MethodCall, serial: 1, flags: 0,
+            writeHeaderFields: fields =>
+            {
+                WriteBeHeaderFieldString(fields, 1, "o", "/org/freedesktop/DBus"); // PATH
+                WriteBeHeaderFieldString(fields, 2, "s", "org.freedesktop.DBus");  // INTERFACE
+                WriteBeHeaderFieldString(fields, 3, "s", "Hello");                 // MEMBER
+                WriteBeHeaderFieldString(fields, 6, "s", "org.freedesktop.DBus");  // DESTINATION
+            });
+
+        var serialized = new DBusSerializedMessage(msgBytes, []);
+        var result = _serializer.Deserialize(serialized);
+
+        Assert.Equal(DBusMessageType.MethodCall, result.Type);
+        Assert.Equal(1u, result.Serial);
+        Assert.Equal("/org/freedesktop/DBus", result.Path?.Value);
+        Assert.Equal("org.freedesktop.DBus", result.Interface);
+        Assert.Equal("Hello", result.Member);
+        Assert.Equal("org.freedesktop.DBus", result.Destination);
+        Assert.Empty(result.Body);
+    }
+
+    [Fact]
+    public void Deserialize_BigEndian_MethodReturn_WithUInt32Body()
+    {
+        // Body: a single uint32 = 12345
+        var bodyBuf = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(bodyBuf, 12345);
+
+        var msgBytes = BuildBigEndianMessage(
+            DBusMessageType.MethodReturn, serial: 2, flags: 0,
+            writeHeaderFields: fields =>
+            {
+                WriteBeHeaderFieldUInt32(fields, 5, 1); // REPLY_SERIAL
+                WriteBeHeaderFieldString(fields, 8, "g", "u"); // SIGNATURE
+            },
+            bodyBytes: bodyBuf);
+
+        var serialized = new DBusSerializedMessage(msgBytes, []);
+        var result = _serializer.Deserialize(serialized);
+
+        Assert.Equal(DBusMessageType.MethodReturn, result.Type);
+        Assert.Equal(2u, result.Serial);
+        Assert.Equal(1u, result.ReplySerial);
+        Assert.Single(result.Body);
+        Assert.Equal(12345u, result.Body[0]);
+    }
+
+    [Fact]
+    public void Deserialize_BigEndian_MethodReturn_WithStringBody()
+    {
+        // Body: a single string "hello"
+        var bodyMs = new MemoryStream();
+        var utf8 = Encoding.UTF8.GetBytes("hello");
+        var lenBuf = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(lenBuf, (uint)utf8.Length);
+        bodyMs.Write(lenBuf);
+        bodyMs.Write(utf8);
+        bodyMs.WriteByte(0); // null terminator
+        var bodyBuf = bodyMs.ToArray();
+
+        var msgBytes = BuildBigEndianMessage(
+            DBusMessageType.MethodReturn, serial: 3, flags: 0,
+            writeHeaderFields: fields =>
+            {
+                WriteBeHeaderFieldUInt32(fields, 5, 1); // REPLY_SERIAL
+                WriteBeHeaderFieldString(fields, 8, "g", "s"); // SIGNATURE
+            },
+            bodyBytes: bodyBuf);
+
+        var serialized = new DBusSerializedMessage(msgBytes, []);
+        var result = _serializer.Deserialize(serialized);
+
+        Assert.Equal(DBusMessageType.MethodReturn, result.Type);
+        Assert.Single(result.Body);
+        Assert.Equal("hello", result.Body[0]);
+    }
+
+    [Fact]
+    public void Deserialize_InvalidEndiannessByte_Throws()
+    {
+        var data = new byte[16];
+        data[0] = (byte)'x'; // invalid endianness
+        var serialized = new DBusSerializedMessage(data, []);
+
+        var ex = Assert.Throws<NotSupportedException>(() => _serializer.Deserialize(serialized));
+        Assert.Contains("0x78", ex.Message); // 'x' = 0x78
+    }
+
+    [Fact]
+    public void Deserialize_HeaderArrayLengthOutOfBounds_ThrowsInvalidDataException()
+    {
+        var data = new byte[16];
+        data[0] = (byte)'l'; // endianness
+        data[1] = (byte)DBusMessageType.MethodCall;
+        data[3] = 1; // protocol version
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(8, 4), 1); // serial
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(12, 4), uint.MaxValue); // array len
+
+        var serialized = new DBusSerializedMessage(data, []);
+        Assert.Throws<InvalidDataException>(() => _serializer.Deserialize(serialized));
+    }
+
+    [Fact]
+    public void Deserialize_BodyLengthMismatch_ThrowsInvalidDataException()
+    {
+        var msg = new DBusMessage
+        {
+            Type = DBusMessageType.MethodReturn,
+            Serial = 1,
+            ReplySerial = 1,
+            Body = new object[] { "hello" }
+        };
+
+        var serialized = _serializer.Serialize(msg);
+        var bytes = (byte[])serialized.Message.Clone();
+
+        // Corrupt declared body length to zero while body/signature are still present.
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4, 4), 0);
+
+        Assert.Throws<InvalidDataException>(() => _serializer.Deserialize(new DBusSerializedMessage(bytes, serialized.Fds)));
+    }
+
+    [Fact]
+    public void Deserialize_TrailingBytesAfterBody_ThrowsInvalidDataException()
+    {
+        var msg = new DBusMessage
+        {
+            Type = DBusMessageType.MethodReturn,
+            Serial = 1,
+            ReplySerial = 1,
+            Body = new object[] { 42u }
+        };
+
+        var serialized = _serializer.Serialize(msg);
+        var bytesWithTrailing = new byte[serialized.Message.Length + 1];
+        Array.Copy(serialized.Message, bytesWithTrailing, serialized.Message.Length);
+        bytesWithTrailing[^1] = 0x00;
+
+        Assert.Throws<InvalidDataException>(() => _serializer.Deserialize(new DBusSerializedMessage(bytesWithTrailing, serialized.Fds)));
+    }
+
+    [Fact]
+    public void Deserialize_UnixFdIndexOutOfRange_ThrowsInvalidDataException()
+    {
+        var msg = new DBusMessage
+        {
+            Type = DBusMessageType.MethodCall,
+            Serial = 10,
+            Path = new DBusObjectPath("/test"),
+            Interface = "com.example.Test",
+            Member = "SendFd",
+            Body = new object[] { new DBusUnixFd(42) }
+        };
+
+        var serialized = _serializer.Serialize(msg);
+
+        // Simulate transport that forgot to carry SCM_RIGHTS.
+        Assert.Throws<InvalidDataException>(() => _serializer.Deserialize(new DBusSerializedMessage(serialized.Message, [])));
     }
 }

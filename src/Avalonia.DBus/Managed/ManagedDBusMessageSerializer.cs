@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Avalonia.DBus.Managed;
 
@@ -61,10 +62,10 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         // Header fields array
         // Write placeholder for array length
-        long arrayLengthPos = headerWriter.Position;
+        var arrayLengthPos = headerWriter.Position;
         headerWriter.WriteUInt32(0); // placeholder
 
-        long arrayStartPos = headerWriter.Position;
+        var arrayStartPos = headerWriter.Position;
 
         // Write header fields
         if (message.Path.HasValue)
@@ -112,10 +113,10 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
             WriteHeaderField(headerWriter, FieldUnixFds, "u", writer => writer.WriteUInt32((uint)fds.Count));
         }
 
-        long arrayEndPos = headerWriter.Position;
+        var arrayEndPos = headerWriter.Position;
 
         // Backpatch array length
-        uint arrayLength = (uint)(arrayEndPos - arrayStartPos);
+        var arrayLength = CheckedLength(arrayEndPos - arrayStartPos, "Header fields array");
         headerWriter.SetPosition(arrayLengthPos);
         headerWriter.WriteUInt32(arrayLength);
         headerWriter.SetPosition(arrayEndPos);
@@ -125,7 +126,13 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         // Step 3: Combine header and body
         var headerBytes = headerWriter.ToArray();
-        var fullMessage = new byte[headerBytes.Length + bodyBytes.Length];
+        var fullMessageLength = (long)headerBytes.Length + bodyBytes.Length;
+        if (fullMessageLength > int.MaxValue)
+        {
+            throw new InvalidOperationException($"Serialized message is too large ({fullMessageLength} bytes).");
+        }
+
+        var fullMessage = new byte[(int)fullMessageLength];
         Array.Copy(headerBytes, 0, fullMessage, 0, headerBytes.Length);
         Array.Copy(bodyBytes, 0, fullMessage, headerBytes.Length, bodyBytes.Length);
 
@@ -135,15 +142,26 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
     public DBusMessage Deserialize(DBusSerializedMessage serialized)
     {
         ArgumentNullException.ThrowIfNull(serialized);
+        if (serialized.Message.Length < 16)
+        {
+            throw new InvalidDataException(
+                $"D-Bus message is too short ({serialized.Message.Length} bytes). Minimum header size is 16 bytes.");
+        }
 
-        var reader = new DBusWireReader(serialized.Message);
+        // Peek at endianness byte to create the reader with the correct byte order
+        var endiannessByte = serialized.Message[0];
+        var bigEndian = endiannessByte switch
+        {
+            (byte)'l' => false,
+            (byte)'B' => true,
+            _ => throw new NotSupportedException(
+                $"Invalid endianness byte 0x{endiannessByte:X2}. Expected 'l' (0x6C) or 'B' (0x42).")
+        };
+
+        var reader = new DBusWireReader(serialized.Message, bigEndian);
 
         // Read fixed header (bytes 0-3)
-        var endianness = reader.ReadByte(); // 'l' or 'B'
-        if (endianness != (byte)'l')
-        {
-            throw new NotSupportedException("Only little-endian messages are supported.");
-        }
+        reader.ReadByte(); // consume endianness byte (already parsed above)
 
         var type = (DBusMessageType)reader.ReadByte();
         var flags = (DBusMessageFlags)reader.ReadByte();
@@ -160,7 +178,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         // Read header fields array
         var arrayByteLength = reader.ReadUInt32();
-        var arrayEndPos = reader.Position + (int)arrayByteLength;
+        var arrayEndPos = ComputeBoundedEndPosition(reader, arrayByteLength, "header fields array");
 
         DBusObjectPath? path = null;
         string? iface = null;
@@ -169,7 +187,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         uint replySerial = 0;
         string? destination = null;
         string? sender = null;
-        string signature = string.Empty;
+        var signature = string.Empty;
 
         while (reader.Position < arrayEndPos)
         {
@@ -222,6 +240,8 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
 
         // Pad to 8-byte boundary after header fields
         reader.ReadPad(8);
+        var bodyStart = reader.Position;
+        var bodyEnd = ComputeBoundedEndPosition(reader, bodyLength, "message body");
 
         // Read body
         var body = new List<object>();
@@ -233,6 +253,18 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
                 var typeSig = DBusSignatureParser.ReadSingleType(signature, ref sigIndex);
                 body.Add(ReadValue(reader, typeSig, serialized.Fds));
             }
+        }
+
+        if (reader.Position != bodyEnd)
+        {
+            throw new InvalidDataException(
+                $"Body parse consumed {reader.Position - bodyStart} bytes, but header declared {bodyLength} bytes.");
+        }
+
+        if (bodyEnd != reader.Length)
+        {
+            throw new InvalidDataException(
+                $"Message contains trailing bytes after declared body (body end={bodyEnd}, total={reader.Length}).");
         }
 
         var msg = new DBusMessage
@@ -368,24 +400,24 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         var elementSignature = arraySignature.Substring(1);
 
         // Write uint32 placeholder for array byte length
-        long lengthPos = writer.Position;
+        var lengthPos = writer.Position;
         writer.WriteUInt32(0); // placeholder
 
         // Pad to element alignment
-        int elementAlignment = GetAlignmentForSignature(elementSignature);
+        var elementAlignment = GetAlignmentForSignature(elementSignature);
         writer.WritePad(elementAlignment);
 
-        long dataStartPos = writer.Position;
+        var dataStartPos = writer.Position;
 
         foreach (var item in DBusCollectionHelpers.EnumerateListItems(array))
         {
             WriteValue(writer, item ?? throw new InvalidOperationException("Array contains null values."), fds);
         }
 
-        long dataEndPos = writer.Position;
+        var dataEndPos = writer.Position;
 
         // Backpatch array byte length
-        uint arrayByteLength = (uint)(dataEndPos - dataStartPos);
+        var arrayByteLength = CheckedLength(dataEndPos - dataStartPos, "Array");
         writer.SetPosition(lengthPos);
         writer.WriteUInt32(arrayByteLength);
         writer.SetPosition(dataEndPos);
@@ -402,13 +434,13 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         }
 
         // Write uint32 placeholder for array byte length
-        long lengthPos = writer.Position;
+        var lengthPos = writer.Position;
         writer.WriteUInt32(0); // placeholder
 
         // Dict entries are structs, so pad to 8-byte alignment
         writer.WritePad(8);
 
-        long dataStartPos = writer.Position;
+        var dataStartPos = writer.Position;
 
         foreach (var entry in DBusCollectionHelpers.EnumerateDictionaryEntries(dict))
         {
@@ -417,10 +449,10 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
             WriteValue(writer, entry.Value ?? throw new InvalidOperationException("Dictionary contains null values."), fds);
         }
 
-        long dataEndPos = writer.Position;
+        var dataEndPos = writer.Position;
 
         // Backpatch array byte length
-        uint arrayByteLength = (uint)(dataEndPos - dataStartPos);
+        var arrayByteLength = CheckedLength(dataEndPos - dataStartPos, "Dictionary array");
         writer.SetPosition(lengthPos);
         writer.WriteUInt32(arrayByteLength);
         writer.SetPosition(dataEndPos);
@@ -463,8 +495,14 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
             return new DBusSignature(reader.ReadSignature());
         if (token == DBusSignatureToken.UnixFd)
         {
-            var fdIndex = (int)reader.ReadUInt32();
-            return new DBusUnixFd(fds[fdIndex]);
+            var fdIndex = reader.ReadUInt32();
+            if (fdIndex >= (uint)fds.Length)
+            {
+                throw new InvalidDataException(
+                    $"D-Bus message references unix fd index {fdIndex}, but only {fds.Length} fds were provided.");
+            }
+
+            return new DBusUnixFd(fds[(int)fdIndex]);
         }
         if (token == DBusSignatureToken.Variant)
             return ReadVariant(reader, fds);
@@ -501,10 +539,10 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         var arrayByteLength = reader.ReadUInt32();
 
         // Pad to element alignment
-        int elementAlignment = GetAlignmentForSignature(elementSignature);
+        var elementAlignment = GetAlignmentForSignature(elementSignature);
         reader.ReadPad(elementAlignment);
 
-        var endPos = reader.Position + (int)arrayByteLength;
+        var endPos = ComputeBoundedEndPosition(reader, arrayByteLength, "array");
 
         var items = new List<object>();
         while (reader.Position < endPos)
@@ -522,7 +560,7 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         // Dict entries are structs, so pad to 8-byte alignment
         reader.ReadPad(8);
 
-        var endPos = reader.Position + (int)arrayByteLength;
+        var endPos = ComputeBoundedEndPosition(reader, arrayByteLength, "dictionary array");
 
         var (keySig, valueSig) = DBusSignatureParser.ParseDictEntrySignatures(entrySignature);
 
@@ -614,9 +652,9 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
             var arrayLen = reader.ReadUInt32();
             var idx = 1;
             var elemSig = DBusSignatureParser.ReadSingleType(signature, ref idx);
-            int elemAlign = GetAlignmentForSignature(elemSig);
+            var elemAlign = GetAlignmentForSignature(elemSig);
             reader.ReadPad(elemAlign);
-            var endPos = reader.Position + (int)arrayLen;
+            var endPos = ComputeBoundedEndPosition(reader, arrayLen, "array");
             reader.Position = endPos;
         }
         else if (token == DBusSignatureToken.StructBegin)
@@ -665,7 +703,30 @@ internal sealed class ManagedDBusMessageSerializer : IDBusMessageSerializer
         return 1;
     }
 
-    // --- Array/Dict instance creation (mirrors DBusMessageMarshaler) ---
+    private static uint CheckedLength(long length, string sectionName)
+    {
+        if (length < 0 || length > uint.MaxValue)
+        {
+            throw new InvalidOperationException($"{sectionName} length {length} is outside uint32 range.");
+        }
+
+        return (uint)length;
+    }
+
+    private static int ComputeBoundedEndPosition(DBusWireReader reader, uint byteLength, string sectionName)
+    {
+        var endPos = (long)reader.Position + byteLength;
+        if (endPos > reader.Length)
+        {
+            throw new InvalidDataException(
+                $"Declared {sectionName} length {byteLength} exceeds remaining buffer " +
+                $"({reader.Length - reader.Position} bytes available).");
+        }
+
+        return (int)endPos;
+    }
+
+    // --- Array/Dict instance creation (mirrors LibDBusMessageMarshaler) ---
 
     private static object CreateArrayInstance(string elementSignature, List<object> items)
     {

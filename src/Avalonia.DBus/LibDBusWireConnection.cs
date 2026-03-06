@@ -12,9 +12,9 @@ namespace Avalonia.DBus;
 /// </summary>
 internal sealed class LibDBusWireConnection : IDBusWireConnection
 {
-    private readonly DbusWireWorker _worker;
+    private readonly LibDbusWireWorker _worker;
 
-    private LibDBusWireConnection(DbusWireWorker worker)
+    private LibDBusWireConnection(LibDbusWireWorker worker)
     {
         _worker = worker ?? throw new ArgumentNullException(nameof(worker));
     }
@@ -42,7 +42,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
             return ConnectSystemAsync(diagnostics, cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var worker = DbusWireWorker.OpenAddress(address, diagnostics);
+        var worker = LibDbusWireWorker.OpenAddress(address, diagnostics);
         return Task.FromResult(new LibDBusWireConnection(worker));
     }
 
@@ -58,7 +58,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SESSION, diagnostics);
+        var worker = LibDbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SESSION, diagnostics);
         return Task.FromResult(new LibDBusWireConnection(worker));
     }
 
@@ -74,7 +74,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var worker = DbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SYSTEM, diagnostics);
+        var worker = LibDbusWireWorker.OpenBus(DBusBusType.DBUS_BUS_SYSTEM, diagnostics);
         return Task.FromResult(new LibDBusWireConnection(worker));
     }
 
@@ -85,7 +85,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
     public Task<string?> GetUniqueNameAsync()
     {
         var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _worker.TryEnqueue(new DbusWireWorker.FetchUniqueNameMessage(tcs));
+        _worker.TryEnqueue(new LibDbusWireWorker.FetchUniqueNameMessage(tcs));
         return tcs.Task;
     }
 
@@ -100,7 +100,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
         cancellationToken.ThrowIfCancellationRequested();
 
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _worker.TryEnqueue(new DbusWireWorker.EnqueueSendItemMessage(
+        _worker.TryEnqueue(new LibDbusWireWorker.EnqueueSendItemMessage(
             message,
             tcs,
             false,
@@ -121,7 +121,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
 
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        _worker.TryEnqueue(new DbusWireWorker.EnqueueSendItemMessage(
+        _worker.TryEnqueue(new LibDbusWireWorker.EnqueueSendItemMessage(
             message,
             tcs,
             true,
@@ -142,7 +142,7 @@ internal sealed class LibDBusWireConnection : IDBusWireConnection
     /// </summary>
     public ValueTask DisposeAsync()
     {
-        _worker.TryEnqueue(new DbusWireWorker.DisposeMessage());
+        _worker.TryEnqueue(new LibDbusWireWorker.DisposeMessage());
         return new ValueTask(_worker.DisposeTask);
     }
 }

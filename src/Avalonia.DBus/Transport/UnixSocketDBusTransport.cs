@@ -41,7 +41,7 @@ internal static class UnixSocketDBusTransport
                     await ReadExactAsync(socket, headerBuf, cancellationToken).ConfigureAwait(false);
 
                     // 2. Parse endianness
-                    byte endianByte = headerBuf[0];
+                    var endianByte = headerBuf[0];
                     bool isLittleEndian;
                     if (endianByte == (byte)'l')
                         isLittleEndian = true;
@@ -70,16 +70,30 @@ internal static class UnixSocketDBusTransport
                             headerBuf.AsSpan(12, 4));
                     }
 
-                    // 4. Compute total message length
-                    int paddedHeaderFieldsLen = Padded((int)headerFieldsLen, 8);
-                    long total = 16L + paddedHeaderFieldsLen + bodyLen;
+                    // 4. Compute total message length with checked arithmetic
+                    var paddedHeaderFieldsLen = AlignUp(headerFieldsLen, 8);
+                    long total;
+                    try
+                    {
+                        total = checked(16L + paddedHeaderFieldsLen + bodyLen);
+                    }
+                    catch (OverflowException ex)
+                    {
+                        throw new InvalidDataException("D-Bus message length overflow.", ex);
+                    }
 
                     // 5. Validate
-                    if (total > MaxMessageLength || total > int.MaxValue)
+                    if (total >= MaxMessageLength)
                         throw new InvalidDataException(
                             $"D-Bus message length {total} exceeds maximum {MaxMessageLength}.");
 
-                    int totalInt = (int)total;
+                    if (total > int.MaxValue)
+                    {
+                        throw new InvalidDataException(
+                            $"D-Bus message length {total} exceeds supported managed buffer limit.");
+                    }
+
+                    var totalInt = (int)total;
 
                     // 6. Allocate full buffer and copy header
                     var messageBytes = new byte[totalInt];
@@ -95,7 +109,7 @@ internal static class UnixSocketDBusTransport
                     }
 
                     // 8. Write to inbound channel
-                    var msg = new DBusSerializedMessage(messageBytes, Array.Empty<int>());
+                    var msg = new DBusSerializedMessage(messageBytes, []);
                     await inboundWriter.WriteAsync(msg, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -134,11 +148,11 @@ internal static class UnixSocketDBusTransport
                 await foreach (var msg in outboundReader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
                 {
                     var data = msg.Message;
-                    int totalSent = 0;
+                    var totalSent = 0;
 
                     while (totalSent < data.Length)
                     {
-                        int sent = await socket.SendAsync(
+                        var sent = await socket.SendAsync(
                             data.AsMemory(totalSent),
                             SocketFlags.None,
                             cancellationToken).ConfigureAwait(false);
@@ -178,10 +192,10 @@ internal static class UnixSocketDBusTransport
         Memory<byte> buffer,
         CancellationToken cancellationToken)
     {
-        int totalRead = 0;
+        var totalRead = 0;
         while (totalRead < buffer.Length)
         {
-            int read = await socket.ReceiveAsync(
+            var read = await socket.ReceiveAsync(
                 buffer[totalRead..],
                 SocketFlags.None,
                 cancellationToken).ConfigureAwait(false);
@@ -198,7 +212,16 @@ internal static class UnixSocketDBusTransport
     /// </summary>
     internal static int Padded(int pos, int alignment)
     {
-        int remainder = pos % alignment;
+        var remainder = pos % alignment;
         return remainder == 0 ? pos : pos + (alignment - remainder);
+    }
+
+    private static long AlignUp(long value, int alignment)
+    {
+        if (alignment <= 0)
+            throw new ArgumentOutOfRangeException(nameof(alignment), alignment, "Alignment must be greater than 0.");
+
+        var remainder = value % alignment;
+        return remainder == 0 ? value : checked(value + (alignment - remainder));
     }
 }
