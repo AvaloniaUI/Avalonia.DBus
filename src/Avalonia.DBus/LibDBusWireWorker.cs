@@ -17,7 +17,7 @@ using DBusWatchPtr = System.IntPtr;
 
 namespace Avalonia.DBus;
 
-internal sealed partial class DbusWireWorker
+internal sealed partial class LibDBusWireWorker
 {
     private static readonly unsafe DBusAddWatchFunction AddWatchDelegate = AddWatchCallback;
     private static readonly unsafe DBusRemoveWatchFunction RemoveWatchDelegate = RemoveWatchCallback;
@@ -35,7 +35,7 @@ internal sealed partial class DbusWireWorker
     private static readonly DBusNativeMessagePtr
         HandleMsgPtr = Marshal.GetFunctionPointerForDelegate(HandleMsgDelegate);
 
-    private static readonly ConcurrentDictionary<int, DbusWireWorker> ActiveWorkers = new();
+    private static readonly ConcurrentDictionary<int, LibDBusWireWorker> ActiveWorkers = new();
     private static int _activeWorkerCounter;
 
     private readonly unsafe DBusNativeConnection* _connection;
@@ -69,7 +69,7 @@ internal sealed partial class DbusWireWorker
     internal ChannelReader<DBusMessage> ReceivingReader => _receiving.Reader;
     internal Task DisposeTask => _disposeCompletion.Task;
 
-    private unsafe DbusWireWorker(DBusNativeConnection* connection, bool closeOnDispose, IDBusDiagnostics? diagnostics)
+    private unsafe LibDBusWireWorker(DBusNativeConnection* connection, bool closeOnDispose, IDBusDiagnostics? diagnostics)
     {
         _poll = PosixPollFactory.Create();
         _curWakeupFd = new WakeupFd(_poll);
@@ -99,7 +99,7 @@ internal sealed partial class DbusWireWorker
         StartEventLoop();
     }
 
-    internal static unsafe DbusWireWorker OpenBus(DBusBusType busType, IDBusDiagnostics? diagnostics = null)
+    internal static unsafe LibDBusWireWorker OpenBus(DBusBusType busType, IDBusDiagnostics? diagnostics = null)
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
@@ -110,10 +110,10 @@ internal sealed partial class DbusWireWorker
             ThrowErrorAndFree(ref error, "Failed to connect to D-Bus bus.");
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
-        return new DbusWireWorker(connection, closeOnDispose: true, diagnostics);
+        return new LibDBusWireWorker(connection, closeOnDispose: true, diagnostics);
     }
 
-    internal static unsafe DbusWireWorker OpenAddress(string address, IDBusDiagnostics? diagnostics = null)
+    internal static unsafe LibDBusWireWorker OpenAddress(string address, IDBusDiagnostics? diagnostics = null)
     {
         DbusHelpers.EnsureThreadsInitialized();
         DBusError error = default;
@@ -134,7 +134,7 @@ internal sealed partial class DbusWireWorker
         }
 
         dbus_connection_set_exit_on_disconnect(connection, 0);
-        return new DbusWireWorker(connection, closeOnDispose: true, diagnostics);
+        return new LibDBusWireWorker(connection, closeOnDispose: true, diagnostics);
     }
 
     internal bool TryEnqueue(WireWorkerMessage message)
@@ -146,13 +146,13 @@ internal sealed partial class DbusWireWorker
         }
         else if (_disposed || Volatile.Read(ref _disposeRequested) != 0)
         {
-            FailMessage(message, new ObjectDisposedException(nameof(DBusWireConnection)));
+            FailMessage(message, new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return false;
         }
 
         if (!_messageQueue.Writer.TryWrite(message))
         {
-            FailMessage(message, new ObjectDisposedException(nameof(DBusWireConnection)));
+            FailMessage(message, new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return false;
         }
 
@@ -167,7 +167,7 @@ internal sealed partial class DbusWireWorker
         _workerThread = new Thread(MainEventLoop)
         {
             IsBackground = true,
-            Name = $"DbusWireWorker_{GetHashCode()}"
+            Name = $"LibDbusWireWorker_{GetHashCode()}"
         };
         _workerThread.Start();
     }
@@ -308,7 +308,7 @@ internal sealed partial class DbusWireWorker
     {
         while (_messageQueue.Reader.TryRead(out var message))
         {
-            FailMessage(message, new ObjectDisposedException(nameof(DBusWireConnection)));
+            FailMessage(message, new ObjectDisposedException(nameof(LibDBusWireConnection)));
         }
     }
 
@@ -340,7 +340,7 @@ internal sealed partial class DbusWireWorker
     {
         if (_disposed || Volatile.Read(ref _disposeRequested) != 0)
         {
-            fetch.ReturnTcs.TrySetException(new ObjectDisposedException(nameof(DBusWireConnection)));
+            fetch.ReturnTcs.TrySetException(new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return;
         }
 
@@ -358,7 +358,7 @@ internal sealed partial class DbusWireWorker
     {
         if (_disposed || Volatile.Read(ref _disposeRequested) != 0)
         {
-            send.Completion.TrySetException(new ObjectDisposedException(nameof(DBusWireConnection)));
+            send.Completion.TrySetException(new ObjectDisposedException(nameof(LibDBusWireConnection)));
             return;
         }
 
@@ -697,7 +697,7 @@ internal sealed partial class DbusWireWorker
 
         foreach (var kvp in _pendingReplies)
         {
-            kvp.Value.Fail(new ObjectDisposedException(nameof(DBusWireConnection)));
+            kvp.Value.Fail(new ObjectDisposedException(nameof(LibDBusWireConnection)));
         }
 
         _pendingReplies.Clear();
