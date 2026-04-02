@@ -232,6 +232,7 @@ internal sealed partial class LibDBusWireWorker
         catch (Exception ex)
         {
             // Unhandled exceptions on the worker thread would otherwise leave callers hanging forever.
+            LogOrTrace($"LibDBusWireWorker event loop crashed: {ex}");
             _diagnostics?.OnUnobservedException(ex);
             try
             {
@@ -239,6 +240,7 @@ internal sealed partial class LibDBusWireWorker
             }
             catch (Exception disposeEx)
             {
+                LogOrTrace($"LibDBusWireWorker dispose after crash failed: {disposeEx}");
                 _diagnostics?.OnUnobservedException(disposeEx);
             }
             finally
@@ -266,7 +268,7 @@ internal sealed partial class LibDBusWireWorker
             }
             catch (Exception ex)
             {
-                LogVerbose(ex.ToString());
+                LogOrTrace($"ProcessQueuedMessages failed: {ex}");
             }
         }
     }
@@ -548,7 +550,15 @@ internal sealed partial class LibDBusWireWorker
     private static void LogNativeCallbackException(Exception ex, int workerId)
     {
         if (ActiveWorkers.TryGetValue(workerId, out var worker))
+        {
+            worker.LogOrTrace($"Native callback exception: {ex}");
             worker._diagnostics?.OnUnobservedException(ex);
+        }
+        else
+        {
+            // Worker already disposed — ensure the error is not completely lost.
+            Console.Error.WriteLine($"[Avalonia.DBus] Native callback exception (worker {workerId} gone): {ex}");
+        }
     }
 
     private static unsafe uint AddWatchCallback(DBusWatch* watch, void* data)
@@ -642,6 +652,17 @@ internal sealed partial class LibDBusWireWorker
 
     private void HandleMessage(DBusNativeMessagePtr message)
     {
+        // Extract reply serial from the native message BEFORE full deserialization
+        // so we can fail the pending TCS if deserialization throws.
+        uint nativeReplySerial = 0;
+        DBusMessageType nativeType = default;
+        unsafe
+        {
+            var nativeMsg = (DBusNativeMessage*)message.ToPointer();
+            nativeType = (DBusMessageType)dbus_message_get_type(nativeMsg);
+            nativeReplySerial = dbus_message_get_reply_serial(nativeMsg);
+        }
+
         try
         {
             DBusMessage? msg;
@@ -665,7 +686,18 @@ internal sealed partial class LibDBusWireWorker
         }
         catch (Exception e)
         {
-            LogVerbose(e.ToString());
+            LogOrTrace($"HandleMessage failed: {e}");
+
+            // If this was a reply and we have a pending TCS, fail it so the caller
+            // gets an exception instead of hanging forever.
+            if (nativeType is DBusMessageType.MethodReturn or DBusMessageType.Error
+                && nativeReplySerial != 0
+                && _pendingReplies.TryRemove(nativeReplySerial, out var pending))
+            {
+                pending.Completion.TrySetException(
+                    new DBusException("org.freedesktop.DBus.Error.Failed",
+                        $"Failed to deserialize D-Bus reply (serial {nativeReplySerial}): {e.Message}"));
+            }
         }
         finally
         {
@@ -767,6 +799,18 @@ internal sealed partial class LibDBusWireWorker
     private void LogVerbose(string message)
     {
         _diagnostics?.Log(DBusLogLevel.Verbose, message);
+    }
+
+    /// <summary>
+    /// Logs a message that should never be silently lost. Uses diagnostics if available,
+    /// otherwise falls back to stderr so errors are always observable.
+    /// </summary>
+    private void LogOrTrace(string message)
+    {
+        if (_diagnostics != null)
+            _diagnostics.Log(DBusLogLevel.Error, message);
+        else
+            Console.Error.WriteLine($"[Avalonia.DBus] {message}");
     }
 
     private static unsafe void ThrowErrorAndFree(ref DBusError error, string fallbackMessage)

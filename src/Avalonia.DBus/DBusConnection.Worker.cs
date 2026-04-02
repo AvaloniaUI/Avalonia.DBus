@@ -32,7 +32,12 @@ sealed partial class DBusConnection
                 t =>
                 {
                     if (t.Exception != null)
-                        diagnostics?.OnUnobservedException(t.Exception);
+                    {
+                        if (diagnostics != null)
+                            diagnostics.OnUnobservedException(t.Exception);
+                        else
+                            Console.Error.WriteLine($"[Avalonia.DBus] DBusConnection worker crashed: {t.Exception}");
+                    }
                 },
                 CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted,
@@ -125,9 +130,19 @@ sealed partial class DBusConnection
                     catch (Exception ex)
                     {
                         if (raw.Completion != null)
+                        {
                             raw.Completion.TrySetException(ex);
+                        }
                         else
-                            diagnostics?.OnUnobservedException(ex);
+                        {
+                            // Handler replies have no Completion — ensure the error is never invisible.
+                            if (diagnostics != null)
+                                diagnostics.OnUnobservedException(ex);
+                            else
+                                Console.Error.WriteLine(
+                                    $"[Avalonia.DBus] Failed to send D-Bus reply " +
+                                    $"(serial={raw.Message.ReplySerial}, sig={raw.Message.Signature}): {ex.Message}");
+                        }
                     }
 
                     break;
@@ -381,8 +396,15 @@ sealed partial class DBusConnection
             {
                 pathValue = NormalizePath(message.Path.Value);
             }
-            catch
+            catch (Exception ex)
             {
+                // Send an error reply instead of silently dropping the method call.
+                if ((message.Flags & DBusMessageFlags.NoReplyExpected) == 0)
+                {
+                    var error = message.CreateError("org.freedesktop.DBus.Error.InvalidArgs",
+                        $"Invalid object path: {ex.Message}");
+                    controlWriter.TryWrite(new RawDBusMessageMessage(error, CancellationToken.None, Completion: null));
+                }
                 return;
             }
 

@@ -165,6 +165,49 @@ sealed class DBusMessage
     }
 
     /// <summary>
+    /// Creates a METHOD_RETURN message with an explicit D-Bus body signature.
+    /// Use when the signature is known at compile time to avoid inference failures on empty arrays.
+    /// </summary>
+    public DBusMessage CreateReplyWithSignature(string signature, params object[] body)
+    {
+        var reply = new DBusMessage
+        {
+            Type = DBusMessageType.MethodReturn,
+            ReplySerial = Serial,
+            Destination = Sender,
+        };
+        reply.SetBodyWithSignature(body ?? [], signature);
+        return reply;
+    }
+
+    /// <summary>
+    /// Creates a SIGNAL message with an explicit D-Bus body signature.
+    /// Use when the signature is known at compile time to avoid inference failures on empty arrays.
+    /// </summary>
+    public static DBusMessage CreateSignalWithSignature(
+        DBusObjectPath path,
+        string iface,
+        string member,
+        string signature,
+        params object[] body)
+    {
+        if (string.IsNullOrEmpty(iface))
+            throw new ArgumentException("Interface is required.", nameof(iface));
+        if (string.IsNullOrEmpty(member))
+            throw new ArgumentException("Member is required.", nameof(member));
+
+        var msg = new DBusMessage
+        {
+            Type = DBusMessageType.Signal,
+            Path = path,
+            Interface = iface,
+            Member = member,
+        };
+        msg.SetBodyWithSignature(body ?? [], signature);
+        return msg;
+    }
+
+    /// <summary>
     /// Creates an ERROR message in reply to this message.
     /// </summary>
     public DBusMessage CreateError(string errorName, string? errorMessage = null)

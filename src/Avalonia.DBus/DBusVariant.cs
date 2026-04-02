@@ -28,4 +28,14 @@ sealed class DBusVariant
         Value = value ?? throw new ArgumentNullException(nameof(value));
         Signature = new DBusSignature(DBusSignatureInference.InferSignatureFromValue(value));
     }
+
+    /// <summary>
+    /// Creates a variant with an explicit D-Bus signature, bypassing inference.
+    /// Use when the signature is known at compile time to avoid inference failures on empty arrays.
+    /// </summary>
+    public DBusVariant(object value, string signature)
+    {
+        Value = value ?? throw new ArgumentNullException(nameof(value));
+        Signature = new DBusSignature(signature ?? throw new ArgumentNullException(nameof(signature)));
+    }
 }
