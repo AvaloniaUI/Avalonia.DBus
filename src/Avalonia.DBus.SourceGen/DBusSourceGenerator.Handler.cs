@@ -125,16 +125,21 @@ public partial class DBusSourceGenerator
             {
                 sb.AppendLine($"                    var result = await typedTarget.{methodIdentifier}({callArguments}).ConfigureAwait(false);");
 
+                // Use CreateReplyWithSignature with the compile-time-known D-Bus signature
+                // to avoid inference failures on empty arrays of struct types.
+                var replySignature = string.Concat(outArgs.Select(static a => a.Type));
+                var replySignatureLiteral = SymbolDisplay.FormatLiteral(replySignature, quote: true);
+
                 if (outArgs.Length == 1)
                 {
                     var toDbusExpression = MakeToDbusValueExpressionString(outArgs[0].DBusDotnetType, "result");
-                    sb.AppendLine($"                    return message.CreateReply({toDbusExpression});");
+                    sb.AppendLine($"                    return message.CreateReplyWithSignature({replySignatureLiteral}, {toDbusExpression});");
                 }
                 else
                 {
                     var replyArgs = string.Join(", ", outArgs.Select((argument, index) =>
                         MakeToDbusValueExpressionString(argument.DBusDotnetType, $"result.Item{index + 1}")));
-                    sb.AppendLine($"                    return message.CreateReply({replyArgs});");
+                    sb.AppendLine($"                    return message.CreateReplyWithSignature({replySignatureLiteral}, {replyArgs});");
                 }
             }
 
@@ -168,8 +173,9 @@ public partial class DBusSourceGenerator
             var propertyNameLiteral = SymbolDisplay.FormatLiteral(property.Name!, quote: true);
             var propertyIdentifier = GetPropertyIdentifier(property);
             var toDbusExpression = MakeToDbusValueExpressionString(property.DBusDotnetType, $"typedTarget.{propertyIdentifier}");
+            var propertySignatureLiteral = SymbolDisplay.FormatLiteral(property.Type!, quote: true);
             sb.AppendLine($"                case {propertyNameLiteral}:");
-            sb.AppendLine($"                    return new DBusVariant({toDbusExpression});");
+            sb.AppendLine($"                    return new DBusVariant({toDbusExpression}, {propertySignatureLiteral});");
         }
 
         sb.AppendLine("                default:");
@@ -212,7 +218,8 @@ public partial class DBusSourceGenerator
             var propertyNameLiteral = SymbolDisplay.FormatLiteral(property.Name!, quote: true);
             var propertyIdentifier = GetPropertyIdentifier(property);
             var toDbusExpression = MakeToDbusValueExpressionString(property.DBusDotnetType, $"typedTarget.{propertyIdentifier}");
-            sb.AppendLine($"            values[{propertyNameLiteral}] = new DBusVariant({toDbusExpression});");
+            var propertySignatureLiteral = SymbolDisplay.FormatLiteral(property.Type!, quote: true);
+            sb.AppendLine($"            values[{propertyNameLiteral}] = new DBusVariant({toDbusExpression}, {propertySignatureLiteral});");
         }
 
         sb.AppendLine("            return values;");

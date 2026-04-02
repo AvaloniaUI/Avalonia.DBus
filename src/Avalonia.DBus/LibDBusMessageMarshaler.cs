@@ -565,9 +565,108 @@ internal static unsafe class DBusMessageMarshaler
         DBusMessageIter iter;
         dbus_message_iter_init_append(native, &iter);
 
-        foreach (var item in message.Body)
+        // When the message has a known signature (set via SetBodyWithSignature),
+        // use it to drive serialization so empty arrays of struct types can be
+        // correctly marshaled without needing to infer from values.
+        var sig = message.Signature.Value;
+        if (!string.IsNullOrEmpty(sig))
         {
-            AppendValue(ref iter, item);
+            var sigIndex = 0;
+            foreach (var item in message.Body)
+            {
+                var itemSig = DBusSignatureParser.ReadSingleType(sig, ref sigIndex);
+                AppendValueWithSignature(ref iter, item, itemSig);
+            }
+        }
+        else
+        {
+            foreach (var item in message.Body)
+            {
+                AppendValue(ref iter, item);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Appends a value using a known D-Bus signature to guide array/dict serialization.
+    /// Falls back to inference-based AppendValue for non-container types.
+    /// </summary>
+    private static void AppendValueWithSignature(ref DBusMessageIter iter, object value, string signature)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (signature.Length > 0 && signature[0] == DBusSignatureToken.Array)
+        {
+            var elementSignature = signature.Substring(1);
+            if (elementSignature.Length > 0 && elementSignature[0] == DBusSignatureToken.DictEntryBegin)
+                AppendDictWithSignature(ref iter, value, elementSignature);
+            else
+                AppendArrayWithSignature(ref iter, value, elementSignature);
+            return;
+        }
+
+        if (value is DBusVariant variant)
+        {
+            AppendVariant(ref iter, variant);
+            return;
+        }
+
+        // For non-container types, the existing inference works fine.
+        AppendValue(ref iter, value);
+    }
+
+    /// <summary>
+    /// Appends an array using a known element signature, avoiding inference on the value.
+    /// This handles empty arrays of struct types correctly.
+    /// </summary>
+    private static void AppendArrayWithSignature(ref DBusMessageIter iter, object array, string elementSignature)
+    {
+        using var sig = new Utf8String(elementSignature);
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            if (dbus_message_iter_open_container(iterPtr, DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
+                throw new InvalidOperationException("Failed to open array container.");
+        }
+
+        foreach (var item in DBusCollectionHelpers.EnumerateListItems(array))
+            AppendValue(ref child, item ?? throw new InvalidOperationException("Array contains null values."));
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus_message_iter_close_container(iterPtr, &child);
+        }
+    }
+
+    /// <summary>
+    /// Appends a dictionary using a known entry signature, avoiding inference on the value.
+    /// </summary>
+    private static void AppendDictWithSignature(ref DBusMessageIter iter, object dict, string entrySignature)
+    {
+        using var sig = new Utf8String(entrySignature);
+        DBusMessageIter child;
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            if (dbus_message_iter_open_container(iterPtr, DBUS_TYPE_ARRAY, sig.Pointer, &child) == 0)
+                throw new InvalidOperationException("Failed to open dict container.");
+        }
+
+        foreach (var entry in DBusCollectionHelpers.EnumerateDictionaryEntries(dict))
+        {
+            DBusMessageIter entryIter;
+            var childPtr = &child;
+            if (dbus_message_iter_open_container(childPtr, DBUS_TYPE_DICT_ENTRY, null, &entryIter) == 0)
+                throw new InvalidOperationException("Failed to open dict entry container.");
+
+            AppendValue(ref entryIter, entry.Key ?? throw new InvalidOperationException("Dictionary key is null."));
+            AppendValue(ref entryIter, entry.Value ?? throw new InvalidOperationException("Dictionary value is null."));
+
+            dbus_message_iter_close_container(childPtr, &entryIter);
+        }
+
+        fixed (DBusMessageIter* iterPtr = &iter)
+        {
+            dbus_message_iter_close_container(iterPtr, &child);
         }
     }
 
