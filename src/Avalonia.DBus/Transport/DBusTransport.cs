@@ -116,6 +116,55 @@ static class DBusTransport
             diagnostics: diagnostics);
     }
 
+    /// <summary>
+    /// Async convenience helper that opens a Unix domain stream socket and returns a
+    /// peer-to-peer <see cref="ChannelsDBusWireConnection"/> using raw D-Bus wire framing over it.
+    /// The connect is performed asynchronously, allowing the kernel to queue the request
+    /// until the server's accept loop is ready.
+    /// </summary>
+    /// <param name="socketPath">The file-system path of the Unix domain socket.</param>
+    /// <param name="cancellationToken">Token to cancel the connect attempt.</param>
+    /// <returns>A <see cref="ChannelsDBusWireConnection"/> connected to the socket.</returns>
+    public static Task<ChannelsDBusWireConnection> ConnectUnixAsync(
+        string socketPath, CancellationToken cancellationToken = default)
+        => ConnectUnixAsync(socketPath, diagnostics: null, cancellationToken);
+
+    /// <summary>
+    /// Async convenience helper that opens a Unix domain stream socket and returns a
+    /// peer-to-peer <see cref="ChannelsDBusWireConnection"/> using raw D-Bus wire framing over it.
+    /// The connect is performed asynchronously, allowing the kernel to queue the request
+    /// until the server's accept loop is ready.
+    /// </summary>
+    /// <param name="socketPath">The file-system path of the Unix domain socket.</param>
+    /// <param name="diagnostics">Receives warnings and unobserved background task failures from the transport.</param>
+    /// <param name="cancellationToken">Token to cancel the connect attempt.</param>
+    /// <returns>A <see cref="ChannelsDBusWireConnection"/> connected to the socket.</returns>
+    public static async Task<ChannelsDBusWireConnection> ConnectUnixAsync(
+        string socketPath, IDBusDiagnostics? diagnostics, CancellationToken cancellationToken = default)
+    {
+        var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        try
+        {
+            await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+
+        var (reader, writer, cts, _, _) = FromSocket(socket, diagnostics);
+        return new ChannelsDBusWireConnection(
+            reader,
+            writer,
+            socket: socket,
+            cts: cts,
+            uniqueName: null,
+            isPeerToPeer: true,
+            diagnostics: diagnostics);
+    }
+
     private static void ObserveBackgroundFault(Task task, IDBusDiagnostics? diagnostics)
     {
         if (diagnostics == null)
