@@ -1,5 +1,6 @@
 <Project>
     <ItemGroup>
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="DBusGeneratorMode" />
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="DBusNamespace" />
     </ItemGroup>
 </Project>
