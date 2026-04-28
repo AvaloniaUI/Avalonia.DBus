@@ -9,9 +9,11 @@
     <Project Path="tests/Avalonia.DBus.Testing/Avalonia.DBus.Testing.csproj" />
     <Project Path="tests/NDesk.DBus.Tests/NDesk.DBus.Tests.csproj" />
     <Project Path="tests/Avalonia.DBus.Interop.Tests/Avalonia.DBus.Interop.Tests.csproj" />
+    <Project Path="tests/Avalonia.DBus.Tmds.Tests/Avalonia.DBus.Tmds.Tests.csproj" />
     <Project Path="tests/Avalonia.DBus.WireMarshalling.Tests/Avalonia.DBus.WireMarshalling.Tests.csproj" />
   </Folder>
   <Project Path="src/Avalonia.DBus/Avalonia.DBus.csproj" />
+  <Project Path="src/Avalonia.DBus.Tmds/Avalonia.DBus.Tmds.csproj" />
   <Project Path="src/Avalonia.DBus.SourceGen/Avalonia.DBus.SourceGen.csproj" />
   <Project Path="tools/Avalonia.DBus.PublicApiExtractor/Avalonia.DBus.PublicApiExtractor.csproj" />
 </Solution>
