@@ -61,9 +61,13 @@ public partial class DBusSourceGenerator : IIncrementalGenerator
                     if (dBusNode.Interfaces is null)
                         return default;
 
+                    var options = x.Right.GetOptions(x.Left);
+                    options.TryGetValue("build_metadata.AdditionalFiles.DBusNamespace", out var explicitNamespace);
                     x.Right.GlobalOptions.TryGetValue("build_property.ProjectDir", out var projectDir);
                     x.Right.GlobalOptions.TryGetValue("build_property.RootNamespace", out var rootNamespace);
-                    var userFacingNamespace = GetUserFacingNamespace(x.Left.Path, projectDir, rootNamespace);
+                    var userFacingNamespace = string.IsNullOrWhiteSpace(explicitNamespace)
+                        ? GetUserFacingNamespace(x.Left.Path, projectDir, rootNamespace)
+                        : NormalizeNamespace(null, explicitNamespace!);
                     return new XmlParseResult(dBusNode, generatorMode, x.Left.Path, userFacingNamespace, null);
                 }
                 catch (Exception ex)
