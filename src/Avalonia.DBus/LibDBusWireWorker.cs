@@ -672,6 +672,12 @@ internal sealed partial class LibDBusWireWorker
                 msg = DBusMessageMarshaler.FromNative(msg1);
             }
 
+            // TODO: Close any Unix file descriptors the peer passed in.
+            //       We don't need to handle any received file descriptors for now and tracking
+            //       fd's ownership and disposal is overkill given that it's not used here.
+            //       We'll do a better resource lifetime management for fd's if we do need them in the future.
+            ReceivedUnixFdCloser.CloseAll(msg.Body);
+
             if (msg.Type is DBusMessageType.MethodReturn or DBusMessageType.Error)
             {
                 var replySerial = msg.ReplySerial;
