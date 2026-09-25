@@ -285,6 +285,18 @@ public class InMemoryWireConnectionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Dispose_CalledConcurrently_BothComplete()
+    {
+        var (wireA, _) = InMemoryWireConnection.CreatePair(":dispose.A", ":dispose.B", s_serializer);
+        var conn = new DBusConnection(wireA);
+
+        var first = conn.DisposeAsync().AsTask();
+        var second = conn.DisposeAsync().AsTask();
+
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public async Task MethodCall_ComplexSignature_RoundTripsAllTypes()
     {
         // Build a body that contains every D-Bus type
