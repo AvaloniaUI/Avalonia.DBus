@@ -60,10 +60,8 @@ sealed partial class DBusConnection
                     continue;
                 }
 
+                // Keep reading after dispose so messages already queued behind it still complete.
                 await HandleControlMessageAsync(item);
-
-                if (_disposed)
-                    return;
             }
         }
 
