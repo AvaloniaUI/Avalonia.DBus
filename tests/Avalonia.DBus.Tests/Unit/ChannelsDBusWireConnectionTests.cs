@@ -207,6 +207,37 @@ public class ChannelsDBusWireConnectionTests
     }
 
     [Fact]
+    public async Task InboundCompleted_FailsPendingReplies()
+    {
+        var (conn, inbound, outbound) = CreateConnection();
+        await using (conn)
+        {
+            var call = DBusMessage.CreateMethodCall(":1.2", "/org/test", "org.test.Iface", "Echo");
+            var replyTask = conn.SendWithReplyAsync(call);
+            await outbound.Reader.ReadAsync();
+
+            inbound.Writer.Complete();
+
+            var ex = await Assert.ThrowsAsync<DBusException>(() => replyTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal("org.freedesktop.DBus.Error.Disconnected", ex.ErrorName);
+        }
+    }
+
+    [Fact]
+    public async Task SendWithReplyAsync_AfterInboundCompleted_Throws()
+    {
+        var (conn, inbound, _) = CreateConnection();
+        await using (conn)
+        {
+            inbound.Writer.Complete();
+
+            var call = DBusMessage.CreateMethodCall(":1.2", "/org/test", "org.test.Iface", "Echo");
+            var ex = await Assert.ThrowsAsync<DBusException>(() => conn.SendWithReplyAsync(call).WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal("org.freedesktop.DBus.Error.Disconnected", ex.ErrorName);
+        }
+    }
+
+    [Fact]
     public async Task MultipleConcurrentSendWithReplyAsync_CorrelateCorrectly()
     {
         var (conn, inbound, outbound) = CreateConnection(uniqueName: ":1.1");
