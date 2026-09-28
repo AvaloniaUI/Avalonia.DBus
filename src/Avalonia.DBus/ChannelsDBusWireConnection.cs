@@ -212,8 +212,6 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
 
         // Fail outstanding reply waiters after transport shutdown.
         FailPendingReplies(new ObjectDisposedException(nameof(ChannelsDBusWireConnection)));
-
-        _receiving.Writer.TryComplete();
     }
 
     private async Task RunReceiveLoopAsync(ChannelReader<DBusSerializedMessage> reader, CancellationToken cancellationToken)
@@ -247,9 +245,6 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                     await _receiving.Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
                 }
             }
-
-            if (!cancellationToken.IsCancellationRequested && Volatile.Read(ref _disposed) == 0)
-                DBusTransportLog.InboundTransportCompleted(_diagnostics);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -261,11 +256,14 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         }
         finally
         {
+            _receiving.Writer.TryComplete();
+
             // No reply can arrive once the inbound side ends, so fail the waiters now.
             if (Volatile.Read(ref _disposed) == 0)
             {
                 Volatile.Write(ref _inboundCompleted, 1);
                 FailPendingReplies(CreateDisconnectedException());
+                DBusTransportLog.InboundTransportCompleted(_diagnostics);
             }
         }
     }
