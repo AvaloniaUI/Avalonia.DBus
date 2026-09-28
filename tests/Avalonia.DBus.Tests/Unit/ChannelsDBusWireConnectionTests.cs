@@ -217,22 +217,13 @@ public class ChannelsDBusWireConnectionTests
             await outbound.Reader.ReadAsync();
 
             inbound.Writer.Complete();
+            await conn.ReceivingReader.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
             var ex = await Assert.ThrowsAsync<DBusException>(() => replyTask.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Equal("org.freedesktop.DBus.Error.Disconnected", ex.ErrorName);
-        }
-    }
 
-    [Fact]
-    public async Task SendWithReplyAsync_AfterInboundCompleted_Throws()
-    {
-        var (conn, inbound, _) = CreateConnection();
-        await using (conn)
-        {
-            inbound.Writer.Complete();
-
-            var call = DBusMessage.CreateMethodCall(":1.2", "/org/test", "org.test.Iface", "Echo");
-            var ex = await Assert.ThrowsAsync<DBusException>(() => conn.SendWithReplyAsync(call).WaitAsync(TimeSpan.FromSeconds(5)));
+            var laterCall = DBusMessage.CreateMethodCall(":1.2", "/org/test", "org.test.Iface", "Echo");
+            ex = await Assert.ThrowsAsync<DBusException>(() => conn.SendWithReplyAsync(laterCall).WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Equal("org.freedesktop.DBus.Error.Disconnected", ex.ErrorName);
         }
     }
