@@ -232,7 +232,8 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                 catch (Exception ex) when (ex is InvalidDataException
                     or NotSupportedException
                     or InvalidOperationException
-                    or FormatException)
+                    or FormatException
+                    or ArgumentException)
                 {
                     DBusTransportLog.MalformedMessageSkipped(_diagnostics, ex);
                     continue;
