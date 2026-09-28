@@ -26,6 +26,7 @@ interface IDBusWireConnection : IAsyncDisposable
 
     /// <summary>
     /// Reader for incoming messages (METHOD_CALL, SIGNAL, etc.).
+    /// It must complete when the connection is disposed.
     /// </summary>
     ChannelReader<DBusMessage> ReceivingReader { get; }
 

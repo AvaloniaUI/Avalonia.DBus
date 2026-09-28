@@ -60,7 +60,6 @@ sealed partial class DBusConnection
                     continue;
                 }
 
-                // Keep reading after dispose so messages already queued behind it still complete.
                 await HandleControlMessageAsync(item);
             }
         }
@@ -116,6 +115,9 @@ sealed partial class DBusConnection
 
                 case UnsubscribeMessage unsubscribe:
                     Unsubscribe(unsubscribe.Token);
+                    break;
+
+                case RawDBusMessageMessage { Completion: null } when _disposed:
                     break;
 
                 case RawDBusMessageMessage raw:
@@ -570,45 +572,12 @@ sealed partial class DBusConnection
                 disposeError = ex;
             }
 
-            var pendingError = new ObjectDisposedException(nameof(DBusConnection));
-            controlWriter.TryComplete(disposeError);
-            DrainControlQueue(pendingError);
+            controlWriter.TryComplete();
 
             if (disposeError != null)
                 request.Completion.TrySetException(disposeError);
             else
                 request.Completion.TrySetResult(true);
-        }
-
-        private void DrainControlQueue(Exception error)
-        {
-            while (controlReader.TryRead(out var pending))
-                FailControlMessage(pending, error);
-        }
-
-        private void FailControlMessage(object message, Exception error)
-        {
-            switch (message)
-            {
-                case MethodCallMessage methodCall:
-                    methodCall.ReplyTcs.TrySetException(error);
-                    break;
-                case RegisterObjectsMessage register:
-                    register.Completion.TrySetException(error);
-                    break;
-                case SubscribeMessage subscribe:
-                    subscribe.Completion.TrySetException(error);
-                    break;
-                case RawDBusMessageMessage { Completion: { } completion }:
-                    completion.TrySetException(error);
-                    break;
-                case GetUniqueNameMessage getUniqueName:
-                    getUniqueName.Completion.TrySetException(error);
-                    break;
-                case DisposeConnectionMessage dispose:
-                    dispose.Completion.TrySetException(error);
-                    break;
-            }
         }
 
         private void ThrowIfDisposed()
