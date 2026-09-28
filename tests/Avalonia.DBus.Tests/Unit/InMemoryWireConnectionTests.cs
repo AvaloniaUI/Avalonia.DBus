@@ -277,23 +277,7 @@ public class InMemoryWireConnectionTests : IAsyncLifetime
         var (wireA, _) = InMemoryWireConnection.CreatePair(":dispose.A", ":dispose.B", s_serializer);
         var conn = new DBusConnection(wireA);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var disposeTask = conn.DisposeAsync().AsTask();
-        var completed = await Task.WhenAny(disposeTask, Task.Delay(TimeSpan.FromSeconds(5), cts.Token));
-
-        Assert.Same(disposeTask, completed);
-    }
-
-    [Fact]
-    public async Task Dispose_CalledConcurrently_BothComplete()
-    {
-        var (wireA, _) = InMemoryWireConnection.CreatePair(":dispose.A", ":dispose.B", s_serializer);
-        var conn = new DBusConnection(wireA);
-
-        var first = conn.DisposeAsync().AsTask();
-        var second = conn.DisposeAsync().AsTask();
-
-        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.WhenAll(conn.DisposeAsync().AsTask(), conn.DisposeAsync().AsTask()).WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
