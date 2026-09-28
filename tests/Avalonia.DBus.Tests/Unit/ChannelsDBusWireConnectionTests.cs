@@ -331,6 +331,36 @@ public class ChannelsDBusWireConnectionTests
     }
 
     [Fact]
+    public async Task ReceiveLoop_InvalidBodySignature_SkipsAndContinues()
+    {
+        var diagnostics = new CollectingDiagnostics();
+        var (conn, inbound, _) = CreateConnection(diagnostics: diagnostics);
+        await using (conn)
+        {
+            var invalid = DBusMessage.CreateSignal("/org/test", "org.test.Iface", "Invalid", 1);
+            invalid.Serial = 98;
+            var bytes = s_serializer.Serialize(invalid).Message;
+            var signatureField = bytes.AsSpan().IndexOf(new byte[] { 8, 1, (byte)'g', 0, 1, (byte)'i', 0 });
+            Assert.True(signatureField >= 0);
+            bytes[signatureField + 5] = (byte)'a';
+            await inbound.Writer.WriteAsync(new DBusSerializedMessage(bytes, []));
+
+            var signal = DBusMessage.CreateSignal("/org/test", "org.test.Iface", "Ping", "hello");
+            signal.Serial = 99;
+            await inbound.Writer.WriteAsync(s_serializer.Serialize(signal));
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var received = await conn.ReceivingReader.ReadAsync(cts.Token);
+
+            Assert.Equal("Ping", received.Member);
+            Assert.Contains(
+                diagnostics.Logs,
+                log => log.Level == DBusLogLevel.Warning
+                    && log.Message.Contains("Skipping malformed D-Bus message", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
     public async Task SendWithReplyAsync_SerializationFailure_DoesNotLeavePendingReply()
     {
         var (conn, inbound, _) = CreateConnection(uniqueName: ":1.1");
