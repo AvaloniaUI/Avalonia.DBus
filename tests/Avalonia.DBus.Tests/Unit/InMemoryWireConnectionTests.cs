@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.DBus.Tests.Helpers;
 using Xunit;
@@ -69,6 +70,35 @@ internal class ComplexEchoDispatcher : IDBusInterfaceCallDispatcher
             Destination = message.Sender,
             Body = message.Body
         });
+    }
+}
+
+file sealed class GatedDisposeWire(IDBusWireConnection inner) : IDBusWireConnection
+{
+    private readonly TaskCompletionSource _disposeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task DisposeStarted => _disposeStarted.Task;
+
+    public bool IsPeerToPeer => inner.IsPeerToPeer;
+
+    public ChannelReader<DBusMessage> ReceivingReader => inner.ReceivingReader;
+
+    public Task SendAsync(DBusMessage message, CancellationToken cancellationToken = default)
+        => inner.SendAsync(message, cancellationToken);
+
+    public Task<DBusMessage> SendWithReplyAsync(DBusMessage message, CancellationToken cancellationToken = default)
+        => inner.SendWithReplyAsync(message, cancellationToken);
+
+    public Task<string?> GetUniqueNameAsync() => inner.GetUniqueNameAsync();
+
+    public void ReleaseDispose() => _release.TrySetResult();
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposeStarted.TrySetResult();
+        await _release.Task;
+        await inner.DisposeAsync();
     }
 }
 
@@ -275,9 +305,15 @@ public class InMemoryWireConnectionTests : IAsyncLifetime
     public async Task Dispose_CompletesWithoutHanging()
     {
         var (wireA, _) = InMemoryWireConnection.CreatePair(":dispose.A", ":dispose.B", s_serializer);
-        var conn = new DBusConnection(wireA);
+        var wire = new GatedDisposeWire(wireA);
+        var conn = new DBusConnection(wire);
 
-        await Task.WhenAll(conn.DisposeAsync().AsTask(), conn.DisposeAsync().AsTask()).WaitAsync(TimeSpan.FromSeconds(5));
+        var first = conn.DisposeAsync().AsTask();
+        await wire.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        var second = conn.DisposeAsync().AsTask();
+        wire.ReleaseDispose();
+
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
