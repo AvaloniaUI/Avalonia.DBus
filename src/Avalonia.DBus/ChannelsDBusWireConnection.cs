@@ -33,6 +33,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
 
     private uint _nextSerial;
     private int _disposed;
+    private int _inboundCompleted;
 
     /// <summary>
     /// Creates a channel-backed wire connection.
@@ -150,6 +151,8 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
 
         var tcs = new TaskCompletionSource<DBusMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingReplies[message.Serial] = tcs;
+        if (Volatile.Read(ref _inboundCompleted) != 0 && _pendingReplies.TryRemove(message.Serial, out _))
+            throw CreateDisconnectedException();
 
         // Remove canceled waits from the pending-reply table.
         CancellationTokenRegistration reg = default;
@@ -208,14 +211,7 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         _cts.Dispose();
 
         // Fail outstanding reply waiters after transport shutdown.
-        var disposedEx = new ObjectDisposedException(nameof(ChannelsDBusWireConnection));
-        foreach (var kvp in _pendingReplies)
-        {
-            if (_pendingReplies.TryRemove(kvp.Key, out var tcs))
-                tcs.TrySetException(disposedEx);
-        }
-
-        _receiving.Writer.TryComplete();
+        FailPendingReplies(new ObjectDisposedException(nameof(ChannelsDBusWireConnection)));
     }
 
     private async Task RunReceiveLoopAsync(ChannelReader<DBusSerializedMessage> reader, CancellationToken cancellationToken)
@@ -250,9 +246,6 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
                     await _receiving.Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
                 }
             }
-
-            if (!cancellationToken.IsCancellationRequested && Volatile.Read(ref _disposed) == 0)
-                DBusTransportLog.InboundTransportCompleted(_diagnostics);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -261,6 +254,30 @@ sealed class ChannelsDBusWireConnection : IDBusWireConnection
         catch (ChannelClosedException)
         {
             // The inbound channel was completed — normal shutdown
+        }
+        finally
+        {
+            _receiving.Writer.TryComplete();
+
+            // No reply can arrive once the inbound side ends, so fail the waiters now.
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                Volatile.Write(ref _inboundCompleted, 1);
+                FailPendingReplies(CreateDisconnectedException());
+                DBusTransportLog.InboundTransportCompleted(_diagnostics);
+            }
+        }
+    }
+
+    private static DBusException CreateDisconnectedException()
+        => new("org.freedesktop.DBus.Error.Disconnected", "The connection closed before a reply was received.");
+
+    private void FailPendingReplies(Exception exception)
+    {
+        foreach (var serial in _pendingReplies.Keys)
+        {
+            if (_pendingReplies.TryRemove(serial, out var tcs))
+                tcs.TrySetException(exception);
         }
     }
 
