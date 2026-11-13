@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Avalonia.DBus.Platform;
 using Xunit;
@@ -11,7 +12,8 @@ public class ReceivedUnixFdCloserTests
 {
     private static bool IsUnix =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
-        RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ||
+        OperatingSystem.IsFreeBSD();
 
     [Fact]
     public void CloseAll_ClosesTopLevelDescriptor()

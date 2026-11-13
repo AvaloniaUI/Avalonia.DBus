@@ -12,7 +12,8 @@ public class PlatformAbstractionTests
     public void PosixPollFactory_Create_ReturnsCorrectType()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            !RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            !RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+            !OperatingSystem.IsFreeBSD())
         {
             Assert.Throws<PlatformNotSupportedException>(PosixPollFactory.Create);
             return;
@@ -24,6 +25,8 @@ public class PlatformAbstractionTests
             Assert.IsType<LinuxPosixPoll>(poll);
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             Assert.IsType<MacOSPosixPoll>(poll);
+        else
+            Assert.IsType<FreeBSDPosixPoll>(poll);
     }
 
     [SkipUnlessLinux]
