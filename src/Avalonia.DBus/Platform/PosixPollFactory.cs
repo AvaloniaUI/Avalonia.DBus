@@ -8,6 +8,7 @@ internal static class PosixPollFactory
     {
         if (OperatingSystem.IsLinux()) return new LinuxPosixPoll();
         if (OperatingSystem.IsMacOS()) return new MacOSPosixPoll();
-        throw new PlatformNotSupportedException("D-Bus requires Linux or macOS.");
+        if (OperatingSystem.IsFreeBSD()) return new FreeBSDPosixPoll();
+        throw new PlatformNotSupportedException("D-Bus requires Linux, macOS or FreeBSD.");
     }
 }
